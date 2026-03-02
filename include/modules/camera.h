@@ -6,6 +6,8 @@
 #define ECS_META_IMPL EXTERN
 #endif
 
+extern ECS_DECLARE(FlecsCameraController);
+
 ECS_STRUCT(FlecsCamera, {
     float fov;
     float near_;

@@ -4,9 +4,6 @@
 ECS_COMPONENT_DECLARE(FlecsInput);
 ECS_COMPONENT_DECLARE(FlecsEngineImpl);
 
-static FlecsInput *flecs_engine_input_active = NULL;
-static GLFWwindow *flecs_engine_input_window = NULL;
-
 static int flecsEngineInputKeyCode(
     int glfw_key)
 {
@@ -164,11 +161,15 @@ static void flecsEngineInputOnKey(
     int action,
     int mods)
 {
-    (void)window;
     (void)scancode;
     (void)mods;
 
-    FlecsInput *input = flecs_engine_input_active;
+    ecs_world_t *world = glfwGetWindowUserPointer(window);
+    if (!world) {
+        return;
+    }
+
+    FlecsInput *input = ecs_singleton_ensure(world, FlecsInput);
     if (!input) {
         return;
     }
@@ -189,10 +190,14 @@ static void flecsEngineInputOnMouseButton(
     int action,
     int mods)
 {
-    (void)window;
     (void)mods;
 
-    FlecsInput *input = flecs_engine_input_active;
+    ecs_world_t *world = glfwGetWindowUserPointer(window);
+    if (!world) {
+        return;
+    }
+
+    FlecsInput *input = ecs_singleton_ensure(world, FlecsInput);
     if (!input) {
         return;
     }
@@ -220,9 +225,12 @@ static void flecsEngineInputOnScroll(
     double xoffset,
     double yoffset)
 {
-    (void)window;
+    ecs_world_t *world = glfwGetWindowUserPointer(window);
+    if (!world) {
+        return;
+    }
 
-    FlecsInput *input = flecs_engine_input_active;
+    FlecsInput *input = ecs_singleton_ensure(world, FlecsInput);
     if (!input) {
         return;
     }
@@ -232,13 +240,14 @@ static void flecsEngineInputOnScroll(
 }
 
 static void flecsEngineInputBindWindow(
+    ecs_world_t *world,
     GLFWwindow *window)
 {
-    if (!window || window == flecs_engine_input_window) {
+    if (!window) {
         return;
     }
 
-    flecs_engine_input_window = window;
+    glfwSetWindowUserPointer(window, world);
     glfwSetKeyCallback(window, flecsEngineInputOnKey);
     glfwSetMouseButtonCallback(window, flecsEngineInputOnMouseButton);
     glfwSetScrollCallback(window, flecsEngineInputOnScroll);
@@ -249,12 +258,10 @@ static void FlecsInputFrame(
 {
     const FlecsEngineImpl *engine = ecs_singleton_get(it->world, FlecsEngineImpl);
     if (!engine || !engine->window) {
-        flecs_engine_input_active = NULL;
-        flecs_engine_input_window = NULL;
         return;
     }
 
-    flecsEngineInputBindWindow(engine->window);
+    flecsEngineInputBindWindow(it->world, engine->window);
 
     FlecsInput *input = ecs_singleton_ensure(it->world, FlecsInput);
 
@@ -264,9 +271,7 @@ static void FlecsInputFrame(
     flecsEngineInputKeysReset(input);
     flecsEngineInputMouseReset(input);
 
-    flecs_engine_input_active = input;
     glfwPollEvents();
-    flecs_engine_input_active = NULL;
 
     double wnd_x = 0.0;
     double wnd_y = 0.0;

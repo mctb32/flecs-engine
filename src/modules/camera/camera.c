@@ -3,6 +3,11 @@
 
 ECS_COMPONENT_DECLARE(FlecsCameraImpl);
 ECS_COMPONENT_DECLARE(FlecsCameraLookAt);
+ECS_COMPONENT_DECLARE(FlecsCameraAutoMove);
+ECS_TAG_DECLARE(FlecsCameraController);
+
+void FlecsEngineCameraControllerImport(
+    ecs_world_t *world);
 
 static void FlecsCameraTransformMvp(ecs_iter_t *it) {
     FlecsCamera *cameras = ecs_field(it, FlecsCamera, 0);
@@ -61,6 +66,7 @@ void FlecsEngineCameraImport(
     
     ECS_COMPONENT_DEFINE(world, FlecsCameraImpl);
     ECS_COMPONENT_DEFINE(world, FlecsCameraLookAt);
+    ECS_TAG_DEFINE(world, FlecsCameraController);
     ECS_META_COMPONENT(world, FlecsCamera);
 
     ecs_add_pair(world, 
@@ -76,4 +82,6 @@ void FlecsEngineCameraImport(
         [in] CameraLookAt, 
         [out] CameraImpl, 
         [out] flecs.engine.transform3.WorldTransform3);
+
+    FlecsEngineCameraControllerImport(world);
 }

@@ -162,6 +162,7 @@ int main(
       .far_ = 100.0f,
       .aspect_ratio = options.width / (float)options.height
   });
+  ecs_add(world, camera, FlecsCameraController);
 
   ecs_set(world, camera, FlecsPosition3, {0, 10, 0});
   ecs_set(world, camera, FlecsCameraLookAt, {0, 0, -16});
@@ -178,8 +179,6 @@ int main(
   ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_mesh(world);
   ecs_vec_append_t(NULL, &v->effects, ecs_entity_t)[0] =
     flecsEngine_createEffect_tonyMcMapFace(world, 0 /* input */);
-  // ecs_vec_append_t(NULL, &v->effects, ecs_entity_t)[0] =
-  //   flecsEngine_createEffect_invert(world, 0 /* input */);
   v->camera = camera;
   ecs_modified(world, view, FlecsRenderView);
 
