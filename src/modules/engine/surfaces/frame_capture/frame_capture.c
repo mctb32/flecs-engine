@@ -319,13 +319,6 @@ static int flecsEngineFrameCaptureSubmitFrame(
     const FlecsEngineSurface *target)
 {
     int result = flecsEngineFrameCaptureWriteImage(impl, target);
-    if (result == 0) {
-        ecs_log(0, "[engine] wrote frame-output image '%s' (%dx%d)",
-            impl->frame_output_path,
-            impl->width,
-            impl->height);
-    }
-
     impl->output_done = true;
     ecs_quit(world);
     return result;
