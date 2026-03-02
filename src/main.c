@@ -164,7 +164,7 @@ int main(
   });
 
   ecs_set(world, camera, FlecsPosition3, {0, 10, 0});
-  ecs_set(world, camera, FlecsRotation3, {-0.5, 0, 0});
+  ecs_set(world, camera, FlecsRotation3, {-0.5f, 0.0f, 0.0f});
 
   ecs_entity_t view = ecs_new(world);
   FlecsRenderView *v = ecs_ensure(world, view, FlecsRenderView);
@@ -186,22 +186,26 @@ int main(
   int numShapes = 7;
   int shapeY = 7;
   int shapeZ = -16;
+  const float spinSpeed = 1.0f;
 
   // 3D shapes
   ecs_entity_t box = ecs_new(world);
   ecs_set(world, box, FlecsBox, {2, 2, 2});
   ecs_set(world, box, FlecsPosition3, {-9, shapeY, shapeZ});
   ecs_set(world, box, FlecsRgba, {255, 0, 0});
+  ecs_set(world, box, FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
 
   ecs_entity_t triangle_prism = ecs_new(world);
   ecs_set(world, triangle_prism, FlecsTrianglePrism, {2, 2, 2});
   ecs_set(world, triangle_prism, FlecsPosition3, {-6, shapeY, shapeZ});
   ecs_set(world, triangle_prism, FlecsRgba, {128, 128, 0});
+  ecs_set(world, triangle_prism, FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
 
   ecs_entity_t right_triangle_prism = ecs_new(world);
   ecs_set(world, right_triangle_prism, FlecsRightTrianglePrism, {2, 2, 2});
   ecs_set(world, right_triangle_prism, FlecsPosition3, {-3, shapeY, shapeZ});
   ecs_set(world, right_triangle_prism, FlecsRgba, {0, 128, 0});
+  ecs_set(world, right_triangle_prism, FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
 
   ecs_entity_t quad = ecs_new(world);
   ecs_set(world, quad, FlecsQuad, {2, 2});
@@ -231,6 +235,7 @@ int main(
     ecs_set(world, spheres[i], FlecsSphere, { .segments = 3 + i, .smooth = i == (numShapes - 1), .radius = 1 });
     ecs_set(world, spheres[i], FlecsPosition3, {-9 + i * 3, shapeY - 3, shapeZ});
     ecs_set(world, spheres[i], FlecsRgba, {255});
+    ecs_set(world, spheres[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   }
 
   // Icospheres
@@ -240,6 +245,7 @@ int main(
     ecs_set(world, icospheres[i], FlecsIcoSphere, { .segments = i, .smooth = i == (numShapes - 1), .radius = 1 });
     ecs_set(world, icospheres[i], FlecsPosition3, {-9 + i * 3, shapeY - 6, shapeZ});
     ecs_set(world, icospheres[i], FlecsRgba, {128, 128});
+    ecs_set(world, icospheres[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   }
 
   // Cylinders
@@ -250,6 +256,7 @@ int main(
     ecs_set(world, cylinders[i], FlecsPosition3, {-9 + i * 3, shapeY - 9, shapeZ});
     ecs_set(world, cylinders[i], FlecsScale3, {2, 2, 2});
     ecs_set(world, cylinders[i], FlecsRgba, {0, 255});
+    ecs_set(world, cylinders[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   }
 
   // Cones
@@ -260,6 +267,7 @@ int main(
     ecs_set(world, cones[i], FlecsPosition3, {-9 + i * 3, shapeY - 12, shapeZ});
     ecs_set(world, cones[i], FlecsScale3, {2, 2, 2});
     ecs_set(world, cones[i], FlecsRgba, {0, 0, 255});
+    ecs_set(world, cones[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   }
 
   // Hemispheres
@@ -269,26 +277,12 @@ int main(
     ecs_set(world, hemispheres[i], FlecsHemiSphere, { .segments = 3 + i, .smooth = i == (numShapes - 1), .radius = 1 });
     ecs_set(world, hemispheres[i], FlecsPosition3, {-9 + i * 3, shapeY - 15, shapeZ});
     ecs_set(world, hemispheres[i], FlecsRgba, {128, 0, 128});
+    ecs_set(world, hemispheres[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   }
 
   ecs_singleton_set(world, EcsRest, {0});
 
-  double i = 0;
-  while (ecs_progress(world, 0)) {
-    ecs_set(world, box, FlecsRotation3, {0, i, 0});
-    ecs_set(world, triangle_prism, FlecsRotation3, {0, i, 0});
-    ecs_set(world, right_triangle_prism, FlecsRotation3, {0, i, 0});
-
-    for (int c = 0; c < numShapes; c ++) {
-      ecs_set(world, spheres[c], FlecsRotation3, {0, i, 0});
-      ecs_set(world, icospheres[c], FlecsRotation3, {0, i, 0});
-      ecs_set(world, cylinders[c], FlecsRotation3, {0, i, 0});
-      ecs_set(world, cones[c], FlecsRotation3, {0, i, 0});
-      ecs_set(world, hemispheres[c], FlecsRotation3, {0, i, 0});
-    }
-
-    i += 0.01;
-  }
+  while (ecs_progress(world, 0)) { }
 
   return ecs_fini(world);
 }
