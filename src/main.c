@@ -252,14 +252,14 @@ int main(
     ecs_set(world, cylinders[i], FlecsRgba, {0, 255});
   }
 
-  // Pyramids
-  ecs_entity_t pyramids[numShapes];
+  // Cones
+  ecs_entity_t cones[numShapes];
   for (int i = 0; i < numShapes; i ++) {
-    pyramids[i] = ecs_new(world);
-    ecs_set(world, pyramids[i], FlecsPyramid, { .sides = 3 + i, .smooth = i == (numShapes - 1), .length = 1 });
-    ecs_set(world, pyramids[i], FlecsPosition3, {-9 + i * 3, shapeY - 12, shapeZ});
-    ecs_set(world, pyramids[i], FlecsScale3, {2, 2, 2});
-    ecs_set(world, pyramids[i], FlecsRgba, {0, 0, 255});
+    cones[i] = ecs_new(world);
+    ecs_set(world, cones[i], FlecsCone, { .sides = 3 + i, .smooth = i == (numShapes - 1), .length = 1 });
+    ecs_set(world, cones[i], FlecsPosition3, {-9 + i * 3, shapeY - 12, shapeZ});
+    ecs_set(world, cones[i], FlecsScale3, {2, 2, 2});
+    ecs_set(world, cones[i], FlecsRgba, {0, 0, 255});
   }
 
   // Hemispheres
@@ -283,7 +283,7 @@ int main(
       ecs_set(world, spheres[c], FlecsRotation3, {0, i, 0});
       ecs_set(world, icospheres[c], FlecsRotation3, {0, i, 0});
       ecs_set(world, cylinders[c], FlecsRotation3, {0, i, 0});
-      ecs_set(world, pyramids[c], FlecsRotation3, {0, i, 0});
+      ecs_set(world, cones[c], FlecsRotation3, {0, i, 0});
       ecs_set(world, hemispheres[c], FlecsRotation3, {0, i, 0});
     }
 

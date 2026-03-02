@@ -7,7 +7,7 @@ typedef struct {
     ecs_map_t sphere_cache;
     ecs_map_t hemisphere_cache;
     ecs_map_t icosphere_cache;
-    ecs_map_t pyramid_cache;
+    ecs_map_t cone_cache;
     ecs_map_t ngon_cache;
     ecs_map_t cylinder_cache;
     ecs_entity_t unit_box_asset;
@@ -28,7 +28,7 @@ ecs_entity_t flecsGeometry3_createAsset(
 const FlecsMesh3Impl* flecsGeometry3_getBoxAsset(
     ecs_world_t *world);
 
-const FlecsMesh3Impl* flecsGeometry3_getPyramidAsset(
+const FlecsMesh3Impl* flecsGeometry3_getConeAsset(
     ecs_world_t *world);
 
 const FlecsMesh3Impl* flecsGeometry3_getQuadAsset(
@@ -61,7 +61,7 @@ void FlecsIcoSphere_on_replace(
 void FlecsNGon_on_replace(
     ecs_iter_t *it);
 
-void FlecsPyramid_on_replace(
+void FlecsCone_on_replace(
     ecs_iter_t *it);
 
 void FlecsCylinder_on_replace(

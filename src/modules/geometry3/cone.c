@@ -6,23 +6,23 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define FLECS_GEOMETRY3_PYRAMID_SIDES_MIN (3)
-#define FLECS_GEOMETRY3_PYRAMID_SIDES_MAX_SMOOTH (32766)
-#define FLECS_GEOMETRY3_PYRAMID_SIDES_MAX_FLAT (16383)
-#define FLECS_GEOMETRY3_PYRAMID_CACHE_SIDES_MASK (0x7fffffffULL)
-#define FLECS_GEOMETRY3_PYRAMID_CACHE_SMOOTH_MASK (1ULL << 63)
+#define FLECS_GEOMETRY3_CONE_SIDES_MIN (3)
+#define FLECS_GEOMETRY3_CONE_SIDES_MAX_SMOOTH (32766)
+#define FLECS_GEOMETRY3_CONE_SIDES_MAX_FLAT (16383)
+#define FLECS_GEOMETRY3_CONE_CACHE_SIDES_MASK (0x7fffffffULL)
+#define FLECS_GEOMETRY3_CONE_CACHE_SMOOTH_MASK (1ULL << 63)
 
-static int32_t flecsGeometry3_pyramidSidesNormalize(
+static int32_t flecsGeometry3_coneSidesNormalize(
     int32_t sides,
     bool smooth)
 {
-    int32_t max_sides = FLECS_GEOMETRY3_PYRAMID_SIDES_MAX_FLAT;
+    int32_t max_sides = FLECS_GEOMETRY3_CONE_SIDES_MAX_FLAT;
     if (smooth) {
-        max_sides = FLECS_GEOMETRY3_PYRAMID_SIDES_MAX_SMOOTH;
+        max_sides = FLECS_GEOMETRY3_CONE_SIDES_MAX_SMOOTH;
     }
 
-    if (sides < FLECS_GEOMETRY3_PYRAMID_SIDES_MIN) {
-        return FLECS_GEOMETRY3_PYRAMID_SIDES_MIN;
+    if (sides < FLECS_GEOMETRY3_CONE_SIDES_MIN) {
+        return FLECS_GEOMETRY3_CONE_SIDES_MIN;
     }
     if (sides > max_sides) {
         return max_sides;
@@ -30,7 +30,7 @@ static int32_t flecsGeometry3_pyramidSidesNormalize(
     return sides;
 }
 
-static uint32_t flecsGeometry3_pyramidLengthBits(
+static uint32_t flecsGeometry3_coneLengthBits(
     float length)
 {
     union {
@@ -41,28 +41,28 @@ static uint32_t flecsGeometry3_pyramidLengthBits(
     return length_bits.u;
 }
 
-static uint64_t flecsGeometry3_pyramidCacheKey(
+static uint64_t flecsGeometry3_coneCacheKey(
     int32_t sides,
     bool smooth,
     float length)
 {
     uint64_t key =
-        (((uint64_t)sides & FLECS_GEOMETRY3_PYRAMID_CACHE_SIDES_MASK) << 32) |
-        (uint64_t)flecsGeometry3_pyramidLengthBits(length);
+        (((uint64_t)sides & FLECS_GEOMETRY3_CONE_CACHE_SIDES_MASK) << 32) |
+        (uint64_t)flecsGeometry3_coneLengthBits(length);
 
     if (smooth) {
-        key |= FLECS_GEOMETRY3_PYRAMID_CACHE_SMOOTH_MASK;
+        key |= FLECS_GEOMETRY3_CONE_CACHE_SMOOTH_MASK;
     }
 
     return key;
 }
 
-static ecs_entity_t flecsGeometry3_findPyramidAsset(
+static ecs_entity_t flecsGeometry3_findConeAsset(
     const FlecsGeometry3Cache *ctx,
     uint64_t key)
 {
     ecs_map_val_t *entry = ecs_map_get(
-        &ctx->pyramid_cache, (ecs_map_key_t)key);
+        &ctx->cone_cache, (ecs_map_key_t)key);
     if (!entry) {
         return 0;
     }
@@ -70,7 +70,7 @@ static ecs_entity_t flecsGeometry3_findPyramidAsset(
     return (ecs_entity_t)entry[0];
 }
 
-static void flecsGeometry3_generateFlatPyramidMesh(
+static void flecsGeometry3_generateFlatConeMesh(
     FlecsMesh3 *mesh,
     int32_t sides,
     float length)
@@ -79,7 +79,7 @@ static void flecsGeometry3_generateFlatPyramidMesh(
     const float y_top = half_length;
     const float y_bottom = -half_length;
     const float angle_offset = (float)M_PI / (float)sides;
-    /* Keep pyramid base footprint constant across side counts. */
+    /* Keep cone base footprint constant across side counts. */
     const float radius = 0.5f;
 
     const int32_t base_center = 0;
@@ -172,7 +172,7 @@ static void flecsGeometry3_generateFlatPyramidMesh(
     }
 }
 
-static void flecsGeometry3_generateSmoothPyramidMesh(
+static void flecsGeometry3_generateSmoothConeMesh(
     FlecsMesh3 *mesh,
     int32_t sides,
     float length)
@@ -181,7 +181,7 @@ static void flecsGeometry3_generateSmoothPyramidMesh(
     const float y_top = half_length;
     const float y_bottom = -half_length;
     const float angle_offset = (float)M_PI / (float)sides;
-    /* Keep pyramid base footprint constant across side counts. */
+    /* Keep cone base footprint constant across side counts. */
     const float radius = 0.5f;
 
     const int32_t base_center = 0;
@@ -313,32 +313,32 @@ static void flecsGeometry3_generateSmoothPyramidMesh(
     }
 }
 
-static void flecsGeometry3_generatePyramidMesh(
+static void flecsGeometry3_generateConeMesh(
     FlecsMesh3 *mesh,
     int32_t sides,
     bool smooth,
     float length)
 {
     if (smooth) {
-        flecsGeometry3_generateSmoothPyramidMesh(mesh, sides, length);
+        flecsGeometry3_generateSmoothConeMesh(mesh, sides, length);
     } else {
-        flecsGeometry3_generateFlatPyramidMesh(mesh, sides, length);
+        flecsGeometry3_generateFlatConeMesh(mesh, sides, length);
     }
 }
 
-static ecs_entity_t flecsGeometry3_getPyramidEntity(
+static ecs_entity_t flecsGeometry3_getConeEntity(
     ecs_world_t *world,
     int32_t sides,
     bool smooth,
     float length)
 {
-    int32_t normalized_sides = flecsGeometry3_pyramidSidesNormalize(
+    int32_t normalized_sides = flecsGeometry3_coneSidesNormalize(
         sides, smooth);
-    uint64_t key = flecsGeometry3_pyramidCacheKey(
+    uint64_t key = flecsGeometry3_coneCacheKey(
         normalized_sides, smooth, length);
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
 
-    ecs_entity_t asset = flecsGeometry3_findPyramidAsset(ctx, key);
+    ecs_entity_t asset = flecsGeometry3_findConeAsset(ctx, key);
     if (asset) {
         return asset;
     }
@@ -347,57 +347,57 @@ static ecs_entity_t flecsGeometry3_getPyramidEntity(
     snprintf(
         asset_name,
         sizeof(asset_name),
-        "Pyramid.pyramid%llu", key);
+        "Cone.cone%llu", key);
 
     asset = flecsGeometry3_createAsset(world, ctx, asset_name);
 
     FlecsMesh3 *mesh = ecs_ensure(world, asset, FlecsMesh3);
-    flecsGeometry3_generatePyramidMesh(
+    flecsGeometry3_generateConeMesh(
         mesh, normalized_sides, smooth, length);
     ecs_modified(world, asset, FlecsMesh3);
 
     ecs_map_insert(
-        &ctx->pyramid_cache,
+        &ctx->cone_cache,
         (ecs_map_key_t)key,
         (ecs_map_val_t)asset);
 
     return asset;
 }
 
-const FlecsMesh3Impl* flecsGeometry3_getPyramidAsset(
+const FlecsMesh3Impl* flecsGeometry3_getConeAsset(
     ecs_world_t *world)
 {
-    ecs_entity_t asset = flecsGeometry3_getPyramidEntity(world, 4, false, 1.0f);
+    ecs_entity_t asset = flecsGeometry3_getConeEntity(world, 4, false, 1.0f);
     return ecs_get(world, asset, FlecsMesh3Impl);
 }
 
-void FlecsPyramid_on_replace(
+void FlecsCone_on_replace(
     ecs_iter_t *it)
 {
     ecs_world_t *world = it->world;
-    const FlecsPyramid *old = ecs_field(it, FlecsPyramid, 0);
-    const FlecsPyramid *new = ecs_field(it, FlecsPyramid, 1);
+    const FlecsCone *old = ecs_field(it, FlecsCone, 0);
+    const FlecsCone *new = ecs_field(it, FlecsCone, 1);
     const FlecsGeometry3Cache *ctx = ecs_singleton_get(world, FlecsGeometry3Cache);
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        int32_t old_sides = flecsGeometry3_pyramidSidesNormalize(
+        int32_t old_sides = flecsGeometry3_coneSidesNormalize(
             old[i].sides, old[i].smooth);
-        int32_t new_sides = flecsGeometry3_pyramidSidesNormalize(
+        int32_t new_sides = flecsGeometry3_coneSidesNormalize(
             new[i].sides, new[i].smooth);
-        uint64_t old_key = flecsGeometry3_pyramidCacheKey(
+        uint64_t old_key = flecsGeometry3_coneCacheKey(
             old_sides, old[i].smooth, old[i].length);
-        uint64_t new_key = flecsGeometry3_pyramidCacheKey(
+        uint64_t new_key = flecsGeometry3_coneCacheKey(
             new_sides, new[i].smooth, new[i].length);
 
         if (old_key != new_key) {
-            ecs_entity_t old_asset = flecsGeometry3_findPyramidAsset(ctx, old_key);
+            ecs_entity_t old_asset = flecsGeometry3_findConeAsset(ctx, old_key);
             if (old_asset) {
                 ecs_remove_pair(world, it->entities[i], EcsIsA, old_asset);
             }
         }
 
-        ecs_entity_t asset = flecsGeometry3_getPyramidEntity(
+        ecs_entity_t asset = flecsGeometry3_getConeEntity(
             world, new[i].sides, new[i].smooth, new[i].length);
         ecs_add_pair(world, it->entities[i], EcsIsA, asset);
     }

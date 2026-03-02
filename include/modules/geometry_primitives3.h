@@ -12,7 +12,7 @@ ECS_STRUCT(FlecsBox, {
     float z;
 });
 
-ECS_STRUCT(FlecsPyramid, {
+ECS_STRUCT(FlecsCone, {
     int32_t sides;
     bool smooth;
     float length;

@@ -60,8 +60,8 @@ ecs_entity_t flecsEngine_createBatch_mesh(
 ecs_entity_t flecsEngine_createBatch_boxes(
     ecs_world_t *world);
 
-// Render scalable pyramid primitives without IsA grouping
-ecs_entity_t flecsEngine_createBatch_pyramids(
+// Render scalable cone primitives without IsA grouping
+ecs_entity_t flecsEngine_createBatch_cones(
     ecs_world_t *world);
 
 // Render scalable quad primitives without IsA grouping

@@ -6,7 +6,7 @@
 
 ECS_COMPONENT_DECLARE(FlecsMesh3);
 ECS_COMPONENT_DECLARE(FlecsBox);
-ECS_COMPONENT_DECLARE(FlecsPyramid);
+ECS_COMPONENT_DECLARE(FlecsCone);
 ECS_COMPONENT_DECLARE(FlecsQuad);
 ECS_COMPONENT_DECLARE(FlecsTriangle);
 ECS_COMPONENT_DECLARE(FlecsRightTriangle);
@@ -59,7 +59,7 @@ ECS_CTOR(FlecsGeometry3Cache, ptr, {
     ecs_map_init(&ptr->sphere_cache, NULL);
     ecs_map_init(&ptr->hemisphere_cache, NULL);
     ecs_map_init(&ptr->icosphere_cache, NULL);
-    ecs_map_init(&ptr->pyramid_cache, NULL);
+    ecs_map_init(&ptr->cone_cache, NULL);
     ecs_map_init(&ptr->ngon_cache, NULL);
     ecs_map_init(&ptr->cylinder_cache, NULL);
     ptr->unit_box_asset = 0;
@@ -74,7 +74,7 @@ ECS_DTOR(FlecsGeometry3Cache, ptr, {
     ecs_map_fini(&ptr->sphere_cache);
     ecs_map_fini(&ptr->hemisphere_cache);
     ecs_map_fini(&ptr->icosphere_cache);
-    ecs_map_fini(&ptr->pyramid_cache);
+    ecs_map_fini(&ptr->cone_cache);
     ecs_map_fini(&ptr->ngon_cache);
     ecs_map_fini(&ptr->cylinder_cache);
 })
@@ -199,7 +199,7 @@ void FlecsEngineGeometry3Import(
     ECS_COMPONENT_DEFINE(world, FlecsMesh3);
     ECS_COMPONENT_DEFINE(world, FlecsMesh3Impl);
     ECS_COMPONENT_DEFINE(world, FlecsBox);
-    ECS_COMPONENT_DEFINE(world, FlecsPyramid);
+    ECS_COMPONENT_DEFINE(world, FlecsCone);
     ECS_COMPONENT_DEFINE(world, FlecsQuad);
     ECS_COMPONENT_DEFINE(world, FlecsTriangle);
     ECS_COMPONENT_DEFINE(world, FlecsRightTriangle);
@@ -222,7 +222,7 @@ void FlecsEngineGeometry3Import(
     });
 
     ecs_struct(world, {
-        .entity = ecs_id(FlecsPyramid),
+        .entity = ecs_id(FlecsCone),
         .members = {
             { .name = "sides", .type = ecs_id(ecs_i32_t) },
             { .name = "smooth", .type = ecs_id(ecs_bool_t) },
@@ -339,8 +339,8 @@ void FlecsEngineGeometry3Import(
         .on_replace = FlecsIcoSphere_on_replace
     });
 
-    ecs_set_hooks(world, FlecsPyramid, {
-        .on_replace = FlecsPyramid_on_replace
+    ecs_set_hooks(world, FlecsCone, {
+        .on_replace = FlecsCone_on_replace
     });
 
     ecs_set_hooks(world, FlecsNGon, {

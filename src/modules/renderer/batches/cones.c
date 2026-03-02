@@ -4,16 +4,16 @@
 #include "batches.h"
 #include "flecs_engine.h"
 
-static flecs_engine_batch_ctx_t* flecsEngine_pyramids_createCtx(
+static flecs_engine_batch_ctx_t* flecsEngine_cones_createCtx(
     ecs_world_t *world)
 {
     flecs_engine_batch_ctx_t *result =
         ecs_os_calloc_t(flecs_engine_batch_ctx_t);
-    flecsEngine_batchCtx_init(result, flecsGeometry3_getPyramidAsset(world));
+    flecsEngine_batchCtx_init(result, flecsGeometry3_getConeAsset(world));
     return result;
 }
 
-static void flecsEngine_pyramids_deleteCtx(
+static void flecsEngine_cones_deleteCtx(
     void *arg)
 {
     flecs_engine_batch_ctx_t *ctx = arg;
@@ -21,7 +21,7 @@ static void flecsEngine_pyramids_deleteCtx(
     ecs_os_free(ctx);
 }
 
-static void flecsEngine_pyramids_prepareInstances(
+static void flecsEngine_cones_prepareInstances(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch,
@@ -91,18 +91,18 @@ redo: {
     }
 }
 
-static void flecsEngine_pyramids_callback(
+static void flecsEngine_cones_callback(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
     flecs_engine_batch_ctx_t *ctx = batch->ctx;
-    flecsEngine_pyramids_prepareInstances(world, engine, batch, ctx);
+    flecsEngine_cones_prepareInstances(world, engine, batch, ctx);
     flecsEngine_batchCtx_draw(pass, ctx);
 }
 
-ecs_entity_t flecsEngine_createBatch_pyramids(
+ecs_entity_t flecsEngine_createBatch_cones(
     ecs_world_t *world)
 {
     ecs_entity_t batch = ecs_new(world);
@@ -110,7 +110,7 @@ ecs_entity_t flecsEngine_createBatch_pyramids(
 
     ecs_query_t *q = ecs_query(world, {
         .terms = {
-            { .id = ecs_id(FlecsPyramid), .src.id = EcsSelf },
+            { .id = ecs_id(FlecsCone), .src.id = EcsSelf },
             { .id = ecs_id(FlecsWorldTransform3), .src.id = EcsSelf },
             { .id = ecs_id(FlecsRgba), .src.id = EcsSelf },
             { .id = ecs_id(FlecsScale3), .src.id = EcsSelf, .oper = EcsOptional },
@@ -131,9 +131,9 @@ ecs_entity_t flecsEngine_createBatch_pyramids(
         .uniforms = {
             ecs_id(FlecsUniform)
         },
-        .callback = flecsEngine_pyramids_callback,
-        .ctx = flecsEngine_pyramids_createCtx((ecs_world_t*)world),
-        .free_ctx = flecsEngine_pyramids_deleteCtx
+        .callback = flecsEngine_cones_callback,
+        .ctx = flecsEngine_cones_createCtx((ecs_world_t*)world),
+        .free_ctx = flecsEngine_cones_deleteCtx
     });
 
     return batch;
