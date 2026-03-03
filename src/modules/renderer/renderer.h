@@ -111,7 +111,8 @@ void flecsEngineRenderView(
     const ecs_world_t *world,
     const FlecsEngineImpl *impl,
     const WGPURenderPassEncoder pass,
-    const FlecsRenderView *view);
+    const FlecsRenderView *view,
+    WGPUTextureFormat color_format);
 
 void flecsEngineRenderBatch(
     const ecs_world_t *world,
@@ -119,7 +120,8 @@ void flecsEngineRenderBatch(
     const WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
     const FlecsRenderBatch *batch,
-    const FlecsRenderBatchImpl *batch_impl);
+    const FlecsRenderBatchImpl *batch_impl,
+    WGPUTextureFormat color_format);
 
 void flecsEngineRenderEffect(
     const ecs_world_t *world,
@@ -127,7 +129,8 @@ void flecsEngineRenderEffect(
     const WGPURenderPassEncoder pass,
     const FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *effect_impl,
-    WGPUTextureView input_view);
+    WGPUTextureView input_view,
+    WGPUTextureFormat output_format);
 
 void FlecsEngineRendererImport(
     ecs_world_t *world);

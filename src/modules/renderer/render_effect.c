@@ -24,9 +24,14 @@ static void flecsRenderEffectImplRelease(
         ptr->input_sampler = NULL;
     }
 
-    if (ptr->pipeline) {
-        wgpuRenderPipelineRelease(ptr->pipeline);
-        ptr->pipeline = NULL;
+    if (ptr->pipeline_surface) {
+        wgpuRenderPipelineRelease(ptr->pipeline_surface);
+        ptr->pipeline_surface = NULL;
+    }
+
+    if (ptr->pipeline_hdr) {
+        wgpuRenderPipelineRelease(ptr->pipeline_hdr);
+        ptr->pipeline_hdr = NULL;
     }
 
     if (ptr->bind_layout) {
@@ -57,6 +62,68 @@ static bool flecsRenderEffectCreateInputSampler(
 
     impl->input_sampler = wgpuDeviceCreateSampler(engine->device, &sampler_desc);
     return impl->input_sampler != NULL;
+}
+
+static WGPURenderPipeline flecsCreateRenderEffectPipeline(
+    const FlecsEngineImpl *engine,
+    const FlecsShader *shader,
+    const FlecsShaderImpl *shader_impl,
+    WGPUBindGroupLayout bind_layout,
+    WGPUTextureFormat color_format)
+{
+    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts = &bind_layout
+    };
+
+    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+        engine->device, &pipeline_layout_desc);
+    if (!pipeline_layout) {
+        return NULL;
+    }
+
+    WGPUColorTargetState color_target = {
+        .format = color_format,
+        .writeMask = WGPUColorWriteMask_All
+    };
+
+    WGPUVertexState vertex_state = {
+        .module = shader_impl->shader_module,
+        .entryPoint = (WGPUStringView){
+            .data = shader->vertex_entry ? shader->vertex_entry : "vs_main",
+            .length = WGPU_STRLEN
+        }
+    };
+
+    WGPUFragmentState fragment_state = {
+        .module = shader_impl->shader_module,
+        .entryPoint = (WGPUStringView){
+            .data = shader->fragment_entry ? shader->fragment_entry : "fs_main",
+            .length = WGPU_STRLEN
+        },
+        .targetCount = 1,
+        .targets = &color_target
+    };
+
+    WGPURenderPipelineDescriptor pipeline_desc = {
+        .layout = pipeline_layout,
+        .vertex = vertex_state,
+        .fragment = &fragment_state,
+        .primitive = {
+            .topology = WGPUPrimitiveTopology_TriangleList,
+            .cullMode = WGPUCullMode_None,
+            .frontFace = WGPUFrontFace_CW
+        },
+        .multisample = {
+            .count = 1
+        }
+    };
+
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
+        engine->device, &pipeline_desc);
+
+    wgpuPipelineLayoutRelease(pipeline_layout);
+    return pipeline;
 }
 
 void FlecsRenderEffect_on_set(
@@ -166,61 +233,29 @@ void FlecsRenderEffect_on_set(
             continue;
         }
 
-        WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &impl.bind_layout
-        };
-
-        WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-            engine->device, &pipeline_layout_desc);
-        if (!pipeline_layout) {
+        impl.pipeline_surface = flecsCreateRenderEffectPipeline(
+            engine,
+            shader,
+            shader_impl,
+            impl.bind_layout,
+            engine->surface_config.format);
+        if (!impl.pipeline_surface) {
             flecsRenderEffectImplRelease(&impl);
             continue;
         }
 
-        WGPUColorTargetState color_target = {
-            .format = engine->surface_config.format,
-            .writeMask = WGPUColorWriteMask_All
-        };
+        WGPUTextureFormat hdr_format = engine->hdr_color_format;
+        if (hdr_format == WGPUTextureFormat_Undefined) {
+            hdr_format = engine->surface_config.format;
+        }
 
-        WGPUVertexState vertex_state = {
-            .module = shader_impl->shader_module,
-            .entryPoint = (WGPUStringView){
-                .data = shader->vertex_entry ? shader->vertex_entry : "vs_main",
-                .length = WGPU_STRLEN
-            }
-        };
-
-        WGPUFragmentState fragment_state = {
-            .module = shader_impl->shader_module,
-            .entryPoint = (WGPUStringView){
-                .data = shader->fragment_entry ? shader->fragment_entry : "fs_main",
-                .length = WGPU_STRLEN
-            },
-            .targetCount = 1,
-            .targets = &color_target
-        };
-
-        WGPURenderPipelineDescriptor pipeline_desc = {
-            .layout = pipeline_layout,
-            .vertex = vertex_state,
-            .fragment = &fragment_state,
-            .primitive = {
-                .topology = WGPUPrimitiveTopology_TriangleList,
-                .cullMode = WGPUCullMode_None,
-                .frontFace = WGPUFrontFace_CW
-            },
-            .multisample = {
-                .count = 1
-            }
-        };
-
-        impl.pipeline = wgpuDeviceCreateRenderPipeline(
-            engine->device, &pipeline_desc);
-
-        wgpuPipelineLayoutRelease(pipeline_layout);
-
-        if (!impl.pipeline) {
+        impl.pipeline_hdr = flecsCreateRenderEffectPipeline(
+            engine,
+            shader,
+            shader_impl,
+            impl.bind_layout,
+            hdr_format);
+        if (!impl.pipeline_hdr) {
             flecsRenderEffectImplRelease(&impl);
             continue;
         }
@@ -235,7 +270,8 @@ void flecsEngineRenderEffect(
     const WGPURenderPassEncoder pass,
     const FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *impl,
-    WGPUTextureView input_view)
+    WGPUTextureView input_view,
+    WGPUTextureFormat output_format)
 {
     ecs_assert(effect != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(impl != NULL, ECS_INVALID_PARAMETER, NULL);
@@ -268,7 +304,12 @@ void flecsEngineRenderEffect(
         engine->device, &bind_group_desc);
     ecs_assert(bind_group != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    wgpuRenderPassEncoderSetPipeline(pass, impl->pipeline);
+    WGPURenderPipeline pipeline = output_format == engine->surface_config.format
+        ? impl->pipeline_surface
+        : impl->pipeline_hdr;
+    ecs_assert(pipeline != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
     wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
     wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
 

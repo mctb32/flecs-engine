@@ -5,7 +5,8 @@ void flecsEngineRenderView(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
-    const FlecsRenderView *view)
+    const FlecsRenderView *view,
+    WGPUTextureFormat color_format)
 {
     int32_t i, count = ecs_vec_count(&view->batches);
     ecs_entity_t *batches = ecs_vec_first(&view->batches);
@@ -17,7 +18,7 @@ void flecsEngineRenderView(
             world, batches[i], FlecsRenderBatchImpl);
         if (batch) {
             flecsEngineRenderBatch(
-                world, engine, pass, view, batch, batch_impl);
+                world, engine, pass, view, batch, batch_impl, color_format);
         }
     }
 }

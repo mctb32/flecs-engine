@@ -34,37 +34,13 @@ void flecsEngineReleaseEffectTargets(
     impl->effect_target_format = WGPUTextureFormat_Undefined;
 }
 
-static bool flecsEngineEnsureEffectTargets(
+static bool flecsEngineCreateEffectTargets(
     FlecsEngineImpl *impl,
-    int32_t effect_count)
+    int32_t effect_count,
+    WGPUTextureFormat format)
 {
-    if (effect_count <= 0) {
-        return true;
-    }
-
     uint32_t width = (uint32_t)impl->width;
     uint32_t height = (uint32_t)impl->height;
-    WGPUTextureFormat format = impl->surface_config.format;
-
-    bool need_recreate = false;
-    if (impl->effect_target_count < effect_count) {
-        need_recreate = true;
-    }
-    if (!impl->effect_target_textures || !impl->effect_target_views) {
-        need_recreate = true;
-    }
-    if (impl->effect_target_width != width ||
-        impl->effect_target_height != height ||
-        impl->effect_target_format != format)
-    {
-        need_recreate = true;
-    }
-
-    if (!need_recreate) {
-        return true;
-    }
-
-    flecsEngineReleaseEffectTargets(impl);
 
     impl->effect_target_textures = ecs_os_calloc_n(WGPUTexture, effect_count);
     impl->effect_target_views = ecs_os_calloc_n(WGPUTextureView, effect_count);
@@ -107,6 +83,57 @@ static bool flecsEngineEnsureEffectTargets(
     impl->effect_target_height = height;
     impl->effect_target_format = format;
     return true;
+}
+
+static bool flecsEngineEnsureEffectTargets(
+    FlecsEngineImpl *impl,
+    int32_t effect_count)
+{
+    if (effect_count <= 0) {
+        return true;
+    }
+
+    uint32_t width = (uint32_t)impl->width;
+    uint32_t height = (uint32_t)impl->height;
+    WGPUTextureFormat surface_format = impl->surface_config.format;
+    WGPUTextureFormat desired_format = impl->hdr_color_format;
+    if (desired_format == WGPUTextureFormat_Undefined) {
+        desired_format = surface_format;
+    }
+
+    bool need_recreate = false;
+    if (impl->effect_target_count < effect_count) {
+        need_recreate = true;
+    }
+    if (!impl->effect_target_textures || !impl->effect_target_views) {
+        need_recreate = true;
+    }
+    if (impl->effect_target_width != width ||
+        impl->effect_target_height != height ||
+        impl->effect_target_format != desired_format)
+    {
+        need_recreate = true;
+    }
+
+    if (!need_recreate) {
+        return true;
+    }
+
+    flecsEngineReleaseEffectTargets(impl);
+
+    if (flecsEngineCreateEffectTargets(impl, effect_count, desired_format)) {
+        return true;
+    }
+
+    if (desired_format != surface_format &&
+        flecsEngineCreateEffectTargets(impl, effect_count, surface_format))
+    {
+        impl->hdr_color_format = surface_format;
+        ecs_warn("falling back to LDR post-process targets: HDR target format unavailable");
+        return true;
+    }
+
+    return false;
 }
 
 static WGPURenderPassEncoder flecsEngineBeginBatchPass(
@@ -187,7 +214,12 @@ static void flecsEngineRenderViewWithEffects(
             view_texture,
             clear_output ? WGPULoadOp_Clear : WGPULoadOp_Load);
 
-        flecsEngineRenderView(world, impl, pass, view);
+        flecsEngineRenderView(
+            world,
+            impl,
+            pass,
+            view,
+            impl->surface_config.format);
         wgpuRenderPassEncoderEnd(pass);
         wgpuRenderPassEncoderRelease(pass);
         return;
@@ -204,7 +236,12 @@ static void flecsEngineRenderViewWithEffects(
         impl->effect_target_views[0],
         WGPULoadOp_Clear);
 
-    flecsEngineRenderView(world, impl, batch_pass, view);
+    flecsEngineRenderView(
+        world,
+        impl,
+        batch_pass,
+        view,
+        impl->effect_target_format);
     wgpuRenderPassEncoderEnd(batch_pass);
     wgpuRenderPassEncoderRelease(batch_pass);
 
@@ -226,6 +263,9 @@ static void flecsEngineRenderViewWithEffects(
         WGPUTextureView output_view = is_last
             ? view_texture
             : impl->effect_target_views[i + 1];
+        WGPUTextureFormat output_format = is_last
+            ? impl->surface_config.format
+            : impl->effect_target_format;
 
         WGPUTextureView input_view = impl->effect_target_views[effect->input];
 
@@ -243,7 +283,8 @@ static void flecsEngineRenderViewWithEffects(
             effect_pass,
             effect,
             effect_impl,
-            input_view);
+            input_view,
+            output_format);
 
         wgpuRenderPassEncoderEnd(effect_pass);
         wgpuRenderPassEncoderRelease(effect_pass);

@@ -339,6 +339,8 @@ int flecsEngineInit(
         goto error;
     }
 
+    impl.hdr_color_format = WGPUTextureFormat_RGBA16Float;
+
     if (flecsEngineEnsureDepthResources(&impl)) {
         goto error;
     }

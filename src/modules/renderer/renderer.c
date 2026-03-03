@@ -141,7 +141,12 @@ static void flecsEngineRenderViewsWithoutEffects(
     while (ecs_query_next(&it)) {
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
         for (int32_t i = 0; i < it.count; i ++) {
-            flecsEngineRenderView(world, impl, pass, &views[i]);
+            flecsEngineRenderView(
+                world,
+                impl,
+                pass,
+                &views[i],
+                impl->surface_config.format);
         }
     }
 

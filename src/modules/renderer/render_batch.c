@@ -38,9 +38,14 @@ static void flecsRenderBatchImplRelease(
         ptr->bind_layout = NULL;
     }
 
-    if (ptr->pipeline) {
-        wgpuRenderPipelineRelease(ptr->pipeline);
-        ptr->pipeline = NULL;
+    if (ptr->pipeline_surface) {
+        wgpuRenderPipelineRelease(ptr->pipeline_surface);
+        ptr->pipeline_surface = NULL;
+    }
+
+    if (ptr->pipeline_hdr) {
+        wgpuRenderPipelineRelease(ptr->pipeline_hdr);
+        ptr->pipeline_hdr = NULL;
     }
 }
 
@@ -369,6 +374,81 @@ static void flecsSetupUniformBindings(
         engine->device, &bind_group_desc);
 }
 
+static WGPURenderPipeline flecsCreateRenderBatchPipeline(
+    const FlecsEngineImpl *engine,
+    const FlecsShader *shader,
+    const FlecsShaderImpl *shader_impl,
+    WGPUBindGroupLayout bind_layout,
+    const WGPUVertexBufferLayout *vertex_buffers,
+    uint32_t vertex_buffer_count,
+    WGPUTextureFormat color_format)
+{
+    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts = &bind_layout
+    };
+
+    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+        engine->device, &pipeline_layout_desc);
+    if (!pipeline_layout) {
+        return NULL;
+    }
+
+    WGPUColorTargetState color_target = {
+        .format = color_format,
+        .writeMask = WGPUColorWriteMask_All
+    };
+
+    WGPUDepthStencilState depth_state = {
+        .format = WGPUTextureFormat_Depth24Plus,
+        .depthWriteEnabled = WGPUOptionalBool_True,
+        .depthCompare = WGPUCompareFunction_Less,
+        .stencilReadMask = 0xFFFFFFFF,
+        .stencilWriteMask = 0xFFFFFFFF
+    };
+
+    WGPUVertexState vertex_state = {
+        .module = shader_impl->shader_module,
+        .entryPoint = (WGPUStringView){
+            .data = shader->vertex_entry ? shader->vertex_entry : "vs_main",
+            .length = WGPU_STRLEN
+        },
+        .bufferCount = vertex_buffer_count,
+        .buffers = vertex_buffers
+    };
+
+    WGPUFragmentState fragment_state = {
+        .module = shader_impl->shader_module,
+        .entryPoint = (WGPUStringView){
+            .data = shader->fragment_entry ? shader->fragment_entry : "fs_main",
+            .length = WGPU_STRLEN
+        },
+        .targetCount = 1,
+        .targets = &color_target
+    };
+
+    WGPURenderPipelineDescriptor pipeline_desc = {
+        .layout = pipeline_layout,
+        .vertex = vertex_state,
+        .fragment = &fragment_state,
+        .depthStencil = &depth_state,
+        .primitive = {
+            .topology = WGPUPrimitiveTopology_TriangleList,
+            .cullMode = WGPUCullMode_Back,
+            .frontFace = WGPUFrontFace_CW
+        },
+        .multisample = {
+            .count = 1
+        }
+    };
+
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
+        engine->device, &pipeline_desc);
+    wgpuPipelineLayoutRelease(pipeline_layout);
+
+    return pipeline;
+}
+
 void FlecsRenderBatch_on_set(
     ecs_iter_t *it)
 {
@@ -454,73 +534,33 @@ void FlecsRenderBatch_on_set(
             WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
             &impl);
 
-        // Setup pipeline layout
-        WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &impl.bind_layout
-        };
+        impl.pipeline_surface = flecsCreateRenderBatchPipeline(
+            engine,
+            shader,
+            shader_impl,
+            impl.bind_layout,
+            vertex_buffers,
+            (uint32_t)vertex_buffer_count,
+            engine->surface_config.format);
+        if (!impl.pipeline_surface) {
+            flecsRenderBatchImplRelease(&impl);
+            continue;
+        }
 
-        WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-            engine->device, &pipeline_layout_desc);
+        WGPUTextureFormat hdr_format = engine->hdr_color_format;
+        if (hdr_format == WGPUTextureFormat_Undefined) {
+            hdr_format = engine->surface_config.format;
+        }
 
-        // Color output target: surface format with all color channels enabled.
-        WGPUColorTargetState color_target = {
-            .format = engine->surface_config.format,
-            .writeMask = WGPUColorWriteMask_All
-        };
-
-        // Depth testing: write depth and keep nearest fragments.
-        WGPUDepthStencilState depth_state = {
-            .format = WGPUTextureFormat_Depth24Plus,
-            .depthWriteEnabled = WGPUOptionalBool_True,
-            .depthCompare = WGPUCompareFunction_Less,
-            .stencilReadMask = 0xFFFFFFFF,
-            .stencilWriteMask = 0xFFFFFFFF
-        };
-
-        // Vertex stage: entry point and vertex buffer layout.
-        WGPUVertexState vertex_state = {
-            .module = shader_impl->shader_module,
-            .entryPoint = (WGPUStringView){
-                .data = shader->vertex_entry ? shader->vertex_entry : "vs_main",
-                .length = WGPU_STRLEN
-            },
-            .bufferCount = vertex_buffer_count,
-            .buffers = vertex_buffers
-        };
-
-        // Fragment stage: entry point and color target.
-        WGPUFragmentState fragment_state = {
-            .module = shader_impl->shader_module,
-            .entryPoint = (WGPUStringView){
-                .data = shader->fragment_entry ? shader->fragment_entry : "fs_main",
-                .length = WGPU_STRLEN
-            },
-            .targetCount = 1,
-            .targets = &color_target
-        };
-
-        // Render pipeline: shaders, fixed-function state, and depth config.
-        WGPURenderPipelineDescriptor pipeline_desc = {
-            .layout = pipeline_layout,
-            .vertex = vertex_state,
-            .fragment = &fragment_state,
-            .depthStencil = &depth_state,
-            .primitive = {
-                .topology = WGPUPrimitiveTopology_TriangleList,
-                .cullMode = WGPUCullMode_Back,
-                .frontFace = WGPUFrontFace_CW
-            },
-            .multisample = {
-                .count = 1
-            }
-        };
-
-        impl.pipeline = wgpuDeviceCreateRenderPipeline(
-            engine->device, &pipeline_desc);
-        wgpuPipelineLayoutRelease(pipeline_layout);
-
-        if (!impl.pipeline) {
+        impl.pipeline_hdr = flecsCreateRenderBatchPipeline(
+            engine,
+            shader,
+            shader_impl,
+            impl.bind_layout,
+            vertex_buffers,
+            (uint32_t)vertex_buffer_count,
+            hdr_format);
+        if (!impl.pipeline_hdr) {
             flecsRenderBatchImplRelease(&impl);
             continue;
         }
@@ -616,7 +656,8 @@ void flecsEngineRenderBatch(
     const WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
     const FlecsRenderBatch *batch,
-    const FlecsRenderBatchImpl *impl)
+    const FlecsRenderBatchImpl *impl,
+    WGPUTextureFormat color_format)
 {
     if (!impl) {
         ecs_err("missing batch impl for render call");
@@ -639,7 +680,12 @@ void flecsEngineRenderBatch(
         engine->queue, 
         impl->uniform_buffers[0], 0, &uniforms, sizeof(FlecsUniform));
 
-    wgpuRenderPassEncoderSetPipeline(pass, impl->pipeline);
+    WGPURenderPipeline pipeline = color_format == engine->surface_config.format
+        ? impl->pipeline_surface
+        : impl->pipeline_hdr;
+    ecs_assert(pipeline != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
     wgpuRenderPassEncoderSetBindGroup(pass, 0, impl->bind_group, 0, NULL);
 
     batch->callback(world, engine, pass, batch);

@@ -33,6 +33,7 @@ typedef struct {
     uint32_t depth_texture_height;
 
     WGPUSurfaceConfiguration surface_config;
+    WGPUTextureFormat hdr_color_format;
 
     /* Reusable intermediate color targets for post-processing passes. */
     WGPUTexture *effect_target_textures;
@@ -65,7 +66,8 @@ extern ECS_COMPONENT_DECLARE(FlecsShaderImpl);
 typedef struct {
     WGPUBindGroupLayout bind_layout;
     WGPUBindGroup bind_group;
-    WGPURenderPipeline pipeline;
+    WGPURenderPipeline pipeline_surface;
+    WGPURenderPipeline pipeline_hdr;
     WGPUBuffer uniform_buffers[FLECS_ENGINE_UNIFORMS_MAX];
     uint8_t uniform_count;
 } FlecsRenderBatchImpl;
@@ -74,7 +76,8 @@ extern ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);
 
 typedef struct {
     WGPUBindGroupLayout bind_layout;
-    WGPURenderPipeline pipeline;
+    WGPURenderPipeline pipeline_surface;
+    WGPURenderPipeline pipeline_hdr;
     WGPUSampler input_sampler;
     WGPUTexture tony_lut_texture;
     WGPUTextureView tony_lut_texture_view;
