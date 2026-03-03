@@ -122,7 +122,7 @@ static bool flecsEngineAnyViewHasEffects(
 
 static void flecsEngineRenderViewsWithoutEffects(
     const ecs_world_t *world,
-    const FlecsEngineImpl *impl,
+    FlecsEngineImpl *impl,
     WGPUTextureView view_texture,
     WGPUCommandEncoder encoder)
 {
@@ -193,6 +193,7 @@ void flecsEngineRenderViews(
             impl,
             view_texture,
             encoder);
+        impl->last_pipeline = NULL;
         return;
     }
 
@@ -201,6 +202,7 @@ void flecsEngineRenderViews(
         impl,
         view_texture,
         encoder);
+    impl->last_pipeline = NULL;
 }
 
 void FlecsEngineRendererImport(

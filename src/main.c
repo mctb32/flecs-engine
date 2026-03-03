@@ -191,39 +191,46 @@ int main(
   ecs_set(world, box, FlecsBox, {2, 2, 2});
   ecs_set(world, box, FlecsPosition3, {-9, shapeY, shapeZ});
   ecs_set(world, box, FlecsRgba, {255, 0, 0});
+  ecs_set(world, box, FlecsPbrMaterial, {0, 0});
   ecs_set(world, box, FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
 
   ecs_entity_t triangle_prism = ecs_new(world);
   ecs_set(world, triangle_prism, FlecsTrianglePrism, {2, 2, 2});
   ecs_set(world, triangle_prism, FlecsPosition3, {-6, shapeY, shapeZ});
   ecs_set(world, triangle_prism, FlecsRgba, {128, 128, 0});
+  ecs_set(world, triangle_prism, FlecsPbrMaterial, {0, 0});
   ecs_set(world, triangle_prism, FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
 
   ecs_entity_t right_triangle_prism = ecs_new(world);
   ecs_set(world, right_triangle_prism, FlecsRightTrianglePrism, {2, 2, 2});
   ecs_set(world, right_triangle_prism, FlecsPosition3, {-3, shapeY, shapeZ});
   ecs_set(world, right_triangle_prism, FlecsRgba, {0, 128, 0});
+  ecs_set(world, right_triangle_prism, FlecsPbrMaterial, {0, 0});
   ecs_set(world, right_triangle_prism, FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
 
   ecs_entity_t quad = ecs_new(world);
   ecs_set(world, quad, FlecsQuad, {2, 2});
   ecs_set(world, quad, FlecsPosition3, {0, shapeY, shapeZ});
+  ecs_set(world, quad, FlecsPbrMaterial, {0, 0});
   ecs_set(world, quad, FlecsRgba, {255, 0, 0});
 
   ecs_entity_t triangle = ecs_new(world);
   ecs_set(world, triangle, FlecsTriangle, {2, 2});
   ecs_set(world, triangle, FlecsPosition3, {3, shapeY, shapeZ});
+  ecs_set(world, triangle, FlecsPbrMaterial, {0, 0});
   ecs_set(world, triangle, FlecsRgba, {128, 128, 0});
 
   ecs_entity_t right_triangle = ecs_new(world);
   ecs_set(world, right_triangle, FlecsRightTriangle, {2, 2});
   ecs_set(world, right_triangle, FlecsPosition3, {6, shapeY, shapeZ});
+  ecs_set(world, right_triangle, FlecsPbrMaterial, {0, 0});
   ecs_set(world, right_triangle, FlecsRgba, {0, 255, 0});
 
   ecs_entity_t ngon = ecs_new(world);
   ecs_set(world, ngon, FlecsNGon, { .sides = 6 });
   ecs_set(world, ngon, FlecsPosition3, {9, shapeY, shapeZ});
   ecs_set(world, ngon, FlecsScale3, {2, 2, 2});
+  ecs_set(world, ngon, FlecsPbrMaterial, {0, 0});
   ecs_set(world, ngon, FlecsRgba, {0, 0, 255});
 
   // Spheres
@@ -233,6 +240,7 @@ int main(
     ecs_set(world, spheres[i], FlecsSphere, { .segments = 3 + i, .smooth = i == (numShapes - 1), .radius = 1 });
     ecs_set(world, spheres[i], FlecsPosition3, {-9 + i * 3, shapeY - 3, shapeZ});
     ecs_set(world, spheres[i], FlecsRgba, {255});
+    ecs_set(world, spheres[i], FlecsPbrMaterial, {0, 0});
     ecs_set(world, spheres[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   }
 
@@ -243,6 +251,7 @@ int main(
     ecs_set(world, icospheres[i], FlecsIcoSphere, { .segments = i, .smooth = i == (numShapes - 1), .radius = 1 });
     ecs_set(world, icospheres[i], FlecsPosition3, {-9 + i * 3, shapeY - 6, shapeZ});
     ecs_set(world, icospheres[i], FlecsRgba, {128, 128});
+    ecs_set(world, icospheres[i], FlecsPbrMaterial, {0, 0});
     ecs_set(world, icospheres[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   }
 
@@ -254,6 +263,7 @@ int main(
     ecs_set(world, cylinders[i], FlecsPosition3, {-9 + i * 3, shapeY - 9, shapeZ});
     ecs_set(world, cylinders[i], FlecsScale3, {2, 2, 2});
     ecs_set(world, cylinders[i], FlecsRgba, {0, 255});
+    ecs_set(world, cylinders[i], FlecsPbrMaterial, {0, 0});
     ecs_set(world, cylinders[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   }
 
@@ -265,6 +275,7 @@ int main(
     ecs_set(world, cones[i], FlecsPosition3, {-9 + i * 3, shapeY - 12, shapeZ});
     ecs_set(world, cones[i], FlecsScale3, {2, 2, 2});
     ecs_set(world, cones[i], FlecsRgba, {0, 0, 255});
+    ecs_set(world, cones[i], FlecsPbrMaterial, {0, 0});
     ecs_set(world, cones[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   }
 
@@ -275,6 +286,7 @@ int main(
     ecs_set(world, hemispheres[i], FlecsHemiSphere, { .segments = 3 + i, .smooth = i == (numShapes - 1), .radius = 1 });
     ecs_set(world, hemispheres[i], FlecsPosition3, {-9 + i * 3, shapeY - 15, shapeZ});
     ecs_set(world, hemispheres[i], FlecsRgba, {128, 0, 128});
+    ecs_set(world, hemispheres[i], FlecsPbrMaterial, {0, 0});
     ecs_set(world, hemispheres[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   }
 
@@ -290,7 +302,7 @@ int main(
         .radius = 1
       });
       ecs_set(world, sphere, FlecsPosition3, {
-        -9 + x * 3,
+        -9 + x * 3 + (numShapes * 3) + 3,
         -9 + y * 3 + (numShapes * 3) / 2,
         0
       });
@@ -315,7 +327,7 @@ int main(
         .radius = 1
       });
       ecs_set(world, sphere, FlecsPosition3, {
-        -9 + x * 3 + (numShapes * 3) + 3,
+        -9 + x * 3 + 2 * (numShapes * 3) + 6,
         -9 + y * 3 + (numShapes * 3) / 2,
         0
       });

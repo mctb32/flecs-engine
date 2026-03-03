@@ -671,7 +671,7 @@ void flecsEngineRenderBatch_setupLight(
 
 void flecsEngineRenderBatch(
     const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
     ecs_entity_t batch_entity)
@@ -681,27 +681,34 @@ void flecsEngineRenderBatch(
     const FlecsRenderBatchImpl *impl = ecs_get(
         world, batch_entity, FlecsRenderBatchImpl);
 
-    FlecsUniform uniforms = {0};
-    uniforms.camera_pos[3] = 1.0f;
-
-    if (view->camera) {
-        flecsEngineRenderBatch_setupCamera(world, &uniforms, view->camera);
-    }
-
-    if (view->light) {
-        flecsEngineRenderBatch_setupLight(world, &uniforms, view->light);
-    }
-
-    flecsEngineGetClearColorVec4(engine, uniforms.clear_color);
-
-    wgpuQueueWriteBuffer(
-        engine->queue, 
-        impl->uniform_buffers[0], 0, &uniforms, sizeof(FlecsUniform));
-
     WGPURenderPipeline pipeline = impl->pipeline_hdr;
     ecs_assert(pipeline != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+    if (pipeline != engine->last_pipeline) {
+        FlecsUniform uniforms = {0};
+        uniforms.camera_pos[3] = 1.0f;
+
+        if (view->camera) {
+            flecsEngineRenderBatch_setupCamera(world, &uniforms, view->camera);
+        }
+
+        if (view->light) {
+            flecsEngineRenderBatch_setupLight(world, &uniforms, view->light);
+        }
+
+        flecsEngineGetClearColorVec4(engine, uniforms.clear_color);
+
+        wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+        engine->last_pipeline = pipeline;
+
+        wgpuQueueWriteBuffer(
+            engine->queue,
+            impl->uniform_buffers[0],
+            0,
+            &uniforms,
+            sizeof(FlecsUniform));
+    }
+
     wgpuRenderPassEncoderSetBindGroup(pass, 0, impl->bind_group, 0, NULL);
 
     batch->callback(world, engine, pass, batch);

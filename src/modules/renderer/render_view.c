@@ -3,7 +3,7 @@
 
 static void flecsEngineRenderBatchSet(
     const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
     const FlecsRenderBatchSet *batch_set)
@@ -35,7 +35,7 @@ static void flecsEngineRenderBatchSet(
 
 void flecsEngineRenderView(
     const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     ecs_entity_t view_entity,
     const FlecsRenderView *view)
@@ -45,6 +45,9 @@ void flecsEngineRenderView(
     if (!batch_set) {
         return;
     }
+
+    /* Always set pipeline/uniforms for first batch in view */
+    engine->last_pipeline = NULL;
 
     flecsEngineRenderBatchSet(
         world,
