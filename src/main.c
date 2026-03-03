@@ -165,7 +165,7 @@ int main(
   
   ecs_add(world, camera, FlecsCameraController);
   ecs_set(world, camera, FlecsPosition3, {0, 10, 16});
-  ecs_set(world, camera, FlecsLookAt, {0, 0, 0});
+  ecs_set(world, camera, FlecsLookAt, {0, 8, 0});
 
   ecs_entity_t light = ecs_new(world);
   ecs_set(world, light, FlecsPosition3, {0, 0, 5});
@@ -175,7 +175,9 @@ int main(
 
   ecs_entity_t view = ecs_new(world);
   FlecsRenderView *v = ecs_ensure(world, view, FlecsRenderView);
-  // ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_infinite_grid(world);
+
+  ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] =
+    flecsEngine_createBatch_infinite_grid(world);
   ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_boxes(world);
   ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_quads(world);
   ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_triangles(world);
@@ -193,7 +195,7 @@ int main(
   ecs_modified(world, view, FlecsRenderView);
 
   int numShapes = 7;
-  int shapeY = 7;
+  int shapeY = 15;
   int shapeZ = 0;
   const float spinSpeed = 1.0f;
 

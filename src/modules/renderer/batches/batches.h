@@ -6,7 +6,7 @@
 typedef struct {
     WGPUBuffer instance_transform;
     WGPUBuffer instance_color;
-    WGPUBuffer instance_size;
+    FlecsInstanceTransform *cpu_transforms;
     int32_t count;
     int32_t capacity;
     FlecsMesh3Impl mesh;
@@ -27,5 +27,12 @@ void flecsEngine_batchCtx_ensureCapacity(
 void flecsEngine_batchCtx_draw(
     const WGPURenderPassEncoder pass,
     const flecs_engine_batch_ctx_t *ctx);
+
+void flecsEngine_packInstanceTransform(
+    FlecsInstanceTransform *out,
+    const FlecsWorldTransform3 *wt,
+    float scale_x,
+    float scale_y,
+    float scale_z);
 
 #endif

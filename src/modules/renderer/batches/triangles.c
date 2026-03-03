@@ -6,7 +6,6 @@
 
 typedef struct {
     flecs_engine_batch_ctx_t batch;
-    FlecsInstanceSize *cpu_sizes;
 } flecs_engine_triangles_ctx_t;
 
 static flecs_engine_triangles_ctx_t* flecsEngine_triangles_createCtx(
@@ -23,27 +22,7 @@ static void flecsEngine_triangles_deleteCtx(
 {
     flecs_engine_triangles_ctx_t *ctx = arg;
     flecsEngine_batchCtx_fini(&ctx->batch);
-    if (ctx->cpu_sizes) {
-        ecs_os_free(ctx->cpu_sizes);
-    }
-
     ecs_os_free(ctx);
-}
-
-static void flecsEngine_triangles_ensureCapacity(
-    const FlecsEngineImpl *engine,
-    flecs_engine_triangles_ctx_t *ctx,
-    int32_t count)
-{
-    int32_t prev_capacity = ctx->batch.capacity;
-    flecsEngine_batchCtx_ensureCapacity(engine, &ctx->batch, count);
-
-    if (ctx->batch.capacity != prev_capacity) {
-        if (ctx->cpu_sizes) {
-            ecs_os_free(ctx->cpu_sizes);
-        }
-        ctx->cpu_sizes = ecs_os_malloc_n(FlecsInstanceSize, ctx->batch.capacity);
-    }
 }
 
 static void flecsEngine_triangles_prepareInstances(
@@ -62,12 +41,22 @@ redo: {
             const FlecsRgba *colors = ecs_field(&it, FlecsRgba, 2);
 
             if ((ctx->batch.count + it.count) <= ctx->batch.capacity) {
+                for (int32_t i = 0; i < it.count; i ++) {
+                    int32_t index = ctx->batch.count + i;
+                    flecsEngine_packInstanceTransform(
+                        &ctx->batch.cpu_transforms[index],
+                        &wt[i],
+                        triangles[i].x,
+                        triangles[i].y,
+                        1.0f);
+                }
+
                 wgpuQueueWriteBuffer(
                     engine->queue,
                     ctx->batch.instance_transform,
-                    ctx->batch.count * sizeof(mat4),
-                    wt,
-                    it.count * sizeof(mat4));
+                    (uint64_t)ctx->batch.count * sizeof(FlecsInstanceTransform),
+                    &ctx->batch.cpu_transforms[ctx->batch.count],
+                    (uint64_t)it.count * sizeof(FlecsInstanceTransform));
 
                 wgpuQueueWriteBuffer(
                     engine->queue,
@@ -75,28 +64,14 @@ redo: {
                     ctx->batch.count * sizeof(flecs_rgba_t),
                     colors,
                     it.count * sizeof(flecs_rgba_t));
-
-                for (int32_t i = 0; i < it.count; i ++) {
-                    int32_t index = ctx->batch.count + i;
-                    ctx->cpu_sizes[index].size.x = triangles[i].x;
-                    ctx->cpu_sizes[index].size.y = triangles[i].y;
-                    ctx->cpu_sizes[index].size.z = 1.0f;
-                }
-
-                wgpuQueueWriteBuffer(
-                    engine->queue,
-                    ctx->batch.instance_size,
-                    ctx->batch.count * sizeof(FlecsInstanceSize),
-                    &ctx->cpu_sizes[ctx->batch.count],
-                    it.count * sizeof(FlecsInstanceSize));
             }
 
             ctx->batch.count += it.count;
         }
 
         if (ctx->batch.count > ctx->batch.capacity) {
-            flecsEngine_triangles_ensureCapacity(
-                engine, ctx, ctx->batch.count);
+            flecsEngine_batchCtx_ensureCapacity(
+                engine, &ctx->batch, ctx->batch.count);
             ecs_assert(ctx->batch.count <= ctx->batch.capacity, ECS_INTERNAL_ERROR, NULL);
             goto redo;
         }
@@ -135,8 +110,7 @@ ecs_entity_t flecsEngine_createBatch_triangles(
         .vertex_type = ecs_id(FlecsLitVertex),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
-            ecs_id(FlecsInstanceColor),
-            ecs_id(FlecsInstanceSize)
+            ecs_id(FlecsInstanceColor)
         },
         .uniforms = {
             ecs_id(FlecsUniform)

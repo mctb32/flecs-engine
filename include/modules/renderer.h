@@ -20,7 +20,10 @@ typedef struct {
 extern ECS_COMPONENT_DECLARE(FlecsLitVertex);
 
 typedef struct {
-    mat4 m;
+    flecs_vec3_t c0;
+    flecs_vec3_t c1;
+    flecs_vec3_t c2;
+    flecs_vec3_t c3;
 } FlecsInstanceTransform;
 
 extern ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
@@ -30,12 +33,6 @@ typedef struct {
 } FlecsInstanceColor;
 
 extern ECS_COMPONENT_DECLARE(FlecsInstanceColor);
-
-typedef struct {
-    flecs_vec3_t size;
-} FlecsInstanceSize;
-
-extern ECS_COMPONENT_DECLARE(FlecsInstanceSize);
 
 typedef struct {
     flecs_mat4_t mvp;

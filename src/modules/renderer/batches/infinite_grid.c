@@ -6,9 +6,9 @@
 
 typedef struct {
     flecs_engine_batch_ctx_t batch;
-    FlecsInstanceTransform transform;
+    FlecsWorldTransform3 transform;
     FlecsInstanceColor color;
-    FlecsInstanceSize size;
+    flecs_vec3_t size;
 } flecs_engine_infinite_grid_ctx_t;
 
 static flecs_engine_infinite_grid_ctx_t* flecsEngine_infinite_grid_createCtx(
@@ -21,7 +21,7 @@ static flecs_engine_infinite_grid_ctx_t* flecsEngine_infinite_grid_createCtx(
     glm_mat4_identity(result->transform.m);
     glm_rotate(result->transform.m, -glm_rad(90.0f), (vec3){1.0f, 0.0f, 0.0f});
     result->color.color = (flecs_rgba_t){96, 96, 112, 255};
-    result->size.size = (flecs_vec3_t){2000.0f, 2000.0f, 1.0f};
+    result->size = (flecs_vec3_t){2000.0f, 2000.0f, 1.0f};
 
     return result;
 }
@@ -42,12 +42,19 @@ static void flecsEngine_infinite_grid_prepareInstance(
         flecsEngine_batchCtx_ensureCapacity(engine, &ctx->batch, 1);
     }
 
+    flecsEngine_packInstanceTransform(
+        &ctx->batch.cpu_transforms[0],
+        &ctx->transform,
+        ctx->size.x,
+        ctx->size.y,
+        ctx->size.z);
+
     wgpuQueueWriteBuffer(
         engine->queue,
         ctx->batch.instance_transform,
         0,
-        &ctx->transform,
-        sizeof(ctx->transform));
+        ctx->batch.cpu_transforms,
+        sizeof(FlecsInstanceTransform));
 
     wgpuQueueWriteBuffer(
         engine->queue,
@@ -55,13 +62,6 @@ static void flecsEngine_infinite_grid_prepareInstance(
         0,
         &ctx->color,
         sizeof(ctx->color));
-
-    wgpuQueueWriteBuffer(
-        engine->queue,
-        ctx->batch.instance_size,
-        0,
-        &ctx->size,
-        sizeof(ctx->size));
 
     ctx->batch.count = 1;
 }
@@ -90,8 +90,7 @@ ecs_entity_t flecsEngine_createBatch_infinite_grid(
         .vertex_type = ecs_id(FlecsLitVertex),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
-            ecs_id(FlecsInstanceColor),
-            ecs_id(FlecsInstanceSize)
+            ecs_id(FlecsInstanceColor)
         },
         .uniforms = {
             ecs_id(FlecsUniform)

@@ -37,12 +37,22 @@ redo: {
             const FlecsRgba *colors = ecs_field(&it, FlecsRgba, 2);
 
             if ((ctx->count + it.count) <= ctx->capacity) {
+                for (int32_t i = 0; i < it.count; i ++) {
+                    int32_t index = ctx->count + i;
+                    flecsEngine_packInstanceTransform(
+                        &ctx->cpu_transforms[index],
+                        &wt[i],
+                        boxes[i].x,
+                        boxes[i].y,
+                        boxes[i].z);
+                }
+
                 wgpuQueueWriteBuffer(
                     engine->queue,
                     ctx->instance_transform,
-                    ctx->count * sizeof(mat4),
-                    wt,
-                    it.count * sizeof(mat4));
+                    (uint64_t)ctx->count * sizeof(FlecsInstanceTransform),
+                    &ctx->cpu_transforms[ctx->count],
+                    (uint64_t)it.count * sizeof(FlecsInstanceTransform));
 
                 wgpuQueueWriteBuffer(
                     engine->queue,
@@ -50,13 +60,6 @@ redo: {
                     ctx->count * sizeof(flecs_rgba_t),
                     colors,
                     it.count * sizeof(flecs_rgba_t));
-
-                wgpuQueueWriteBuffer(
-                    engine->queue,
-                    ctx->instance_size,
-                    ctx->count * sizeof(FlecsInstanceSize),
-                    boxes,
-                    it.count * sizeof(FlecsBox));
             }
 
             ctx->count += it.count;
@@ -102,8 +105,7 @@ ecs_entity_t flecsEngine_createBatch_boxes(
         .vertex_type = ecs_id(FlecsLitVertex),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
-            ecs_id(FlecsInstanceColor),
-            ecs_id(FlecsInstanceSize)
+            ecs_id(FlecsInstanceColor)
         },
         .uniforms = {
             ecs_id(FlecsUniform)

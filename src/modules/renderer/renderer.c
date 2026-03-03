@@ -15,7 +15,6 @@ ECS_COMPONENT_DECLARE(FlecsVertex);
 ECS_COMPONENT_DECLARE(FlecsLitVertex);
 ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
 ECS_COMPONENT_DECLARE(FlecsInstanceColor);
-ECS_COMPONENT_DECLARE(FlecsInstanceSize);
 ECS_COMPONENT_DECLARE(FlecsUniform);
 ECS_COMPONENT_DECLARE(FlecsShader);
 ECS_COMPONENT_DECLARE(FlecsShaderImpl);
@@ -202,7 +201,6 @@ void FlecsEngineRendererImport(
     ECS_COMPONENT_DEFINE(world, FlecsLitVertex);
     ECS_COMPONENT_DEFINE(world, FlecsInstanceTransform);
     ECS_COMPONENT_DEFINE(world, FlecsInstanceColor);
-    ECS_COMPONENT_DEFINE(world, FlecsInstanceSize);
     ECS_COMPONENT_DEFINE(world, FlecsUniform);
     ECS_COMPONENT_DEFINE(world, FlecsShader);
     ECS_COMPONENT_DEFINE(world, FlecsShaderImpl);
@@ -274,7 +272,10 @@ void FlecsEngineRendererImport(
     ecs_struct(world, {
         .entity = ecs_id(FlecsInstanceTransform),
         .members = {
-            { .name = "m", .type = ecs_id(flecs_mat4_t) }
+            { .name = "c0", .type = ecs_id(flecs_vec3_t) },
+            { .name = "c1", .type = ecs_id(flecs_vec3_t) },
+            { .name = "c2", .type = ecs_id(flecs_vec3_t) },
+            { .name = "c3", .type = ecs_id(flecs_vec3_t) }
         }
     });
 
@@ -282,13 +283,6 @@ void FlecsEngineRendererImport(
         .entity = ecs_id(FlecsInstanceColor),
         .members = {
             { .name = "c", .type = ecs_id(flecs_rgba_t) }
-        }
-    });
-
-    ecs_struct(world, {
-        .entity = ecs_id(FlecsInstanceSize),
-        .members = {
-            { .name = "size", .type = ecs_id(flecs_vec3_t) }
         }
     });
 

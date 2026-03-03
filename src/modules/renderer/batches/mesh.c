@@ -64,51 +64,6 @@ static void flecsEngine_mesh_onGroupDelete(
     ecs_os_free(ctx);
 }
 
-static void flecsEngine_mesh_writeDefaultSizes(
-    const FlecsEngineImpl *engine,
-    WGPUBuffer buffer,
-    int32_t count)
-{
-    enum { CHUNK_SIZE = 64 };
-    FlecsInstanceSize chunk[CHUNK_SIZE];
-    for (int32_t i = 0; i < CHUNK_SIZE; i ++) {
-        chunk[i].size = (flecs_vec3_t){1.0f, 1.0f, 1.0f};
-    }
-
-    int32_t written = 0;
-    while (written < count) {
-        int32_t n = count - written;
-        if (n > CHUNK_SIZE) {
-            n = CHUNK_SIZE;
-        }
-
-        wgpuQueueWriteBuffer(
-            engine->queue,
-            buffer,
-            (uint64_t)written * sizeof(FlecsInstanceSize),
-            chunk,
-            (uint64_t)n * sizeof(FlecsInstanceSize));
-
-        written += n;
-    }
-}
-
-static void flecsEngine_mesh_ensureCapacity(
-    const FlecsEngineImpl *engine,
-    flecs_engine_mesh_group_ctx_t *ctx,
-    int32_t count)
-{
-    int32_t prev_capacity = ctx->batch.capacity;
-    flecsEngine_batchCtx_ensureCapacity(engine, &ctx->batch, count);
-
-    if (ctx->batch.capacity != prev_capacity) {
-        flecsEngine_mesh_writeDefaultSizes(
-            engine,
-            ctx->batch.instance_size,
-            ctx->batch.capacity);
-    }
-}
-
 static void flecsEngine_mesh_prepareInstances(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
@@ -127,12 +82,22 @@ redo: {
             const FlecsRgba *colors = ecs_field(&it, FlecsRgba, 2);
 
             if ((ctx->batch.count + it.count) <= ctx->batch.capacity) {
+                for (int32_t i = 0; i < it.count; i ++) {
+                    int32_t index = ctx->batch.count + i;
+                    flecsEngine_packInstanceTransform(
+                        &ctx->batch.cpu_transforms[index],
+                        &wt[i],
+                        1.0f,
+                        1.0f,
+                        1.0f);
+                }
+
                 wgpuQueueWriteBuffer(
                     engine->queue,
                     ctx->batch.instance_transform,
-                    (uint64_t)ctx->batch.count * sizeof(mat4),
-                    wt,
-                    (uint64_t)it.count * sizeof(mat4));
+                    (uint64_t)ctx->batch.count * sizeof(FlecsInstanceTransform),
+                    &ctx->batch.cpu_transforms[ctx->batch.count],
+                    (uint64_t)it.count * sizeof(FlecsInstanceTransform));
 
                 wgpuQueueWriteBuffer(
                     engine->queue,
@@ -146,7 +111,8 @@ redo: {
         }
 
         if (ctx->batch.count > ctx->batch.capacity) {
-            flecsEngine_mesh_ensureCapacity(engine, ctx, ctx->batch.count);
+            flecsEngine_batchCtx_ensureCapacity(
+                engine, &ctx->batch, ctx->batch.count);
             ecs_assert(
                 ctx->batch.count <= ctx->batch.capacity,
                 ECS_INTERNAL_ERROR,
@@ -233,8 +199,7 @@ ecs_entity_t flecsEngine_createBatch_mesh(
         .vertex_type = ecs_id(FlecsLitVertex),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
-            ecs_id(FlecsInstanceColor),
-            ecs_id(FlecsInstanceSize)
+            ecs_id(FlecsInstanceColor)
         },
         .uniforms = {
             ecs_id(FlecsUniform)

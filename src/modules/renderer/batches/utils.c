@@ -6,7 +6,7 @@ void flecsEngine_batchCtx_init(
 {
     ctx->instance_transform = NULL;
     ctx->instance_color = NULL;
-    ctx->instance_size = NULL;
+    ctx->cpu_transforms = NULL;
     ctx->count = 0;
     ctx->capacity = 0;
     if (mesh) {
@@ -27,9 +27,9 @@ void flecsEngine_batchCtx_fini(
         wgpuBufferRelease(ctx->instance_color);
         ctx->instance_color = NULL;
     }
-    if (ctx->instance_size) {
-        wgpuBufferRelease(ctx->instance_size);
-        ctx->instance_size = NULL;
+    if (ctx->cpu_transforms) {
+        ecs_os_free(ctx->cpu_transforms);
+        ctx->cpu_transforms = NULL;
     }
 
     ctx->count = 0;
@@ -56,14 +56,14 @@ void flecsEngine_batchCtx_ensureCapacity(
     if (ctx->instance_color) {
         wgpuBufferRelease(ctx->instance_color);
     }
-    if (ctx->instance_size) {
-        wgpuBufferRelease(ctx->instance_size);
+    if (ctx->cpu_transforms) {
+        ecs_os_free(ctx->cpu_transforms);
     }
 
     ctx->instance_transform = wgpuDeviceCreateBuffer(engine->device,
         &(WGPUBufferDescriptor){
             .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
-            .size = (uint64_t)new_capacity * sizeof(mat4)
+            .size = (uint64_t)new_capacity * sizeof(FlecsInstanceTransform)
         });
 
     ctx->instance_color = wgpuDeviceCreateBuffer(engine->device,
@@ -72,11 +72,8 @@ void flecsEngine_batchCtx_ensureCapacity(
             .size = (uint64_t)new_capacity * sizeof(flecs_rgba_t)
         });
 
-    ctx->instance_size = wgpuDeviceCreateBuffer(engine->device,
-        &(WGPUBufferDescriptor){
-            .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
-            .size = (uint64_t)new_capacity * sizeof(FlecsInstanceSize)
-        });
+    ctx->cpu_transforms =
+        ecs_os_malloc_n(FlecsInstanceTransform, new_capacity);
 
     ctx->capacity = new_capacity;
 }
@@ -106,7 +103,30 @@ void flecsEngine_batchCtx_draw(
     wgpuRenderPassEncoderSetVertexBuffer(pass, 0, ctx->mesh.vertex_buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetVertexBuffer(pass, 1, ctx->instance_transform, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetVertexBuffer(pass, 2, ctx->instance_color, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(pass, 3, ctx->instance_size, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetIndexBuffer(pass, ctx->mesh.index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDrawIndexed(pass, ctx->mesh.index_count, ctx->count, 0, 0, 0);
+}
+
+void flecsEngine_packInstanceTransform(
+    FlecsInstanceTransform *out,
+    const FlecsWorldTransform3 *wt,
+    float scale_x,
+    float scale_y,
+    float scale_z)
+{
+    out->c0.x = wt->m[0][0] * scale_x;
+    out->c0.y = wt->m[0][1] * scale_x;
+    out->c0.z = wt->m[0][2] * scale_x;
+
+    out->c1.x = wt->m[1][0] * scale_y;
+    out->c1.y = wt->m[1][1] * scale_y;
+    out->c1.z = wt->m[1][2] * scale_y;
+
+    out->c2.x = wt->m[2][0] * scale_z;
+    out->c2.y = wt->m[2][1] * scale_z;
+    out->c2.z = wt->m[2][2] * scale_z;
+
+    out->c3.x = wt->m[3][0];
+    out->c3.y = wt->m[3][1];
+    out->c3.z = wt->m[3][2];
 }

@@ -37,12 +37,34 @@ redo: {
             const FlecsScale3 *scales = ecs_field(&it, FlecsScale3, 3);
 
             if ((ctx->count + it.count) <= ctx->capacity) {
+                bool scales_is_self = scales && ecs_field_is_self(&it, 3);
+                for (int32_t i = 0; i < it.count; i ++) {
+                    float scale_x = 1.0f;
+                    float scale_y = 1.0f;
+                    float scale_z = 1.0f;
+                    if (scales) {
+                        const FlecsScale3 *scale =
+                            scales_is_self ? &scales[i] : &scales[0];
+                        scale_x = scale->x;
+                        scale_y = scale->y;
+                        scale_z = scale->z;
+                    }
+
+                    int32_t index = ctx->count + i;
+                    flecsEngine_packInstanceTransform(
+                        &ctx->cpu_transforms[index],
+                        &wt[i],
+                        scale_x,
+                        scale_y,
+                        scale_z);
+                }
+
                 wgpuQueueWriteBuffer(
                     engine->queue,
                     ctx->instance_transform,
-                    ctx->count * sizeof(mat4),
-                    wt,
-                    it.count * sizeof(mat4));
+                    (uint64_t)ctx->count * sizeof(FlecsInstanceTransform),
+                    &ctx->cpu_transforms[ctx->count],
+                    (uint64_t)it.count * sizeof(FlecsInstanceTransform));
 
                 wgpuQueueWriteBuffer(
                     engine->queue,
@@ -50,34 +72,6 @@ redo: {
                     ctx->count * sizeof(flecs_rgba_t),
                     colors,
                     it.count * sizeof(flecs_rgba_t));
-
-                FlecsInstanceSize *sizes =
-                    ecs_os_malloc_n(FlecsInstanceSize, it.count);
-                bool scales_is_self = scales && ecs_field_is_self(&it, 3);
-                for (int32_t i = 0; i < it.count; i ++) {
-                    FlecsInstanceSize size = {
-                        .size = {1.0f, 1.0f, 1.0f}
-                    };
-                    if (scales) {
-                        const FlecsScale3 *scale = scales_is_self
-                            ? &scales[i]
-                            : &scales[0];
-                        size.size = (flecs_vec3_t){
-                            scale->x,
-                            scale->y,
-                            scale->z
-                        };
-                    }
-                    sizes[i] = size;
-                }
-
-                wgpuQueueWriteBuffer(
-                    engine->queue,
-                    ctx->instance_size,
-                    ctx->count * sizeof(FlecsInstanceSize),
-                    sizes,
-                    it.count * sizeof(FlecsInstanceSize));
-                ecs_os_free(sizes);
             }
 
             ctx->count += it.count;
@@ -125,8 +119,7 @@ ecs_entity_t flecsEngine_createBatch_cones(
         .vertex_type = ecs_id(FlecsLitVertex),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
-            ecs_id(FlecsInstanceColor),
-            ecs_id(FlecsInstanceSize)
+            ecs_id(FlecsInstanceColor)
         },
         .uniforms = {
             ecs_id(FlecsUniform)
