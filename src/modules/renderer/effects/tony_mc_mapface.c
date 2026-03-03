@@ -22,13 +22,20 @@ static const char *kShaderSource =
     "@group(0) @binding(1) var input_sampler : sampler;\n"
     "@group(0) @binding(2) var tony_lut : texture_3d<f32>;\n"
     "@group(0) @binding(3) var tony_lut_sampler : sampler;\n"
+    "fn interleaved_gradient_noise(pixel : vec2<f32>) -> f32 {\n"
+    "  return fract(52.9829189 * fract(0.06711056 * pixel.x + 0.00583715 * pixel.y));\n"
+    "}\n"
     "@fragment fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {\n"
     "  let src = textureSample(input_texture, input_sampler, in.uv);\n"
     "  let encoded = src.rgb / (src.rgb + vec3<f32>(1.0));\n"
     "  let dims = 48.0;\n"
     "  let uv = clamp(encoded * ((dims - 1.0) / dims) + (0.5 / dims), vec3<f32>(0.0), vec3<f32>(1.0));\n"
     "  let mapped = textureSampleLevel(tony_lut, tony_lut_sampler, uv, 0.0).rgb;\n"
-    "  return vec4<f32>(mapped, src.a);\n"
+    "  let tex_size = vec2<f32>(textureDimensions(input_texture));\n"
+    "  let pixel = floor(in.uv * tex_size);\n"
+    "  let dither = (interleaved_gradient_noise(pixel) - 0.5) / 255.0;\n"
+    "  let dithered = clamp(mapped + vec3<f32>(dither), vec3<f32>(0.0), vec3<f32>(1.0));\n"
+    "  return vec4<f32>(dithered, src.a);\n"
     "}\n";
 
 static ecs_entity_t flecsRenderEffect_tonyMcMapFace_shader(
