@@ -102,83 +102,6 @@ void flecsEngineGetClearColorVec4(
     out[3] = flecsEngineColorChannelToFloat(impl->clear_color.a);
 }
 
-static bool flecsEngineAnyViewHasEffects(
-    const ecs_world_t *world,
-    ecs_query_t *view_query)
-{
-    ecs_iter_t it = ecs_query_iter(world, view_query);
-    while (ecs_query_next(&it)) {
-        FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
-        for (int32_t i = 0; i < it.count; i ++) {
-            if (ecs_vec_count(&views[i].effects)) {
-                ecs_iter_fini(&it);
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-static void flecsEngineRenderViewsWithoutEffects(
-    const ecs_world_t *world,
-    FlecsEngineImpl *impl,
-    WGPUTextureView view_texture,
-    WGPUCommandEncoder encoder)
-{
-    WGPUColor clear_color = flecsEngineGetClearColor(impl);
-
-    // Color attachment: clear to background and render into swapchain.
-    WGPURenderPassColorAttachment color_attachment = {
-        .view = view_texture,
-        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-        .loadOp = WGPULoadOp_Clear,
-        .storeOp = WGPUStoreOp_Store,
-        .clearValue = clear_color
-    };
-
-    // Depth attachment: clear depth each frame.
-    WGPURenderPassDepthStencilAttachment depth_attachment = {
-        .view = impl->depth_texture_view,
-        .depthLoadOp = WGPULoadOp_Clear,
-        .depthStoreOp = WGPUStoreOp_Store,
-        .depthClearValue = 1.0f,
-        .depthReadOnly = false,
-        .stencilLoadOp = WGPULoadOp_Undefined,
-        .stencilStoreOp = WGPUStoreOp_Undefined,
-        .stencilClearValue = 0,
-        .stencilReadOnly = true
-    };
-
-    // Render pass: bind color and depth attachments.
-    WGPURenderPassDescriptor pass_desc = {
-        .colorAttachmentCount = 1,
-        .colorAttachments = &color_attachment,
-        .depthStencilAttachment = &depth_attachment
-    };
-
-    WGPURenderPassEncoder pass =
-        wgpuCommandEncoderBeginRenderPass(encoder, &pass_desc);
-
-    ecs_iter_t it = ecs_query_iter(world, impl->view_query);
-    while (ecs_query_next(&it)) {
-        ecs_entity_t view_src = ecs_field_src(&it, 0);
-        FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
-        for (int32_t i = 0; i < it.count; i ++) {
-            ecs_entity_t view_entity = view_src ? view_src : it.entities[i];
-            flecsEngineRenderView(
-                world,
-                impl,
-                pass,
-                view_entity,
-                &views[i]);
-        }
-    }
-
-    wgpuRenderPassEncoderEnd(pass);
-    wgpuRenderPassEncoderRelease(pass);
-}
-
 void flecsEngineRenderViews(
     const ecs_world_t *world,
     FlecsEngineImpl *impl,
@@ -186,16 +109,6 @@ void flecsEngineRenderViews(
     WGPUCommandEncoder encoder)
 {
     flecsEngineUploadMaterialBuffer(world, impl);
-
-    if (!flecsEngineAnyViewHasEffects(world, impl->view_query)) {
-        flecsEngineRenderViewsWithoutEffects(
-            world,
-            impl,
-            view_texture,
-            encoder);
-        impl->last_pipeline = NULL;
-        return;
-    }
 
     flecsEngineRenderViewsWithEffects(
         world,

@@ -38,11 +38,6 @@ static void flecsRenderBatchImplRelease(
         ptr->bind_layout = NULL;
     }
 
-    if (ptr->pipeline_surface) {
-        wgpuRenderPipelineRelease(ptr->pipeline_surface);
-        ptr->pipeline_surface = NULL;
-    }
-
     if (ptr->pipeline_hdr) {
         wgpuRenderPipelineRelease(ptr->pipeline_hdr);
         ptr->pipeline_hdr = NULL;
@@ -539,19 +534,6 @@ void FlecsRenderBatch_on_set(
             rb[i].uniforms,
             WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
             &impl);
-
-        impl.pipeline_surface = flecsCreateRenderBatchPipeline(
-            engine,
-            shader,
-            shader_impl,
-            impl.bind_layout,
-            vertex_buffers,
-            (uint32_t)vertex_buffer_count,
-            engine->surface_config.format);
-        if (!impl.pipeline_surface) {
-            flecsRenderBatchImplRelease(&impl);
-            continue;
-        }
 
         WGPUTextureFormat hdr_format = engine->hdr_color_format;
         if (hdr_format == WGPUTextureFormat_Undefined) {

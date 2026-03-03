@@ -49,6 +49,7 @@ typedef struct {
     uint32_t effect_target_width;
     uint32_t effect_target_height;
     WGPUTextureFormat effect_target_format;
+
     WGPUBuffer material_buffer;
     FlecsGpuMaterial *cpu_materials;
     uint32_t material_buffer_capacity;
@@ -80,7 +81,6 @@ extern ECS_COMPONENT_DECLARE(FlecsShaderImpl);
 typedef struct {
     WGPUBindGroupLayout bind_layout;
     WGPUBindGroup bind_group;
-    WGPURenderPipeline pipeline_surface;
     WGPURenderPipeline pipeline_hdr;
     WGPUBuffer uniform_buffers[FLECS_ENGINE_UNIFORMS_MAX];
     uint8_t uniform_count;

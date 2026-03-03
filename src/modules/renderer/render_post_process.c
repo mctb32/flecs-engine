@@ -197,7 +197,7 @@ static WGPURenderPassEncoder flecsEngineBeginEffectPass(
     return wgpuCommandEncoderBeginRenderPass(encoder, &pass_desc);
 }
 
-static void flecsEngineRenderViewWithEffects(
+static bool flecsEngineRenderViewWithEffects(
     const ecs_world_t *world,
     FlecsEngineImpl *impl,
     ecs_entity_t view_entity,
@@ -207,28 +207,13 @@ static void flecsEngineRenderViewWithEffects(
     bool clear_output)
 {
     int32_t effect_count = ecs_vec_count(&view->effects);
-
     if (!effect_count) {
-        WGPURenderPassEncoder pass = flecsEngineBeginBatchPass(
-            impl,
-            encoder,
-            view_texture,
-            clear_output ? WGPULoadOp_Clear : WGPULoadOp_Load);
-
-        flecsEngineRenderView(
-            world,
-            impl,
-            pass,
-            view_entity,
-            view);
-        wgpuRenderPassEncoderEnd(pass);
-        wgpuRenderPassEncoderRelease(pass);
-        return;
+        return false;
     }
 
     if (!flecsEngineEnsureEffectTargets(impl, effect_count)) {
         ecs_err("failed to allocate effect render targets");
-        return;
+        return false;
     }
 
     WGPURenderPassEncoder batch_pass = flecsEngineBeginBatchPass(
@@ -288,7 +273,7 @@ static void flecsEngineRenderViewWithEffects(
                 output_load_op);
             if (!render_ok) {
                 ecs_err("failed to render custom effect");
-                return;
+                return false;
             }
             continue;
         }
@@ -312,6 +297,8 @@ static void flecsEngineRenderViewWithEffects(
         wgpuRenderPassEncoderEnd(effect_pass);
         wgpuRenderPassEncoderRelease(effect_pass);
     }
+
+    return true;
 }
 
 void flecsEngineRenderViewsWithEffects(
@@ -328,7 +315,7 @@ void flecsEngineRenderViewsWithEffects(
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
         for (int32_t i = 0; i < it.count; i ++) {
             ecs_entity_t view_entity = view_src ? view_src : it.entities[i];
-            flecsEngineRenderViewWithEffects(
+            bool rendered = flecsEngineRenderViewWithEffects(
                 world,
                 impl,
                 view_entity,
@@ -336,7 +323,9 @@ void flecsEngineRenderViewsWithEffects(
                 view_texture,
                 encoder,
                 clear_output);
-            clear_output = false;
+            if (rendered) {
+                clear_output = false;
+            }
         }
     }
 }
