@@ -120,7 +120,6 @@ typedef struct {
     uint32_t texture_width;
     uint32_t texture_height;
     WGPUTextureFormat texture_format;
-    FlecsBloomSettings settings;
 } FlecsBloomImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsBloomImpl);

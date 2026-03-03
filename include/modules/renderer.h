@@ -64,22 +64,18 @@ typedef struct {
     float threshold_softness;
 } FlecsBloomPrefilter;
 
-typedef enum {
-    FlecsBloomCompositeMode_EnergyConserving = 0,
-    FlecsBloomCompositeMode_Additive = 1
-} FlecsBloomCompositeMode;
-
 typedef struct {
     float intensity;
     float low_frequency_boost;
     float low_frequency_boost_curvature;
     float high_pass_frequency;
     FlecsBloomPrefilter prefilter;
-    FlecsBloomCompositeMode composite_mode;
     uint32_t max_mip_dimension;
     float scale_x;
     float scale_y;
-} FlecsBloomSettings;
+} FlecsBloom;
+
+extern ECS_COMPONENT_DECLARE(FlecsBloom);
 
 ecs_entity_t flecsEngine_createBatch_mesh(
     ecs_world_t *world);
@@ -112,19 +108,16 @@ ecs_entity_t flecsEngine_createEffect_tonyMcMapFace(
     ecs_world_t *world,
     int32_t input);
 
-FlecsBloomSettings flecsEngine_bloomSettingsDefault(void);
-FlecsBloomSettings flecsEngine_bloomSettingsAnamorphic(void);
-FlecsBloomSettings flecsEngine_bloomSettingsOldSchool(void);
-FlecsBloomSettings flecsEngine_bloomSettingsScreenBlur(void);
-
-ecs_entity_t flecsEngine_createEffect_bloom(
-    ecs_world_t *world,
-    int32_t input,
-    const FlecsBloomSettings *settings);
+FlecsBloom flecsEngine_bloomSettingsDefault(void);
 
 ecs_entity_t flecsEngine_createEffect_invert(
     ecs_world_t *world,
     int32_t input);
+
+ecs_entity_t flecsEngine_createEffect_bloom(
+    ecs_world_t *world,
+    int32_t input,
+    const FlecsBloom *settings);
 
 ecs_entity_t flecsEngine_createEffect_passthrough(
     ecs_world_t *world,

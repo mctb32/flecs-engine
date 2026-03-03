@@ -7,6 +7,7 @@
 ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);
 ECS_COMPONENT_DECLARE(FlecsRenderEffectImpl);
 ECS_COMPONENT_DECLARE(FlecsTonyImpl);
+ECS_COMPONENT_DECLARE(FlecsBloom);
 ECS_COMPONENT_DECLARE(FlecsBloomImpl);
 ECS_COMPONENT_DECLARE(FlecsRenderBatch);
 ECS_COMPONENT_DECLARE(FlecsRenderEffect);
@@ -130,6 +131,7 @@ void FlecsEngineRendererImport(
     ECS_COMPONENT_DEFINE(world, FlecsRenderEffect);
     ECS_COMPONENT_DEFINE(world, FlecsRenderEffectImpl);
     ECS_COMPONENT_DEFINE(world, FlecsTonyImpl);
+    ECS_COMPONENT_DEFINE(world, FlecsBloom);
     ECS_COMPONENT_DEFINE(world, FlecsBloomImpl);
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchSet);
     ECS_COMPONENT_DEFINE(world, FlecsRenderView);
@@ -201,6 +203,13 @@ void FlecsEngineRendererImport(
     ecs_entity_t entity_vector_t = ecs_vector(world, {
         .type = ecs_id(ecs_entity_t)
     });
+    ecs_entity_t bloom_prefilter_t = ecs_struct(world, {
+        .entity = ecs_entity(world, { .name = "FlecsBloomPrefilter" }),
+        .members = {
+            { .name = "threshold", .type = ecs_id(ecs_f32_t) },
+            { .name = "threshold_softness", .type = ecs_id(ecs_f32_t) }
+        }
+    });
 
     ecs_struct(world, {
         .entity = ecs_id(FlecsVertex),
@@ -250,6 +259,20 @@ void FlecsEngineRendererImport(
             { .name = "light_ray_dir", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "light_color", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "camera_pos", .type = ecs_id(ecs_f32_t), .count = 4 },
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_id(FlecsBloom),
+        .members = {
+            { .name = "intensity", .type = ecs_id(ecs_f32_t) },
+            { .name = "low_frequency_boost", .type = ecs_id(ecs_f32_t) },
+            { .name = "low_frequency_boost_curvature", .type = ecs_id(ecs_f32_t) },
+            { .name = "high_pass_frequency", .type = ecs_id(ecs_f32_t) },
+            { .name = "prefilter", .type = bloom_prefilter_t },
+            { .name = "max_mip_dimension", .type = ecs_id(ecs_u32_t) },
+            { .name = "scale_x", .type = ecs_id(ecs_f32_t) },
+            { .name = "scale_y", .type = ecs_id(ecs_f32_t) }
         }
     });
 

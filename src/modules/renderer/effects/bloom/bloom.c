@@ -187,30 +187,9 @@ static const char *kBloomShaderSource =
     "  return vec4<f32>(sample_input_3x3_tent(uv), 1.0);\n"
     "}\n";
 
-static float flecsBloomClampFloat(
-    float value,
-    float min_value,
-    float max_value)
-{
-    if (value < min_value) {
-        return min_value;
-    }
-    if (value > max_value) {
-        return max_value;
-    }
-    return value;
-}
-
 static WGPUTextureFormat flecsBloomChooseWorkingFormat(
     const FlecsEngineImpl *engine)
 {
-    if (wgpuDeviceHasFeature(
-        engine->device,
-        WGPUFeatureName_RG11B10UfloatRenderable))
-    {
-        return FLECS_ENGINE_BLOOM_PREFERRED_TEXTURE_FORMAT;
-    }
-
     if (engine->hdr_color_format != WGPUTextureFormat_Undefined) {
         return engine->hdr_color_format;
     }
@@ -218,9 +197,9 @@ static WGPUTextureFormat flecsBloomChooseWorkingFormat(
     return engine->surface_config.format;
 }
 
-FlecsBloomSettings flecsEngine_bloomSettingsDefault(void)
+FlecsBloom flecsEngine_bloomSettingsDefault(void)
 {
-    return (FlecsBloomSettings){
+    return (FlecsBloom){
         .intensity = 0.15f,
         .low_frequency_boost = 0.7f,
         .low_frequency_boost_curvature = 0.95f,
@@ -229,97 +208,10 @@ FlecsBloomSettings flecsEngine_bloomSettingsDefault(void)
             .threshold = 0.0f,
             .threshold_softness = 0.0f
         },
-        .composite_mode = FlecsBloomCompositeMode_EnergyConserving,
         .max_mip_dimension = 512u,
         .scale_x = 1.0f,
         .scale_y = 1.0f
     };
-}
-
-FlecsBloomSettings flecsEngine_bloomSettingsAnamorphic(void)
-{
-    FlecsBloomSettings settings = flecsEngine_bloomSettingsDefault();
-    settings.max_mip_dimension *= 2u;
-    settings.scale_x = 4.0f;
-    settings.scale_y = 1.0f;
-    return settings;
-}
-
-FlecsBloomSettings flecsEngine_bloomSettingsOldSchool(void)
-{
-    FlecsBloomSettings settings = flecsEngine_bloomSettingsDefault();
-    settings.intensity = 0.05f;
-    settings.prefilter.threshold = 0.6f;
-    settings.prefilter.threshold_softness = 0.2f;
-    settings.composite_mode = FlecsBloomCompositeMode_Additive;
-    return settings;
-}
-
-FlecsBloomSettings flecsEngine_bloomSettingsScreenBlur(void)
-{
-    FlecsBloomSettings settings = flecsEngine_bloomSettingsDefault();
-    settings.intensity = 1.0f;
-    settings.low_frequency_boost = 0.0f;
-    settings.low_frequency_boost_curvature = 0.0f;
-    settings.high_pass_frequency = 1.0f / 3.0f;
-    return settings;
-}
-
-static FlecsBloomSettings flecsBloomSanitizeSettings(
-    const FlecsBloomSettings *settings)
-{
-    FlecsBloomSettings result = settings
-        ? *settings
-        : flecsEngine_bloomSettingsDefault();
-
-    if (!isfinite(result.intensity) || result.intensity < 0.0f) {
-        result.intensity = 0.0f;
-    }
-    if (!isfinite(result.low_frequency_boost) || result.low_frequency_boost < 0.0f) {
-        result.low_frequency_boost = 0.0f;
-    }
-    if (!isfinite(result.low_frequency_boost_curvature)) {
-        result.low_frequency_boost_curvature = 0.0f;
-    }
-    result.low_frequency_boost_curvature = flecsBloomClampFloat(
-        result.low_frequency_boost_curvature, 0.0f, 0.9999f);
-
-    if (!isfinite(result.high_pass_frequency)) {
-        result.high_pass_frequency = 1.0f;
-    }
-    result.high_pass_frequency = flecsBloomClampFloat(
-        result.high_pass_frequency, 0.0001f, 1.0f);
-
-    if (!isfinite(result.prefilter.threshold) || result.prefilter.threshold < 0.0f) {
-        result.prefilter.threshold = 0.0f;
-    }
-    if (!isfinite(result.prefilter.threshold_softness)) {
-        result.prefilter.threshold_softness = 0.0f;
-    }
-    result.prefilter.threshold_softness = flecsBloomClampFloat(
-        result.prefilter.threshold_softness, 0.0f, 1.0f);
-
-    if (result.composite_mode != FlecsBloomCompositeMode_EnergyConserving &&
-        result.composite_mode != FlecsBloomCompositeMode_Additive)
-    {
-        result.composite_mode = FlecsBloomCompositeMode_EnergyConserving;
-    }
-
-    if (result.max_mip_dimension < 4u) {
-        result.max_mip_dimension = 4u;
-    }
-    if (result.max_mip_dimension > FLECS_ENGINE_BLOOM_MAX_DIMENSION) {
-        result.max_mip_dimension = FLECS_ENGINE_BLOOM_MAX_DIMENSION;
-    }
-
-    if (!isfinite(result.scale_x) || result.scale_x <= 0.0f) {
-        result.scale_x = 1.0f;
-    }
-    if (!isfinite(result.scale_y) || result.scale_y <= 0.0f) {
-        result.scale_y = 1.0f;
-    }
-
-    return result;
 }
 
 static uint32_t flecsBloomIlog2(
@@ -334,7 +226,7 @@ static uint32_t flecsBloomIlog2(
 }
 
 static uint32_t flecsBloomComputeMipCount(
-    const FlecsBloomSettings *settings)
+    const FlecsBloom *settings)
 {
     uint32_t ilog = flecsBloomIlog2(settings->max_mip_dimension);
     if (ilog < 2u) {
@@ -345,7 +237,7 @@ static uint32_t flecsBloomComputeMipCount(
 
 static void flecsBloomComputeTextureSize(
     const FlecsEngineImpl *engine,
-    const FlecsBloomSettings *settings,
+    const FlecsBloom *settings,
     uint32_t *out_width,
     uint32_t *out_height)
 {
@@ -503,30 +395,31 @@ static bool flecsBloomCreateTexture(
 
 static bool flecsBloomEnsureTexture(
     const FlecsEngineImpl *engine,
-    FlecsBloomImpl *bloom)
+    const FlecsBloom *bloom,
+    FlecsBloomImpl *impl)
 {
     uint32_t width = 0;
     uint32_t height = 0;
-    flecsBloomComputeTextureSize(engine, &bloom->settings, &width, &height);
-    uint32_t mip_count = flecsBloomComputeMipCount(&bloom->settings);
+    flecsBloomComputeTextureSize(engine, bloom, &width, &height);
+    uint32_t mip_count = flecsBloomComputeMipCount(bloom);
 
-    if (bloom->texture &&
-        bloom->mip_views &&
-        bloom->texture_width == width &&
-        bloom->texture_height == height &&
-        bloom->mip_count == mip_count &&
-        bloom->texture_format == flecsBloomChooseWorkingFormat(engine))
+    if (impl->texture &&
+        impl->mip_views &&
+        impl->texture_width == width &&
+        impl->texture_height == height &&
+        impl->mip_count == mip_count &&
+        impl->texture_format == flecsBloomChooseWorkingFormat(engine))
     {
         return true;
     }
 
-    flecsBloomReleaseTexture(bloom);
+    flecsBloomReleaseTexture(impl);
 
     WGPUTextureFormat working_format = flecsBloomChooseWorkingFormat(engine);
 
     if (flecsBloomCreateTexture(
         engine,
-        bloom,
+        impl,
         width,
         height,
         mip_count,
@@ -631,16 +524,11 @@ static WGPURenderPipeline flecsBloomCreatePipeline(
     return pipeline;
 }
 
-static WGPUBlendState flecsBloomGetBlendState(
-    FlecsBloomCompositeMode composite_mode)
+static WGPUBlendState flecsBloomGetBlendState(void)
 {
     WGPUBlendComponent color = {
-        .srcFactor = composite_mode == FlecsBloomCompositeMode_Additive
-            ? WGPUBlendFactor_Constant
-            : WGPUBlendFactor_Constant,
-        .dstFactor = composite_mode == FlecsBloomCompositeMode_Additive
-            ? WGPUBlendFactor_One
-            : WGPUBlendFactor_OneMinusConstant,
+        .srcFactor = WGPUBlendFactor_Constant,
+        .dstFactor = WGPUBlendFactor_OneMinusConstant,
         .operation = WGPUBlendOperation_Add
     };
 
@@ -727,7 +615,7 @@ static bool flecsBloomRunPass(
 }
 
 static float flecsBloomComputeBlendFactor(
-    const FlecsBloomSettings *bloom,
+    const FlecsBloom *bloom,
     float mip,
     float max_mip)
 {
@@ -740,26 +628,24 @@ static float flecsBloomComputeBlendFactor(
     float lf_boost = (1.0f - powf(1.0f - normalized, curve)) *
         bloom->low_frequency_boost;
     float high_pass_lq = 1.0f -
-        flecsBloomClampFloat(
+        glm_clamp(
             (normalized - bloom->high_pass_frequency) /
                 bloom->high_pass_frequency,
             0.0f,
             1.0f);
 
-    if (bloom->composite_mode == FlecsBloomCompositeMode_EnergyConserving) {
-        lf_boost *= 1.0f - bloom->intensity;
-    }
+    lf_boost *= 1.0f - bloom->intensity;
 
     return (bloom->intensity + lf_boost) * high_pass_lq;
 }
 
 static void flecsBloomFillUniform(
     const FlecsEngineImpl *engine,
-    const FlecsBloomSettings *settings,
+    const FlecsBloom *settings,
     FlecsBloomUniform *uniform)
 {
     float knee = settings->prefilter.threshold *
-        flecsBloomClampFloat(settings->prefilter.threshold_softness, 0.0f, 1.0f);
+        glm_clamp(settings->prefilter.threshold_softness, 0.0f, 1.0f);
 
     uniform->threshold_precomputations[0] = settings->prefilter.threshold;
     uniform->threshold_precomputations[1] = settings->prefilter.threshold - knee;
@@ -796,8 +682,6 @@ static bool flecsRenderEffect_bloom_setup(
     ecs_assert(*entry_count == 2, ECS_INVALID_PARAMETER, NULL);
 
     FlecsBloomImpl bloom = {0};
-    bloom.settings = flecsBloomSanitizeSettings(
-        (const FlecsBloomSettings*)effect->ctx);
 
     WGPUSamplerDescriptor sampler_desc = {
         .addressModeU = WGPUAddressMode_ClampToEdge,
@@ -880,8 +764,7 @@ static bool flecsRenderEffect_bloom_setup(
     }
     WGPUTextureFormat bloom_format = flecsBloomChooseWorkingFormat(engine);
 
-    WGPUBlendState blend_state = flecsBloomGetBlendState(
-        bloom.settings.composite_mode);
+    WGPUBlendState blend_state = flecsBloomGetBlendState();
 
     bloom.downsample_first_pipeline = flecsBloomCreatePipeline(
         engine,
@@ -993,13 +876,13 @@ static bool flecsRenderEffect_bloom_render(
     WGPULoadOp output_load_op)
 {
     (void)input_format;
-    FlecsBloomImpl *bloom = ecs_get_mut(
-        (ecs_world_t*)world, effect_entity, FlecsBloomImpl);
-    if (!bloom) {
-        return false;
-    }
+    FlecsBloomImpl *impl = ecs_get_mut(world, effect_entity, FlecsBloomImpl);
+    ecs_assert(impl != NULL, ECS_INVALID_OPERATION, NULL);
 
-    if (bloom->settings.intensity <= 0.0f) {
+    const FlecsBloom *bloom = ecs_get(world, effect_entity, FlecsBloom);
+    ecs_assert(bloom != NULL, ECS_INVALID_OPERATION, NULL);
+
+    if (bloom->intensity <= 0.0f) {
         return flecsRenderEffect_bloom_renderPassthrough(
             world,
             engine,
@@ -1013,26 +896,26 @@ static bool flecsRenderEffect_bloom_render(
             output_load_op);
     }
 
-    if (!flecsBloomEnsureTexture(engine, bloom)) {
+    if (!flecsBloomEnsureTexture(engine, bloom, impl)) {
         return false;
     }
 
     FlecsBloomUniform uniform = {0};
-    flecsBloomFillUniform(engine, &bloom->settings, &uniform);
+    flecsBloomFillUniform(engine, bloom, &uniform);
     wgpuQueueWriteBuffer(
         engine->queue,
-        bloom->uniform_buffer,
+        impl->uniform_buffer,
         0,
         &uniform,
         sizeof(uniform));
 
     if (!flecsBloomRunPass(
         engine,
-        bloom,
+        impl,
         encoder,
-        bloom->downsample_first_pipeline,
+        impl->downsample_first_pipeline,
         input_view,
-        bloom->mip_views[0],
+        impl->mip_views[0],
         WGPULoadOp_Clear,
         false,
         0.0f))
@@ -1040,14 +923,14 @@ static bool flecsRenderEffect_bloom_render(
         return false;
     }
 
-    for (uint32_t mip = 1; mip < bloom->mip_count; mip ++) {
+    for (uint32_t mip = 1; mip < impl->mip_count; mip ++) {
         if (!flecsBloomRunPass(
             engine,
-            bloom,
+            impl,
             encoder,
-            bloom->downsample_pipeline,
-            bloom->mip_views[mip - 1],
-            bloom->mip_views[mip],
+            impl->downsample_pipeline,
+            impl->mip_views[mip - 1],
+            impl->mip_views[mip],
             WGPULoadOp_Clear,
             false,
             0.0f))
@@ -1056,19 +939,17 @@ static bool flecsRenderEffect_bloom_render(
         }
     }
 
-    float max_mip = (float)(bloom->mip_count - 1u);
-    for (uint32_t mip = bloom->mip_count - 1u; mip > 0u; mip --) {
+    float max_mip = (float)(impl->mip_count - 1u);
+    for (uint32_t mip = impl->mip_count - 1u; mip > 0u; mip --) {
         float blend = flecsBloomComputeBlendFactor(
-            &bloom->settings,
-            (float)mip,
-            max_mip);
+            bloom, mip, max_mip);
         if (!flecsBloomRunPass(
             engine,
-            bloom,
+            impl,
             encoder,
-            bloom->upsample_pipeline,
-            bloom->mip_views[mip],
-            bloom->mip_views[mip - 1u],
+            impl->upsample_pipeline,
+            impl->mip_views[mip],
+            impl->mip_views[mip - 1u],
             WGPULoadOp_Load,
             true,
             blend))
@@ -1078,13 +959,11 @@ static bool flecsRenderEffect_bloom_render(
     }
 
     WGPURenderPipeline final_pipeline = output_format == engine->surface_config.format
-        ? bloom->upsample_final_surface_pipeline
-        : bloom->upsample_final_hdr_pipeline;
+        ? impl->upsample_final_surface_pipeline
+        : impl->upsample_final_hdr_pipeline;
 
     float final_blend = flecsBloomComputeBlendFactor(
-        &bloom->settings,
-        0.0f,
-        max_mip);
+        bloom, 0.0f, max_mip);
 
     if (!flecsRenderEffect_bloom_renderPassthrough(
         world,
@@ -1103,44 +982,29 @@ static bool flecsRenderEffect_bloom_render(
 
     return flecsBloomRunPass(
         engine,
-        bloom,
+        impl,
         encoder,
         final_pipeline,
-        bloom->mip_views[0],
+        impl->mip_views[0],
         output_view,
         WGPULoadOp_Load,
         true,
         final_blend);
 }
 
-static void flecsBloomFreeSettings(
-    void *ctx)
-{
-    ecs_os_free(ctx);
-}
-
 ecs_entity_t flecsEngine_createEffect_bloom(
     ecs_world_t *world,
     int32_t input,
-    const FlecsBloomSettings *settings)
+    const FlecsBloom *settings)
 {
-    FlecsBloomSettings resolved = flecsBloomSanitizeSettings(settings);
-    FlecsBloomSettings *stored_settings = ecs_os_malloc_t(FlecsBloomSettings);
-    if (!stored_settings) {
-        ecs_err("failed to allocate bloom settings");
-        return 0;
-    }
-
-    *stored_settings = resolved;
-
     ecs_entity_t effect = ecs_new(world);
+    ecs_set_ptr(world, effect, FlecsBloom, settings);
+
     ecs_set(world, effect, FlecsRenderEffect, {
         .shader = flecsRenderEffect_bloom_shader(world),
         .input = input,
         .setup_callback = flecsRenderEffect_bloom_setup,
-        .render_callback = flecsRenderEffect_bloom_render,
-        .ctx = stored_settings,
-        .free_ctx = flecsBloomFreeSettings
+        .render_callback = flecsRenderEffect_bloom_render
     });
 
     return effect;

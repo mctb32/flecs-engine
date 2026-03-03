@@ -1,4 +1,4 @@
-#include "../../renderer.h"
+#include "../renderer.h"
 #include "flecs_engine.h"
 
 ecs_entity_t flecsEngine_createBatchSet_primitiveShapes(
