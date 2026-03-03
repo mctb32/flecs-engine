@@ -82,6 +82,21 @@ typedef struct {
     WGPUTexture tony_lut_texture;
     WGPUTextureView tony_lut_texture_view;
     WGPUSampler tony_lut_sampler;
+    WGPUBindGroupLayout bloom_bind_layout;
+    WGPURenderPipeline bloom_downsample_first_pipeline;
+    WGPURenderPipeline bloom_downsample_pipeline;
+    WGPURenderPipeline bloom_upsample_pipeline;
+    WGPURenderPipeline bloom_upsample_final_surface_pipeline;
+    WGPURenderPipeline bloom_upsample_final_hdr_pipeline;
+    WGPUSampler bloom_sampler;
+    WGPUBuffer bloom_uniform_buffer;
+    WGPUTexture bloom_texture;
+    WGPUTextureView *bloom_mip_views;
+    uint32_t bloom_mip_count;
+    uint32_t bloom_texture_width;
+    uint32_t bloom_texture_height;
+    WGPUTextureFormat bloom_texture_format;
+    FlecsBloomSettings bloom_settings;
 } FlecsRenderEffectImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderEffectImpl);

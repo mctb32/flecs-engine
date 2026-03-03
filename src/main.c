@@ -140,14 +140,14 @@ int main(
       .width = options.width,
       .height = options.height,
       .path = options.frame_output_path,
-      .clear_color = {8, 8, 12}
+      .clear_color = {1, 1, 1}
     });
   } else {
     ecs_singleton_set(world, FlecsWindow, {
       .title = "Hello World",
       .width = options.width,
       .height = options.height,
-      .clear_color = {8, 8, 12}
+      .clear_color = {1, 1, 1}
     });
   }
 
@@ -168,14 +168,14 @@ int main(
   ecs_set(world, camera, FlecsLookAt, {0, 0, 0});
 
   ecs_entity_t light = ecs_new(world);
-  ecs_set(world, light, FlecsPosition3, {0, 0, 0});
-  ecs_set(world, light, FlecsDirectionalLight, { .intensity = 1.0f });
+  ecs_set(world, light, FlecsPosition3, {0, 0, 5});
+  ecs_set(world, light, FlecsDirectionalLight, { .intensity = 50.0f });
   ecs_set(world, light, FlecsLookAt, { 0, 0, 0 });
   ecs_set(world, light, FlecsRgba, {255, 255, 255, 255});
 
   ecs_entity_t view = ecs_new(world);
   FlecsRenderView *v = ecs_ensure(world, view, FlecsRenderView);
-  ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_infinite_grid(world);
+  // ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_infinite_grid(world);
   ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_boxes(world);
   ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_quads(world);
   ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_triangles(world);
@@ -183,8 +183,11 @@ int main(
   ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_triangle_prisms(world);
   ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_right_triangle_prisms(world);
   ecs_vec_append_t(NULL, &v->batches, ecs_entity_t)[0] = flecsEngine_createBatch_mesh(world);
+  FlecsBloomSettings bloom_settings = flecsEngine_bloomSettingsDefault();
   ecs_vec_append_t(NULL, &v->effects, ecs_entity_t)[0] =
-    flecsEngine_createEffect_tonyMcMapFace(world, 0 /* input */);
+    flecsEngine_createEffect_bloom(world, 0 /* input */, &bloom_settings);
+  ecs_vec_append_t(NULL, &v->effects, ecs_entity_t)[0] =
+    flecsEngine_createEffect_tonyMcMapFace(world, 1 /* input */);
   v->camera = camera;
   v->light = light;
   ecs_modified(world, view, FlecsRenderView);
@@ -290,7 +293,7 @@ int main(
 
   double i = 0;
   while (ecs_progress(world, 0)) {
-    ecs_set(world, light, FlecsPosition3, {sin(i) * 5, 0, cos(i) * 5});
+    // ecs_set(world, light, FlecsPosition3, {sin(i) * 5, 0, cos(i) * 5});
     i -= 0.005;
   }
 

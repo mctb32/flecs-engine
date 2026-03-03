@@ -33,6 +33,18 @@ typedef bool (*flecs_render_effect_bind_callback)(
     WGPUBindGroupEntry *entries,
     uint32_t *entry_count);
 
+typedef bool (*flecs_render_effect_render_callback)(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    WGPUCommandEncoder encoder,
+    const struct FlecsRenderEffect *effect,
+    FlecsRenderEffectImpl *effect_impl,
+    WGPUTextureView input_view,
+    WGPUTextureFormat input_format,
+    WGPUTextureView output_view,
+    WGPUTextureFormat output_format,
+    WGPULoadOp output_load_op);
+
 // Render entities matching a query with specified shader
 ECS_STRUCT(FlecsRenderBatch, {
     ecs_entity_t shader;
@@ -54,6 +66,9 @@ ECS_STRUCT(FlecsRenderEffect, {
 ECS_PRIVATE
     flecs_render_effect_setup_callback setup_callback;
     flecs_render_effect_bind_callback bind_callback;
+    flecs_render_effect_render_callback render_callback;
+    void *ctx;
+    void (*free_ctx)(void *ctx);
 });
 
 void FlecsRenderBatch_on_set(

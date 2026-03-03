@@ -24,6 +24,12 @@ ECS_DTOR(FlecsRenderBatch, ptr, {
     }
 })
 
+ECS_DTOR(FlecsRenderEffect, ptr, {
+    if (ptr->ctx && ptr->free_ctx) {
+        ptr->free_ctx(ptr->ctx);
+    }
+})
+
 ECS_CTOR(FlecsRenderView, ptr, {
     ecs_vec_init_t(NULL, &ptr->batches, ecs_entity_t, 0);
     ecs_vec_init_t(NULL, &ptr->effects, ecs_entity_t, 0);
@@ -210,6 +216,7 @@ void FlecsEngineRendererImport(
 
     ecs_set_hooks(world, FlecsRenderEffect, {
         .ctor = flecs_default_ctor,
+        .dtor = ecs_dtor(FlecsRenderEffect),
         .on_set = FlecsRenderEffect_on_set
     });
 

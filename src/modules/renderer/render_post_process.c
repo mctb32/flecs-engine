@@ -268,14 +268,34 @@ static void flecsEngineRenderViewWithEffects(
             : impl->effect_target_format;
 
         WGPUTextureView input_view = impl->effect_target_views[effect->input];
+        WGPULoadOp output_load_op = is_last && !clear_output
+            ? WGPULoadOp_Load
+            : WGPULoadOp_Clear;
+
+        if (effect->render_callback) {
+            bool render_ok = effect->render_callback(
+                world,
+                impl,
+                encoder,
+                effect,
+                (FlecsRenderEffectImpl*)effect_impl,
+                input_view,
+                impl->effect_target_format,
+                output_view,
+                output_format,
+                output_load_op);
+            if (!render_ok) {
+                ecs_err("failed to render custom effect");
+                return;
+            }
+            continue;
+        }
 
         WGPURenderPassEncoder effect_pass = flecsEngineBeginEffectPass(
             impl,
             encoder,
             output_view,
-            is_last && !clear_output
-                ? WGPULoadOp_Load
-                : WGPULoadOp_Clear);
+            output_load_op);
 
         flecsEngineRenderEffect(
             world,

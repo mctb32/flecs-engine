@@ -54,6 +54,28 @@ typedef struct {
 
 extern ECS_COMPONENT_DECLARE(FlecsShader);
 
+typedef struct {
+    float threshold;
+    float threshold_softness;
+} FlecsBloomPrefilter;
+
+typedef enum {
+    FlecsBloomCompositeMode_EnergyConserving = 0,
+    FlecsBloomCompositeMode_Additive = 1
+} FlecsBloomCompositeMode;
+
+typedef struct {
+    float intensity;
+    float low_frequency_boost;
+    float low_frequency_boost_curvature;
+    float high_pass_frequency;
+    FlecsBloomPrefilter prefilter;
+    FlecsBloomCompositeMode composite_mode;
+    uint32_t max_mip_dimension;
+    float scale_x;
+    float scale_y;
+} FlecsBloomSettings;
+
 // Render entities with FlecsMesh, FlecsWorldTransform with lighting
 ecs_entity_t flecsEngine_createBatch_mesh(
     ecs_world_t *world);
@@ -94,6 +116,18 @@ ecs_entity_t flecsEngine_createBatch_infinite_grid(
 ecs_entity_t flecsEngine_createEffect_tonyMcMapFace(
     ecs_world_t *world,
     int32_t input);
+
+// Bloom presets
+FlecsBloomSettings flecsEngine_bloomSettingsDefault(void);
+FlecsBloomSettings flecsEngine_bloomSettingsAnamorphic(void);
+FlecsBloomSettings flecsEngine_bloomSettingsOldSchool(void);
+FlecsBloomSettings flecsEngine_bloomSettingsScreenBlur(void);
+
+// Create bloom post-process effect that reads from chain input index
+ecs_entity_t flecsEngine_createEffect_bloom(
+    ecs_world_t *world,
+    int32_t input,
+    const FlecsBloomSettings *settings);
 
 // Create invert-color post-process effect that reads from chain input index
 ecs_entity_t flecsEngine_createEffect_invert(

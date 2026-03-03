@@ -4,6 +4,61 @@
 static void flecsRenderEffectImplRelease(
     FlecsRenderEffectImpl *ptr)
 {
+    if (ptr->bloom_mip_views) {
+        for (uint32_t i = 0; i < ptr->bloom_mip_count; i ++) {
+            if (ptr->bloom_mip_views[i]) {
+                wgpuTextureViewRelease(ptr->bloom_mip_views[i]);
+            }
+        }
+        ecs_os_free(ptr->bloom_mip_views);
+        ptr->bloom_mip_views = NULL;
+    }
+
+    if (ptr->bloom_texture) {
+        wgpuTextureRelease(ptr->bloom_texture);
+        ptr->bloom_texture = NULL;
+    }
+
+    if (ptr->bloom_uniform_buffer) {
+        wgpuBufferRelease(ptr->bloom_uniform_buffer);
+        ptr->bloom_uniform_buffer = NULL;
+    }
+
+    if (ptr->bloom_sampler) {
+        wgpuSamplerRelease(ptr->bloom_sampler);
+        ptr->bloom_sampler = NULL;
+    }
+
+    if (ptr->bloom_upsample_final_hdr_pipeline) {
+        wgpuRenderPipelineRelease(ptr->bloom_upsample_final_hdr_pipeline);
+        ptr->bloom_upsample_final_hdr_pipeline = NULL;
+    }
+
+    if (ptr->bloom_upsample_final_surface_pipeline) {
+        wgpuRenderPipelineRelease(ptr->bloom_upsample_final_surface_pipeline);
+        ptr->bloom_upsample_final_surface_pipeline = NULL;
+    }
+
+    if (ptr->bloom_upsample_pipeline) {
+        wgpuRenderPipelineRelease(ptr->bloom_upsample_pipeline);
+        ptr->bloom_upsample_pipeline = NULL;
+    }
+
+    if (ptr->bloom_downsample_pipeline) {
+        wgpuRenderPipelineRelease(ptr->bloom_downsample_pipeline);
+        ptr->bloom_downsample_pipeline = NULL;
+    }
+
+    if (ptr->bloom_downsample_first_pipeline) {
+        wgpuRenderPipelineRelease(ptr->bloom_downsample_first_pipeline);
+        ptr->bloom_downsample_first_pipeline = NULL;
+    }
+
+    if (ptr->bloom_bind_layout) {
+        wgpuBindGroupLayoutRelease(ptr->bloom_bind_layout);
+        ptr->bloom_bind_layout = NULL;
+    }
+
     if (ptr->tony_lut_sampler) {
         wgpuSamplerRelease(ptr->tony_lut_sampler);
         ptr->tony_lut_sampler = NULL;
@@ -38,6 +93,11 @@ static void flecsRenderEffectImplRelease(
         wgpuBindGroupLayoutRelease(ptr->bind_layout);
         ptr->bind_layout = NULL;
     }
+
+    ptr->bloom_mip_count = 0;
+    ptr->bloom_texture_width = 0;
+    ptr->bloom_texture_height = 0;
+    ptr->bloom_texture_format = WGPUTextureFormat_Undefined;
 }
 
 ECS_DTOR(FlecsRenderEffectImpl, ptr, {
