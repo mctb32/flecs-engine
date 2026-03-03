@@ -20,6 +20,7 @@ typedef void (*flecs_render_batch_callback)(
 typedef bool (*flecs_render_effect_setup_callback)(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    ecs_entity_t effect_entity,
     const struct FlecsRenderEffect *effect,
     FlecsRenderEffectImpl *effect_impl,
     WGPUBindGroupLayoutEntry *layout_entries,
@@ -28,6 +29,7 @@ typedef bool (*flecs_render_effect_setup_callback)(
 typedef bool (*flecs_render_effect_bind_callback)(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    ecs_entity_t effect_entity,
     const struct FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *effect_impl,
     WGPUBindGroupEntry *entries,
@@ -37,6 +39,7 @@ typedef bool (*flecs_render_effect_render_callback)(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     WGPUCommandEncoder encoder,
+    ecs_entity_t effect_entity,
     const struct FlecsRenderEffect *effect,
     FlecsRenderEffectImpl *effect_impl,
     WGPUTextureView input_view,
@@ -95,6 +98,16 @@ void FlecsRenderEffectImpl_dtor(
     int32_t _count,
     const ecs_type_info_t *type_info);
 
+void FlecsTonyImpl_dtor(
+    void *_ptr,
+    int32_t _count,
+    const ecs_type_info_t *type_info);
+
+void FlecsBloomImpl_dtor(
+    void *_ptr,
+    int32_t _count,
+    const ecs_type_info_t *type_info);
+
 ecs_entity_t flecsEngineEnsureShader(
     ecs_world_t *world,
     const char *name,
@@ -142,6 +155,7 @@ void flecsEngineRenderEffect(
     const ecs_world_t *world,
     const FlecsEngineImpl *impl,
     const WGPURenderPassEncoder pass,
+    ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *effect_impl,
     WGPUTextureView input_view,

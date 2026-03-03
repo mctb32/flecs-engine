@@ -19,8 +19,6 @@ static const char *kShaderSource =
     "}\n"
     "@group(0) @binding(0) var input_texture : texture_2d<f32>;\n"
     "@group(0) @binding(1) var input_sampler : sampler;\n"
-    "@group(0) @binding(2) var tony_lut : texture_3d<f32>;\n"
-    "@group(0) @binding(3) var tony_lut_sampler : sampler;\n"
     "@fragment fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {\n"
     "  let src = textureSample(input_texture, input_sampler, in.uv);\n"
     "  return vec4<f32>(vec3<f32>(1.0) - src.rgb, src.a);\n"
@@ -37,44 +35,6 @@ static ecs_entity_t flecsRenderEffect_invert_shader(
         });
 }
 
-static bool flecsRenderEffect_invert_setup(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderEffect *effect,
-    FlecsRenderEffectImpl *impl,
-    WGPUBindGroupLayoutEntry *layout_entries,
-    uint32_t *entry_count)
-{
-    (void)world;
-    (void)engine;
-    (void)effect;
-    (void)impl;
-    (void)layout_entries;
-
-    ecs_assert(entry_count != NULL, ECS_INVALID_PARAMETER, NULL);
-    ecs_assert(*entry_count == 2, ECS_INVALID_PARAMETER, NULL);
-    return true;
-}
-
-static bool flecsRenderEffect_invert_bind(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderEffect *effect,
-    const FlecsRenderEffectImpl *impl,
-    WGPUBindGroupEntry *entries,
-    uint32_t *entry_count)
-{
-    (void)world;
-    (void)engine;
-    (void)effect;
-    (void)impl;
-    (void)entries;
-
-    ecs_assert(entry_count != NULL, ECS_INVALID_PARAMETER, NULL);
-    ecs_assert(*entry_count == 2, ECS_INVALID_PARAMETER, NULL);
-    return true;
-}
-
 ecs_entity_t flecsEngine_createEffect_invert(
     ecs_world_t *world,
     int32_t input)
@@ -82,9 +42,7 @@ ecs_entity_t flecsEngine_createEffect_invert(
     ecs_entity_t effect = ecs_new(world);
     ecs_set(world, effect, FlecsRenderEffect, {
         .shader = flecsRenderEffect_invert_shader(world),
-        .input = input,
-        .setup_callback = flecsRenderEffect_invert_setup,
-        .bind_callback = flecsRenderEffect_invert_bind
+        .input = input
     });
 
     return effect;

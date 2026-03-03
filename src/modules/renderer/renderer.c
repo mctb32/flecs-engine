@@ -6,6 +6,8 @@
 
 ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);
 ECS_COMPONENT_DECLARE(FlecsRenderEffectImpl);
+ECS_COMPONENT_DECLARE(FlecsTonyImpl);
+ECS_COMPONENT_DECLARE(FlecsBloomImpl);
 ECS_COMPONENT_DECLARE(FlecsRenderBatch);
 ECS_COMPONENT_DECLARE(FlecsRenderEffect);
 ECS_COMPONENT_DECLARE(FlecsRenderView);
@@ -193,6 +195,8 @@ void FlecsEngineRendererImport(
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchImpl);
     ECS_COMPONENT_DEFINE(world, FlecsRenderEffect);
     ECS_COMPONENT_DEFINE(world, FlecsRenderEffectImpl);
+    ECS_COMPONENT_DEFINE(world, FlecsTonyImpl);
+    ECS_COMPONENT_DEFINE(world, FlecsBloomImpl);
     ECS_COMPONENT_DEFINE(world, FlecsRenderView);
     ECS_COMPONENT_DEFINE(world, FlecsVertex);
     ECS_COMPONENT_DEFINE(world, FlecsLitVertex);
@@ -223,6 +227,16 @@ void FlecsEngineRendererImport(
     ecs_set_hooks(world, FlecsRenderEffectImpl, {
         .ctor = flecs_default_ctor,
         .dtor = ecs_dtor(FlecsRenderEffectImpl)
+    });
+
+    ecs_set_hooks(world, FlecsTonyImpl, {
+        .ctor = flecs_default_ctor,
+        .dtor = ecs_dtor(FlecsTonyImpl)
+    });
+
+    ecs_set_hooks(world, FlecsBloomImpl, {
+        .ctor = flecs_default_ctor,
+        .dtor = ecs_dtor(FlecsBloomImpl)
     });
 
     ecs_set_hooks(world, FlecsShader, {

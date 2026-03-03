@@ -4,76 +4,6 @@
 static void flecsRenderEffectImplRelease(
     FlecsRenderEffectImpl *ptr)
 {
-    if (ptr->bloom_mip_views) {
-        for (uint32_t i = 0; i < ptr->bloom_mip_count; i ++) {
-            if (ptr->bloom_mip_views[i]) {
-                wgpuTextureViewRelease(ptr->bloom_mip_views[i]);
-            }
-        }
-        ecs_os_free(ptr->bloom_mip_views);
-        ptr->bloom_mip_views = NULL;
-    }
-
-    if (ptr->bloom_texture) {
-        wgpuTextureRelease(ptr->bloom_texture);
-        ptr->bloom_texture = NULL;
-    }
-
-    if (ptr->bloom_uniform_buffer) {
-        wgpuBufferRelease(ptr->bloom_uniform_buffer);
-        ptr->bloom_uniform_buffer = NULL;
-    }
-
-    if (ptr->bloom_sampler) {
-        wgpuSamplerRelease(ptr->bloom_sampler);
-        ptr->bloom_sampler = NULL;
-    }
-
-    if (ptr->bloom_upsample_final_hdr_pipeline) {
-        wgpuRenderPipelineRelease(ptr->bloom_upsample_final_hdr_pipeline);
-        ptr->bloom_upsample_final_hdr_pipeline = NULL;
-    }
-
-    if (ptr->bloom_upsample_final_surface_pipeline) {
-        wgpuRenderPipelineRelease(ptr->bloom_upsample_final_surface_pipeline);
-        ptr->bloom_upsample_final_surface_pipeline = NULL;
-    }
-
-    if (ptr->bloom_upsample_pipeline) {
-        wgpuRenderPipelineRelease(ptr->bloom_upsample_pipeline);
-        ptr->bloom_upsample_pipeline = NULL;
-    }
-
-    if (ptr->bloom_downsample_pipeline) {
-        wgpuRenderPipelineRelease(ptr->bloom_downsample_pipeline);
-        ptr->bloom_downsample_pipeline = NULL;
-    }
-
-    if (ptr->bloom_downsample_first_pipeline) {
-        wgpuRenderPipelineRelease(ptr->bloom_downsample_first_pipeline);
-        ptr->bloom_downsample_first_pipeline = NULL;
-    }
-
-    if (ptr->bloom_bind_layout) {
-        wgpuBindGroupLayoutRelease(ptr->bloom_bind_layout);
-        ptr->bloom_bind_layout = NULL;
-    }
-
-    if (ptr->tony_lut_sampler) {
-        wgpuSamplerRelease(ptr->tony_lut_sampler);
-        ptr->tony_lut_sampler = NULL;
-    }
-
-    if (ptr->tony_lut_texture_view) {
-        wgpuTextureViewRelease(ptr->tony_lut_texture_view);
-        ptr->tony_lut_texture_view = NULL;
-    }
-
-    if (ptr->tony_lut_texture) {
-        wgpuTextureRelease(ptr->tony_lut_texture);
-        ptr->tony_lut_texture = NULL;
-    }
-
     if (ptr->input_sampler) {
         wgpuSamplerRelease(ptr->input_sampler);
         ptr->input_sampler = NULL;
@@ -93,11 +23,6 @@ static void flecsRenderEffectImplRelease(
         wgpuBindGroupLayoutRelease(ptr->bind_layout);
         ptr->bind_layout = NULL;
     }
-
-    ptr->bloom_mip_count = 0;
-    ptr->bloom_texture_width = 0;
-    ptr->bloom_texture_height = 0;
-    ptr->bloom_texture_format = WGPUTextureFormat_Undefined;
 }
 
 ECS_DTOR(FlecsRenderEffectImpl, ptr, {
@@ -210,14 +135,6 @@ void FlecsRenderEffect_on_set(
             continue;
         }
 
-        if (!effects[i].setup_callback || !effects[i].bind_callback) {
-            char *effect_name = ecs_get_path(world, e);
-            ecs_err("missing setup/bind callback for render effect %s",
-                effect_name ? effect_name : "<unnamed>");
-            ecs_os_free(effect_name);
-            continue;
-        }
-
         const FlecsShader *shader = ecs_get(world, effects[i].shader, FlecsShader);
         if (!shader) {
             char *effect_name = ecs_get_path(world, e);
@@ -266,14 +183,26 @@ void FlecsRenderEffect_on_set(
             }
         };
 
-        if (!effects[i].setup_callback(
-            world,
-            engine,
-            &effects[i],
-            &impl,
-            layout_entries,
-            &layout_entry_count))
-        {
+        if (effects[i].setup_callback) {
+            if (!effects[i].setup_callback(
+                world,
+                engine,
+                e,
+                &effects[i],
+                &impl,
+                layout_entries,
+                &layout_entry_count))
+            {
+                flecsRenderEffectImplRelease(&impl);
+                continue;
+            }
+        }
+
+        if (layout_entry_count > 2 && !effects[i].bind_callback) {
+            char *effect_name = ecs_get_path(world, e);
+            ecs_err("render effect %s has custom setup bindings but no bind callback",
+                effect_name ? effect_name : "<unnamed>");
+            ecs_os_free(effect_name);
             flecsRenderEffectImplRelease(&impl);
             continue;
         }
@@ -328,6 +257,7 @@ void flecsEngineRenderEffect(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
+    ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *impl,
     WGPUTextureView input_view,
@@ -343,14 +273,17 @@ void flecsEngineRenderEffect(
     };
 
     uint32_t entry_count = 2;
-    bool bind_ok = effect->bind_callback(
-        world,
-        engine,
-        effect,
-        impl,
-        entries,
-        &entry_count);
-    ecs_assert(bind_ok, ECS_INTERNAL_ERROR, NULL);
+    if (effect->bind_callback) {
+        bool bind_ok = effect->bind_callback(
+            world,
+            engine,
+            effect_entity,
+            effect,
+            impl,
+            entries,
+            &entry_count);
+        ecs_assert(bind_ok, ECS_INTERNAL_ERROR, NULL);
+    }
     ecs_assert(entry_count > 0, ECS_INTERNAL_ERROR, NULL);
     ecs_assert(entry_count <= 8, ECS_INTERNAL_ERROR, NULL);
 

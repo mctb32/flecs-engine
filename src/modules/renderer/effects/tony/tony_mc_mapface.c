@@ -49,15 +49,39 @@ static ecs_entity_t flecsRenderEffect_tonyMcMapFace_shader(
         });
 }
 
+static void flecsTonyReleaseResources(
+    FlecsTonyImpl *impl)
+{
+    if (impl->tony_lut_sampler) {
+        wgpuSamplerRelease(impl->tony_lut_sampler);
+        impl->tony_lut_sampler = NULL;
+    }
+
+    if (impl->tony_lut_texture_view) {
+        wgpuTextureViewRelease(impl->tony_lut_texture_view);
+        impl->tony_lut_texture_view = NULL;
+    }
+
+    if (impl->tony_lut_texture) {
+        wgpuTextureRelease(impl->tony_lut_texture);
+        impl->tony_lut_texture = NULL;
+    }
+}
+
+ECS_DTOR(FlecsTonyImpl, ptr, {
+    flecsTonyReleaseResources(ptr);
+})
+
 static bool flecsRenderEffect_tonyMcMapFace_setup(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
-    FlecsRenderEffectImpl *impl,
+    FlecsRenderEffectImpl *effect_impl,
     WGPUBindGroupLayoutEntry *layout_entries,
     uint32_t *entry_count)
 {
-    (void)world;
+    (void)effect_impl;
     (void)effect;
 
     ecs_assert(layout_entries != NULL, ECS_INVALID_PARAMETER, NULL);
@@ -76,8 +100,10 @@ static bool flecsRenderEffect_tonyMcMapFace_setup(
         .maxAnisotropy = 1
     };
 
-    impl->tony_lut_sampler = wgpuDeviceCreateSampler(engine->device, &sampler_desc);
-    if (!impl->tony_lut_sampler) {
+    FlecsTonyImpl tony = {0};
+
+    tony.tony_lut_sampler = wgpuDeviceCreateSampler(engine->device, &sampler_desc);
+    if (!tony.tony_lut_sampler) {
         return false;
     }
 
@@ -94,8 +120,9 @@ static bool flecsRenderEffect_tonyMcMapFace_setup(
         .sampleCount = 1
     };
 
-    impl->tony_lut_texture = wgpuDeviceCreateTexture(engine->device, &lut_desc);
-    if (!impl->tony_lut_texture) {
+    tony.tony_lut_texture = wgpuDeviceCreateTexture(engine->device, &lut_desc);
+    if (!tony.tony_lut_texture) {
+        flecsTonyReleaseResources(&tony);
         return false;
     }
 
@@ -110,14 +137,15 @@ static bool flecsRenderEffect_tonyMcMapFace_setup(
         .usage = WGPUTextureUsage_TextureBinding
     };
 
-    impl->tony_lut_texture_view = wgpuTextureCreateView(
-        impl->tony_lut_texture, &lut_view_desc);
-    if (!impl->tony_lut_texture_view) {
+    tony.tony_lut_texture_view = wgpuTextureCreateView(
+        tony.tony_lut_texture, &lut_view_desc);
+    if (!tony.tony_lut_texture_view) {
+        flecsTonyReleaseResources(&tony);
         return false;
     }
 
     WGPUTexelCopyTextureInfo destination = {
-        .texture = impl->tony_lut_texture,
+        .texture = tony.tony_lut_texture,
         .mipLevel = 0,
         .origin = {0, 0, 0},
         .aspect = WGPUTextureAspect_All
@@ -161,6 +189,8 @@ static bool flecsRenderEffect_tonyMcMapFace_setup(
         }
     };
 
+    ecs_set_ptr((ecs_world_t*)world, effect_entity, FlecsTonyImpl, &tony);
+
     *entry_count = 4;
     return true;
 }
@@ -168,27 +198,33 @@ static bool flecsRenderEffect_tonyMcMapFace_setup(
 static bool flecsRenderEffect_tonyMcMapFace_bind(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *impl,
     WGPUBindGroupEntry *entries,
     uint32_t *entry_count)
 {
-    (void)world;
     (void)engine;
     (void)effect;
+    (void)impl;
 
     ecs_assert(entries != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(entry_count != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(*entry_count == 2, ECS_INVALID_PARAMETER, NULL);
 
+    const FlecsTonyImpl *tony = ecs_get(world, effect_entity, FlecsTonyImpl);
+    if (!tony) {
+        return false;
+    }
+
     entries[2] = (WGPUBindGroupEntry){
         .binding = 2,
-        .textureView = impl->tony_lut_texture_view
+        .textureView = tony->tony_lut_texture_view
     };
 
     entries[3] = (WGPUBindGroupEntry){
         .binding = 3,
-        .sampler = impl->tony_lut_sampler
+        .sampler = tony->tony_lut_sampler
     };
 
     *entry_count = 4;

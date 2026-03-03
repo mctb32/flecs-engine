@@ -79,27 +79,37 @@ typedef struct {
     WGPURenderPipeline pipeline_surface;
     WGPURenderPipeline pipeline_hdr;
     WGPUSampler input_sampler;
-    WGPUTexture tony_lut_texture;
-    WGPUTextureView tony_lut_texture_view;
-    WGPUSampler tony_lut_sampler;
-    WGPUBindGroupLayout bloom_bind_layout;
-    WGPURenderPipeline bloom_downsample_first_pipeline;
-    WGPURenderPipeline bloom_downsample_pipeline;
-    WGPURenderPipeline bloom_upsample_pipeline;
-    WGPURenderPipeline bloom_upsample_final_surface_pipeline;
-    WGPURenderPipeline bloom_upsample_final_hdr_pipeline;
-    WGPUSampler bloom_sampler;
-    WGPUBuffer bloom_uniform_buffer;
-    WGPUTexture bloom_texture;
-    WGPUTextureView *bloom_mip_views;
-    uint32_t bloom_mip_count;
-    uint32_t bloom_texture_width;
-    uint32_t bloom_texture_height;
-    WGPUTextureFormat bloom_texture_format;
-    FlecsBloomSettings bloom_settings;
 } FlecsRenderEffectImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderEffectImpl);
+
+typedef struct {
+    WGPUTexture tony_lut_texture;
+    WGPUTextureView tony_lut_texture_view;
+    WGPUSampler tony_lut_sampler;
+} FlecsTonyImpl;
+
+extern ECS_COMPONENT_DECLARE(FlecsTonyImpl);
+
+typedef struct {
+    WGPUBindGroupLayout bind_layout;
+    WGPURenderPipeline downsample_first_pipeline;
+    WGPURenderPipeline downsample_pipeline;
+    WGPURenderPipeline upsample_pipeline;
+    WGPURenderPipeline upsample_final_surface_pipeline;
+    WGPURenderPipeline upsample_final_hdr_pipeline;
+    WGPUSampler sampler;
+    WGPUBuffer uniform_buffer;
+    WGPUTexture texture;
+    WGPUTextureView *mip_views;
+    uint32_t mip_count;
+    uint32_t texture_width;
+    uint32_t texture_height;
+    WGPUTextureFormat texture_format;
+    FlecsBloomSettings settings;
+} FlecsBloomImpl;
+
+extern ECS_COMPONENT_DECLARE(FlecsBloomImpl);
 
 typedef struct {
     mat4 model;
