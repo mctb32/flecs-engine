@@ -2,16 +2,15 @@
 #include "camera.h"
 
 ECS_COMPONENT_DECLARE(FlecsCameraImpl);
-ECS_COMPONENT_DECLARE(FlecsCameraLookAt);
 ECS_COMPONENT_DECLARE(FlecsCameraAutoMove);
 ECS_TAG_DECLARE(FlecsCameraController);
 
 void FlecsEngineCameraControllerImport(
     ecs_world_t *world);
 
-static void FlecsCameraTransformMvp(ecs_iter_t *it) {
+static void FlecsCameraTransform(ecs_iter_t *it) {
     FlecsCamera *cameras = ecs_field(it, FlecsCamera, 0);
-    const FlecsCameraLookAt *lookat = ecs_field(it, FlecsCameraLookAt, 1);
+    const FlecsLookAt *lookat = ecs_field(it, FlecsLookAt, 1);
     FlecsCameraImpl *impl = ecs_field(it, FlecsCameraImpl, 2);
     const FlecsWorldTransform3 *wt = ecs_field(it, FlecsWorldTransform3, 3);
     const FlecsEngineImpl *engine = ecs_singleton_get(it->world, FlecsEngineImpl);
@@ -65,7 +64,6 @@ void FlecsEngineCameraImport(
     ecs_set_name_prefix(world, "Flecs");
     
     ECS_COMPONENT_DEFINE(world, FlecsCameraImpl);
-    ECS_COMPONENT_DEFINE(world, FlecsCameraLookAt);
     ECS_TAG_DEFINE(world, FlecsCameraController);
     ECS_META_COMPONENT(world, FlecsCamera);
 
@@ -75,11 +73,11 @@ void FlecsEngineCameraImport(
 
     ecs_add_pair(world,
         ecs_id(FlecsCamera), EcsWith,
-        ecs_id(FlecsCameraLookAt));
+        ecs_id(FlecsLookAt));
 
-    ECS_SYSTEM(world, FlecsCameraTransformMvp, EcsPreStore,
+    ECS_SYSTEM(world, FlecsCameraTransform, EcsPreStore,
         [in] Camera, 
-        [in] CameraLookAt, 
+        [in] flecs.engine.transform3.LookAt, 
         [out] CameraImpl, 
         [out] flecs.engine.transform3.WorldTransform3);
 

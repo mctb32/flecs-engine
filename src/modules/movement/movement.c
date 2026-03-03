@@ -4,7 +4,7 @@
 ECS_COMPONENT_DECLARE(FlecsVelocity3);
 ECS_COMPONENT_DECLARE(FlecsAngularVelocity3);
 
-static void FlecsMoveByVelocity3(ecs_iter_t *it) {
+static void FlecsMove3(ecs_iter_t *it) {
     FlecsPosition3 *position = ecs_field(it, FlecsPosition3, 0);
     const FlecsVelocity3 *velocity = ecs_field(it, FlecsVelocity3, 1);
     float delta_time = it->delta_time;
@@ -16,7 +16,7 @@ static void FlecsMoveByVelocity3(ecs_iter_t *it) {
     }
 }
 
-static void FlecsRotateByAngularVelocity3(ecs_iter_t *it) {
+static void FlecsRotate3(ecs_iter_t *it) {
     FlecsRotation3 *rotation = ecs_field(it, FlecsRotation3, 0);
     const FlecsAngularVelocity3 *angular_velocity = ecs_field(
         it, FlecsAngularVelocity3, 1);
@@ -46,8 +46,8 @@ void FlecsEngineMovementImport(
         ecs_id(FlecsAngularVelocity3), EcsWith,
         ecs_id(FlecsRotation3));
 
-    ECS_SYSTEM(world, FlecsMoveByVelocity3, EcsOnUpdate,
+    ECS_SYSTEM(world, FlecsMove3, EcsPostUpdate,
         [inout] flecs.engine.transform3.Position3, [in] Velocity3);
-    ECS_SYSTEM(world, FlecsRotateByAngularVelocity3, EcsOnUpdate,
+    ECS_SYSTEM(world, FlecsRotate3, EcsPostUpdate,
         [inout] flecs.engine.transform3.Rotation3, [in] AngularVelocity3);
 }

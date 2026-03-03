@@ -530,7 +530,7 @@ void flecsEngineRenderBatch(
     const FlecsRenderBatchImpl *impl)
 {
     if (!impl) {
-        ecs_err("[batch] missing batch impl for render call");
+        ecs_err("missing batch impl for render call");
         return;
     }
 

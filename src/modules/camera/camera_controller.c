@@ -11,41 +11,13 @@ static const float CameraAngularDeceleration = CAMERA_ANGULAR_DECELERATION;
 static const float CameraAngularAcceleration = 2.5 + CAMERA_ANGULAR_DECELERATION;
 static const float CameraMaxSpeed = 40.0;
 
-ECS_COMPONENT_DECLARE(FlecsCameraLookAt);
+ECS_COMPONENT_DECLARE(FlecsLookAt);
 ECS_COMPONENT_DECLARE(FlecsPosition3);
 ECS_COMPONENT_DECLARE(FlecsRotation3);
 ECS_COMPONENT_DECLARE(FlecsVelocity3);
 ECS_COMPONENT_DECLARE(FlecsAngularVelocity3);
 ECS_COMPONENT_DECLARE(FlecsInput);
 ECS_TAG_DECLARE(FlecsCameraController);
-ECS_TAG_DECLARE(FlecsCameraControllerInitialized);
-
-static
-void CameraControllerInitRotation(
-    ecs_iter_t *it)
-{
-    const FlecsPosition3 *p = ecs_field(it, FlecsPosition3, 0);
-    FlecsRotation3 *r = ecs_field(it, FlecsRotation3, 1);
-    const FlecsCameraLookAt *lookat = ecs_field(it, FlecsCameraLookAt, 2);
-
-    for (int32_t i = 0; i < it->count; i ++) {
-        vec3 forward = {
-            lookat[i].x - p[i].x,
-            lookat[i].y - p[i].y,
-            lookat[i].z - p[i].z
-        };
-
-        float len = glm_vec3_norm(forward);
-        if (len > 0.0f) {
-            glm_vec3_scale(forward, 1.0f / len, forward);
-            r[i].x = asinf(glm_clamp(forward[1], -1.0f, 1.0f));
-            r[i].y = atan2f(forward[0], forward[2]);
-            r[i].z = 0.0f;
-        }
-
-        ecs_add(it->world, it->entities[i], FlecsCameraControllerInitialized);
-    }
-}
 
 static
 void CameraControllerSyncRotation(
@@ -53,7 +25,7 @@ void CameraControllerSyncRotation(
 {
     const FlecsPosition3 *p = ecs_field(it, FlecsPosition3, 0);
     const FlecsRotation3 *r = ecs_field(it, FlecsRotation3, 1);
-    FlecsCameraLookAt *lookat = ecs_field(it, FlecsCameraLookAt, 2);
+    FlecsLookAt *lookat = ecs_field(it, FlecsLookAt, 2);
 
     for (int32_t i = 0; i < it->count; i ++) {
         lookat[i].x = p[i].x + sin(r[i].y) * cos(r[i].x);
@@ -179,29 +151,20 @@ void CameraControllerDecelerate(
 void FlecsEngineCameraControllerImport(
     ecs_world_t *world)
 {
-    ECS_TAG_DEFINE(world, FlecsCameraControllerInitialized);
-
-    ECS_SYSTEM(world, CameraControllerInitRotation, EcsOnUpdate,
-        [in]     flecs.engine.transform3.Position3,
-        [out]    flecs.engine.transform3.Rotation3,
-        [in]     CameraLookAt,
-        [none]   CameraController,
-        !CameraControllerInitialized);
-
-    ECS_SYSTEM(world, CameraControllerSyncRotation, EcsOnUpdate,
+    ECS_SYSTEM(world, CameraControllerSyncRotation, EcsPostUpdate,
         [in]     flecs.engine.transform3.Position3,
         [in]     flecs.engine.transform3.Rotation3,
-        [out]    CameraLookAt,
+        [out]    flecs.engine.transform3.LookAt,
         [none]   CameraController);
 
-    ECS_SYSTEM(world, CameraControllerAccelerate, EcsOnUpdate,
+    ECS_SYSTEM(world, CameraControllerAccelerate, EcsPostUpdate,
         [in]     flecs.engine.input.Input,
         [in]     flecs.engine.transform3.Rotation3,
         [inout]  flecs.engine.movement.Velocity3,
         [inout]  flecs.engine.movement.AngularVelocity3,
         [none]   CameraController);
 
-    ECS_SYSTEM(world, CameraControllerDecelerate, EcsOnUpdate,
+    ECS_SYSTEM(world, CameraControllerDecelerate, EcsPostUpdate,
         [inout]  flecs.engine.movement.Velocity3,
         [inout]  flecs.engine.movement.AngularVelocity3,
         [inout]  flecs.engine.transform3.Rotation3,

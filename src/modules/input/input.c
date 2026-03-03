@@ -253,7 +253,7 @@ static void flecsEngineInputBindWindow(
     glfwSetScrollCallback(window, flecsEngineInputOnScroll);
 }
 
-static void FlecsInputFrame(
+static void FlecsReadInputs(
     ecs_iter_t *it)
 {
     const FlecsEngineImpl *engine = ecs_singleton_get(it->world, FlecsEngineImpl);
@@ -305,5 +305,5 @@ void FlecsEngineInputImport(
     ecs_add_id(world, ecs_id(FlecsInput), EcsSingleton);
     ecs_singleton_set(world, FlecsInput, {0});
 
-    ECS_SYSTEM(world, FlecsInputFrame, EcsOnLoad);
+    ECS_SYSTEM(world, FlecsReadInputs, EcsOnLoad);
 }

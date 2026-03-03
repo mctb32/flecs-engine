@@ -140,14 +140,14 @@ int main(
       .width = options.width,
       .height = options.height,
       .path = options.frame_output_path,
-      .clear_color = {8, 8, 13}
+      .clear_color = {8, 8, 12}
     });
   } else {
     ecs_singleton_set(world, FlecsWindow, {
       .title = "Hello World",
       .width = options.width,
       .height = options.height,
-      .clear_color = {8, 8, 13}
+      .clear_color = {8, 8, 12}
     });
   }
 
@@ -162,10 +162,10 @@ int main(
       .far_ = 100.0f,
       .aspect_ratio = options.width / (float)options.height
   });
+  
   ecs_add(world, camera, FlecsCameraController);
-
   ecs_set(world, camera, FlecsPosition3, {0, 10, 0});
-  ecs_set(world, camera, FlecsCameraLookAt, {0, 0, -16});
+  ecs_set(world, camera, FlecsLookAt, {0, 0, -16});
 
   ecs_entity_t view = ecs_new(world);
   FlecsRenderView *v = ecs_ensure(world, view, FlecsRenderView);

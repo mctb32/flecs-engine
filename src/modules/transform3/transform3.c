@@ -1,9 +1,12 @@
+#include <math.h>
+
 #define FLECS_ENGINE_TRANSFORM3_IMPL
 #include "transform3.h"
 
 ECS_COMPONENT_DECLARE(FlecsPosition3);
 ECS_COMPONENT_DECLARE(FlecsRotation3);
 ECS_COMPONENT_DECLARE(FlecsScale3);
+ECS_COMPONENT_DECLARE(FlecsLookAt);
 
 typedef struct {
     ecs_query_t *q_childof;
@@ -153,6 +156,30 @@ static void FlecsTransform3(ecs_iter_t *it) {
     }
 }
 
+static void FlecsRotationFromLookAt(
+    ecs_iter_t *it)
+{
+    const FlecsPosition3 *p = ecs_field(it, FlecsPosition3, 0);
+    const FlecsLookAt *lookat = ecs_field(it, FlecsLookAt, 1);
+    FlecsRotation3 *r = ecs_field(it, FlecsRotation3, 2);
+
+    for (int32_t i = 0; i < it->count; i ++) {
+        vec3 forward = {
+            lookat[i].x - p[i].x,
+            lookat[i].y - p[i].y,
+            lookat[i].z - p[i].z
+        };
+
+        float len = glm_vec3_norm(forward);
+        if (len > 0.0f) {
+            glm_vec3_scale(forward, 1.0f / len, forward);
+            r[i].x = asinf(glm_clamp(forward[1], -1.0f, 1.0f));
+            r[i].y = atan2f(forward[0], forward[2]);
+            r[i].z = 0.0f;
+        }
+    }
+}
+
 void FlecsEngineTransform3Import(
     ecs_world_t *world)
 {
@@ -163,6 +190,7 @@ void FlecsEngineTransform3Import(
     ECS_COMPONENT_DEFINE(world, FlecsPosition3);
     ECS_COMPONENT_DEFINE(world, FlecsRotation3);
     ECS_COMPONENT_DEFINE(world, FlecsScale3);
+    ECS_COMPONENT_DEFINE(world, FlecsLookAt);
     ECS_META_COMPONENT(world, FlecsWorldTransform3);
 
     ecs_add_pair(world, ecs_id(FlecsPosition3), EcsWith, ecs_id(FlecsWorldTransform3));
@@ -226,6 +254,11 @@ void FlecsEngineTransform3Import(
     flecs_transform3_queries_t *ctx = ecs_os_malloc_t(flecs_transform3_queries_t);
     ctx->q_childof = ecs_query_init(world, &q_childof);
     ctx->q_parent = ecs_query_init(world, &q_parent);
+
+    ECS_SYSTEM(world, FlecsRotationFromLookAt, EcsPostUpdate,
+        [in]     flecs.engine.transform3.Position3,
+        [in]     flecs.engine.transform3.LookAt,
+        [out]    flecs.engine.transform3.Rotation3);
 
     ecs_system(world, {
         .entity = ecs_entity(world, { 

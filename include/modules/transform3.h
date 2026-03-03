@@ -9,10 +9,12 @@
 typedef flecs_vec3_t FlecsPosition3;
 typedef flecs_vec3_t FlecsRotation3;
 typedef flecs_vec3_t FlecsScale3;
+typedef flecs_vec3_t FlecsLookAt;
 
 extern ECS_COMPONENT_DECLARE(FlecsPosition3);
 extern ECS_COMPONENT_DECLARE(FlecsRotation3);
 extern ECS_COMPONENT_DECLARE(FlecsScale3);
+extern ECS_COMPONENT_DECLARE(FlecsLookAt);
 
 ECS_STRUCT(FlecsWorldTransform3, {
     mat4 m;
