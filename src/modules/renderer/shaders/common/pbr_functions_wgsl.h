@@ -3,6 +3,12 @@
 
 #define FLECS_ENGINE_SHADER_COMMON_PBR_FUNCTIONS_WGSL \
     "const PI : f32 = 3.141592653589793;\n" \
+    "fn saturate(v : f32) -> f32 {\n" \
+    "  return clamp(v, 0.0, 1.0);\n" \
+    "}\n" \
+    "fn computeSplitSumSpecularTerm(f0 : vec3<f32>, brdf : vec2<f32>) -> vec3<f32> {\n" \
+    "  return f0 * brdf.x + vec3<f32>(brdf.y);\n" \
+    "}\n" \
     "fn fresnelSchlick(cos_theta : f32, f0 : vec3<f32>) -> vec3<f32> {\n" \
     "  return f0 + (vec3<f32>(1.0) - f0) * pow(1.0 - cos_theta, 5.0);\n" \
     "}\n" \

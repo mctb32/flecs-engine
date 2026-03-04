@@ -87,11 +87,24 @@ ECS_STRUCT(FlecsRenderBatchSet, {
     ecs_vec_t batches;
 });
 
+ECS_STRUCT(FlecsHdri, {
+    const char *file;
+});
+
+extern ECS_COMPONENT_DECLARE(FlecsHdri);
+
 ECS_STRUCT(FlecsRenderView, {
     ecs_entity_t camera;
     ecs_entity_t light;
+    ecs_entity_t hdri;
     ecs_vec_t effects;
 });
+
+ecs_entity_t flecsEngine_createHdri(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name,
+    const char *file);
 
 ecs_entity_t flecsEngine_createBatch_infiniteGrid(
     ecs_world_t *world,

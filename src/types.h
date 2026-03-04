@@ -42,6 +42,21 @@ typedef struct {
     WGPUSurfaceConfiguration surface_config;
     WGPUTextureFormat hdr_color_format;
 
+    WGPUTexture ibl_equirect_texture;
+    WGPUTextureView ibl_equirect_texture_view;
+    WGPUTexture ibl_environment_cubemap;
+    WGPUTextureView ibl_environment_cubemap_view;
+    WGPUTexture ibl_prefiltered_cubemap;
+    WGPUTextureView ibl_prefiltered_cubemap_view;
+    WGPUTexture ibl_brdf_lut_texture;
+    WGPUTextureView ibl_brdf_lut_texture_view;
+    WGPUSampler ibl_sampler;
+    WGPUBindGroupLayout ibl_bind_layout;
+    WGPUBindGroup ibl_bind_group;
+    uint32_t ibl_prefilter_mip_count;
+    ecs_entity_t ibl_hdri_entity;
+    char *ibl_hdri_path;
+
     /* Reusable intermediate color targets for post-processing passes. */
     WGPUTexture *effect_target_textures;
     WGPUTextureView *effect_target_views;
@@ -84,6 +99,7 @@ typedef struct {
     WGPURenderPipeline pipeline_hdr;
     WGPUBuffer uniform_buffers[FLECS_ENGINE_UNIFORMS_MAX];
     uint8_t uniform_count;
+    bool uses_ibl;
 } FlecsRenderBatchImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);

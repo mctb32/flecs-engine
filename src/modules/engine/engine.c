@@ -203,6 +203,13 @@ static void flecsEngineCleanup(
         impl->view_query = NULL;
     }
 
+    flecsEngineReleaseIblResources(impl);
+    if (impl->ibl_hdri_path) {
+        ecs_os_free(impl->ibl_hdri_path);
+        impl->ibl_hdri_path = NULL;
+    }
+    impl->ibl_hdri_entity = 0;
+
     flecsEngineReleaseMaterialBuffer(impl);
 
     if (impl->surface_impl) {
@@ -345,6 +352,11 @@ int flecsEngineInit(
     impl.hdr_color_format = WGPUTextureFormat_RGBA16Float;
 
     if (flecsEngineEnsureDepthResources(&impl)) {
+        goto error;
+    }
+
+    if (!flecsEngineInitIblResources(&impl, NULL)) {
+        ecs_err("Failed to initialize IBL resources\n");
         goto error;
     }
 

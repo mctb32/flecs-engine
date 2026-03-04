@@ -1,4 +1,5 @@
 #include <math.h>
+#include <string.h>
 
 #include "renderer.h"
 #include "flecs_engine.h"
@@ -493,18 +494,35 @@ static bool flecsSetupBatchBindings(
     return true;
 }
 
+static bool flecsShaderUsesIbl(
+    const FlecsShader *shader)
+{
+    if (!shader || !shader->source) {
+        return false;
+    }
+
+    return strstr(
+        shader->source,
+        "@group(1) @binding(0) var ibl_prefiltered_env") != NULL;
+}
+
 static WGPURenderPipeline flecsCreateRenderBatchPipeline(
     const FlecsEngineImpl *engine,
     const FlecsShader *shader,
     const FlecsShaderImpl *shader_impl,
     WGPUBindGroupLayout bind_layout,
+    WGPUBindGroupLayout ibl_bind_layout,
+    bool use_ibl,
     const WGPUVertexBufferLayout *vertex_buffers,
     uint32_t vertex_buffer_count,
     WGPUTextureFormat color_format)
 {
+    WGPUBindGroupLayout bind_layouts[2] = { bind_layout, ibl_bind_layout };
+    uint32_t bind_layout_count = use_ibl ? 2u : 1u;
+
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-        .bindGroupLayoutCount = 1,
-        .bindGroupLayouts = &bind_layout
+        .bindGroupLayoutCount = bind_layout_count,
+        .bindGroupLayouts = bind_layouts
     };
 
     WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
@@ -648,6 +666,16 @@ static void FlecsRenderBatch_on_set(
             instance_attrs);
 
         bool use_material_buffer = flecsBatchUsesMaterialId(&rb[i]);
+        impl.uses_ibl = flecsShaderUsesIbl(shader);
+
+        if (impl.uses_ibl && !engine->ibl_bind_layout) {
+            char *batch_name = ecs_get_path(world, e);
+            ecs_err("failed to create render batch '%s': IBL bind layout is not available",
+                batch_name ? batch_name : "<unnamed>");
+            ecs_os_free(batch_name);
+            flecsRenderBatchImplRelease(&impl);
+            continue;
+        }
 
         // Setup uniform + optional storage buffer bindings
         if (!flecsSetupBatchBindings(world, engine, 
@@ -670,6 +698,8 @@ static void FlecsRenderBatch_on_set(
             shader,
             shader_impl,
             impl.bind_layout,
+            engine->ibl_bind_layout,
+            impl.uses_ibl,
             vertex_buffers,
             (uint32_t)vertex_buffer_count,
             hdr_format);
@@ -853,6 +883,16 @@ void flecsEngineRenderBatch(
     }
 
     wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
+    if (impl->uses_ibl) {
+        if (!engine->ibl_bind_group) {
+            if (use_material_buffer) {
+                wgpuBindGroupRelease(bind_group);
+            }
+            return;
+        }
+
+        wgpuRenderPassEncoderSetBindGroup(pass, 1, engine->ibl_bind_group, 0, NULL);
+    }
 
     batch->callback(world, engine, pass, batch);
 

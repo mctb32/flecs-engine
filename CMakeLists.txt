@@ -36,6 +36,7 @@ FetchContent_Declare(
 set(FLECS_SHARED OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(flecs)
 
+
 file(GLOB_RECURSE FLECS_ENGINE_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/*.m"
@@ -84,5 +85,12 @@ target_link_libraries(flecs_engine PRIVATE glfw cglm flecs_static)
 if(APPLE)
   find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
   find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
-  target_link_libraries(flecs_engine PRIVATE ${COCOA_FRAMEWORK} ${QUARTZCORE_FRAMEWORK})
+  find_library(COREGRAPHICS_FRAMEWORK CoreGraphics REQUIRED)
+  find_library(IMAGEIO_FRAMEWORK ImageIO REQUIRED)
+  target_link_libraries(flecs_engine PRIVATE
+    ${COCOA_FRAMEWORK}
+    ${QUARTZCORE_FRAMEWORK}
+    ${COREGRAPHICS_FRAMEWORK}
+    ${IMAGEIO_FRAMEWORK}
+  )
 endif()

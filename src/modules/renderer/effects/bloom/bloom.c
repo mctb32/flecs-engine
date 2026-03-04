@@ -204,7 +204,7 @@ FlecsBloom flecsEngine_bloomSettingsDefault(void)
 {
     return (FlecsBloom){
         .intensity = 0.15f,
-        .low_frequency_boost = 0.7f,
+        .low_frequency_boost = 0.6f,
         .low_frequency_boost_curvature = 0.95f,
         .high_pass_frequency = 1.0f,
         .prefilter = {

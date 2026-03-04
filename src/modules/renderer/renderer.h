@@ -110,6 +110,18 @@ void flecsEngineUploadMaterialBuffer(
 void flecsEngineReleaseMaterialBuffer(
     FlecsEngineImpl *impl);
 
+bool flecsEngineInitIblResources(
+    FlecsEngineImpl *impl,
+    const char *hdri_path);
+
+bool flecsEngineSetViewHdri(
+    const ecs_world_t *world,
+    FlecsEngineImpl *impl,
+    const FlecsRenderView *view);
+
+void flecsEngineReleaseIblResources(
+    FlecsEngineImpl *impl);
+
 void flecsEngineReleaseEffectTargets(
     FlecsEngineImpl *impl);
 
