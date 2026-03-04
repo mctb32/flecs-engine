@@ -6,6 +6,7 @@
 
 ECS_COMPONENT_DECLARE(FlecsRenderBatch);
 ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);
+ECS_TAG_DECLARE(FlecsSkyboxBatch);
 
 ECS_DTOR(FlecsRenderBatch, ptr, {
     if (ptr->ctx && ptr->free_ctx) {
@@ -361,6 +362,7 @@ static WGPURenderPipeline flecsCreateRenderBatchPipeline(
     WGPUBindGroupLayout bind_layout,
     WGPUBindGroupLayout ibl_bind_layout,
     bool use_ibl,
+    bool is_skybox,
     const WGPUVertexBufferLayout *vertex_buffers,
     uint32_t vertex_buffer_count,
     WGPUTextureFormat color_format)
@@ -391,6 +393,11 @@ static WGPURenderPipeline flecsCreateRenderBatchPipeline(
         .stencilReadMask = 0xFFFFFFFF,
         .stencilWriteMask = 0xFFFFFFFF
     };
+
+    if (is_skybox) {
+        depth_state.depthWriteEnabled = WGPUOptionalBool_False;
+        depth_state.depthCompare = WGPUCompareFunction_LessEqual;
+    }
 
     WGPUVertexState vertex_state = {
         .module = shader_impl->shader_module,
@@ -426,6 +433,10 @@ static WGPURenderPipeline flecsCreateRenderBatchPipeline(
             .count = 1
         }
     };
+
+    if (is_skybox) {
+        pipeline_desc.primitive.cullMode = WGPUCullMode_None;
+    }
 
     WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
         engine->device, &pipeline_desc);
@@ -515,6 +526,7 @@ static void FlecsRenderBatch_on_set(
         bool use_material_buffer = flecsBatchUsesMaterialId(&rb[i]);
         impl.uses_material = use_material_buffer;
         impl.uses_ibl = flecsShaderUsesIbl(shader);
+        bool is_skybox = ecs_has(world, e, FlecsSkyboxBatch);
 
         if (impl.uses_ibl && !flecsEngineEnsureIblBindLayout(engine)) {
             char *batch_name = ecs_get_path(world, e);
@@ -548,6 +560,7 @@ static void FlecsRenderBatch_on_set(
             impl.bind_layout,
             engine->ibl_bind_layout,
             impl.uses_ibl,
+            is_skybox,
             vertex_buffers,
             (uint32_t)vertex_buffer_count,
             hdr_format);
@@ -571,6 +584,7 @@ void flecsEngineRenderBatch_setupCamera(
     uniforms->camera_pos[3] = 1.0f;
 
     glm_mat4_identity(uniforms->mvp);
+    glm_mat4_identity(uniforms->inv_vp);
     const FlecsCameraImpl *camera = ecs_get(
         world, entity, FlecsCameraImpl);
     if (!camera) {
@@ -581,6 +595,7 @@ void flecsEngineRenderBatch_setupCamera(
     }
 
     glm_mat4_copy((vec4*)camera->mvp, uniforms->mvp);
+    glm_mat4_inv(uniforms->mvp, uniforms->inv_vp);
 
     const FlecsWorldTransform3 *camera_transform = ecs_get(
         world, entity, FlecsWorldTransform3);
@@ -799,6 +814,7 @@ void flecsEngine_renderBatch_register(
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatch);
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchImpl);
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchSet);
+    ECS_TAG_DEFINE(world, FlecsSkyboxBatch);
 
     ecs_entity_t entity_vector_t = ecs_vector(world, {
         .type = ecs_id(ecs_entity_t)

@@ -2,7 +2,7 @@
 #include "../renderer.h"
 
 static const char *kShaderSource =
-    "struct Uniforms { vp : mat4x4<f32>, clear_color : vec4<f32> }\n"
+    "struct Uniforms { vp : mat4x4<f32>, inv_vp : mat4x4<f32>, clear_color : vec4<f32> }\n"
     "@group(0) @binding(0) var<uniform> uniforms : Uniforms;\n"
     "struct VertexInput {\n"
     "  @location(0) pos : vec3<f32>,\n"

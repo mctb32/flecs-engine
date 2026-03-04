@@ -1,5 +1,5 @@
 # Flecs engine
-A fast, low footprint, opinionated (but hackable), flecs native game engine.
+A fast, portable, low footprint, opinionated (but hackable), flecs native game engine.
 
 ## Usage
 Build & run the engine:
@@ -9,7 +9,8 @@ cmake --build build
 ./build/flecs_engine
 ```
 
-Write frame to file:
-```sh
-./build/flecs_engine --frame-out /tmp/frame.ppm --size 1280x800
-```
+## Why should I use this?
+You should probably not use this, unless:
+- you want to quickly prototype ideas
+- you want to build an engine but not start from 0
+- you're OK with the limitations of the engine

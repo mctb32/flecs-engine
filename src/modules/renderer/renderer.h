@@ -10,6 +10,7 @@
 
 struct FlecsRenderBatch;
 struct FlecsRenderEffect;
+ECS_TAG_DECLARE(FlecsSkyboxBatch);
 
 typedef void (*flecs_render_batch_callback)(
     const ecs_world_t *world,

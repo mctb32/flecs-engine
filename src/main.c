@@ -164,6 +164,8 @@ void initEngine(
 
   // RenderBatches (what to render in scene)
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
+    flecsEngine_createBatch_skybox(world, view_entity, "skyboxBatch");
+  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
     flecsEngine_createBatchSet_primitiveShapes(world, view_entity, "primitiveBatch");
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
     flecsEngine_createBatchSet_primitiveShapes_matIndex(world, view_entity, "primitiveWMatIndexBatch");

@@ -12,4 +12,7 @@ ecs_entity_t flecsEngineShader_pbrColoredMaterialIndex(
 ecs_entity_t flecsEngineShader_infiniteGrid(
     ecs_world_t *world);
 
+ecs_entity_t flecsEngineShader_skybox(
+    ecs_world_t *world);
+
 #endif
