@@ -15,8 +15,15 @@ typedef struct FlecsIblFaceUniform {
     float face_index;
     float roughness;
     float face_size;
-    float _padding1;
+    float sample_count;
 } FlecsIblFaceUniform;
+
+typedef struct FlecsIblBrdfUniform {
+    uint32_t sample_count;
+    uint32_t _padding0;
+    uint32_t _padding1;
+    uint32_t _padding2;
+} FlecsIblBrdfUniform;
 
 static const char *kPrefilterShaderSource =
     "struct VertexOutput {\n"
@@ -30,7 +37,6 @@ static const char *kPrefilterShaderSource =
     "@group(0) @binding(1) var env_sampler : sampler;\n"
     "@group(0) @binding(2) var<uniform> face_uniform : FaceUniform;\n"
     "const PI : f32 = 3.141592653589793;\n"
-    "const SAMPLE_COUNT : u32 = 2048u;\n"
     "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VertexOutput {\n"
     "  var out : VertexOutput;\n"
     "  var pos = array<vec2<f32>, 3>(\n"
@@ -97,15 +103,16 @@ static const char *kPrefilterShaderSource =
     "  let face = u32(face_uniform.data.x + 0.5);\n"
     "  let roughness = clamp(face_uniform.data.y, 0.0, 1.0);\n"
     "  let n = cubeFaceUvToDir(face, in.uv, face_uniform.data.z);\n"
+    "  let sample_count = max(u32(face_uniform.data.w + 0.5), 1u);\n"
     "  let v = n;\n"
     "  var prefiltered = vec3<f32>(0.0);\n"
     "  var total_weight = 0.0;\n"
     "  var i = 0u;\n"
     "  loop {\n"
-    "    if (i >= SAMPLE_COUNT) {\n"
+    "    if (i >= sample_count) {\n"
     "      break;\n"
     "    }\n"
-    "    let xi = hammersley(i, SAMPLE_COUNT);\n"
+    "    let xi = hammersley(i, sample_count);\n"
     "    let h = importanceSampleGGX(xi, n, roughness);\n"
     "    let l = normalize(2.0 * dot(v, h) * h - v);\n"
     "    let ndotl = max(dot(n, l), 0.0);\n"
@@ -127,8 +134,14 @@ static const char *kBrdfLutShaderSource =
     "  @builtin(position) pos : vec4<f32>,\n"
     "  @location(0) uv : vec2<f32>\n"
     "};\n"
+    "struct BrdfUniform {\n"
+    "  sample_count : u32,\n"
+    "  _padding0 : u32,\n"
+    "  _padding1 : u32,\n"
+    "  _padding2 : u32\n"
+    "};\n"
+    "@group(0) @binding(0) var<uniform> brdf_uniform : BrdfUniform;\n"
     "const PI : f32 = 3.141592653589793;\n"
-    "const SAMPLE_COUNT : u32 = 1024u;\n"
     "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VertexOutput {\n"
     "  var out : VertexOutput;\n"
     "  var pos = array<vec2<f32>, 3>(\n"
@@ -179,15 +192,16 @@ static const char *kBrdfLutShaderSource =
     "  let ndotv = clamp(in.uv.x, 0.0, 1.0);\n"
     "  let roughness = clamp(in.uv.y, 0.0, 1.0);\n"
     "  let n = vec3<f32>(0.0, 0.0, 1.0);\n"
+    "  let sample_count = max(brdf_uniform.sample_count, 1u);\n"
     "  let v = vec3<f32>(sqrt(max(1.0 - ndotv * ndotv, 0.0)), 0.0, ndotv);\n"
     "  var a = 0.0;\n"
     "  var b = 0.0;\n"
     "  var i = 0u;\n"
     "  loop {\n"
-    "    if (i >= SAMPLE_COUNT) {\n"
+    "    if (i >= sample_count) {\n"
     "      break;\n"
     "    }\n"
-    "    let xi = hammersley(i, SAMPLE_COUNT);\n"
+    "    let xi = hammersley(i, sample_count);\n"
     "    let h = importanceSampleGGX(xi, n, roughness);\n"
     "    let l = normalize(2.0 * dot(v, h) * h - v);\n"
     "    let ndotl = max(l.z, 0.0);\n"
@@ -202,7 +216,7 @@ static const char *kBrdfLutShaderSource =
     "    }\n"
     "    i = i + 1u;\n"
     "  }\n"
-    "  return vec2<f32>(a, b) / f32(SAMPLE_COUNT);\n"
+    "  return vec2<f32>(a, b) / f32(sample_count);\n"
     "}\n";
 
 static void flecsIblLogImageStats(
@@ -654,14 +668,19 @@ static bool flecsIblSubmitFullscreenPass(
 
 static bool flecsIblRunPreprocessPasses(
     const FlecsEngineImpl *engine,
-    FlecHdriImpl *ibl)
+    FlecHdriImpl *ibl,
+    uint32_t filter_sample_count,
+    uint32_t lut_sample_count)
 {
     bool result = false;
     WGPUShaderModule prefilter_shader = NULL;
     WGPUShaderModule brdf_shader = NULL;
     WGPUBindGroupLayout prefilter_bind_layout = NULL;
+    WGPUBindGroupLayout brdf_bind_layout = NULL;
     WGPUBindGroup prefilter_bind_group = NULL;
-    WGPUBuffer uniform_buffer = NULL;
+    WGPUBindGroup brdf_bind_group = NULL;
+    WGPUBuffer prefilter_uniform_buffer = NULL;
+    WGPUBuffer brdf_uniform_buffer = NULL;
     WGPURenderPipeline prefilter_pipeline = NULL;
     WGPURenderPipeline brdf_pipeline = NULL;
 
@@ -710,13 +729,13 @@ static bool flecsIblRunPreprocessPasses(
         goto cleanup;
     }
 
-    uniform_buffer = wgpuDeviceCreateBuffer(
+    prefilter_uniform_buffer = wgpuDeviceCreateBuffer(
         engine->device,
         &(WGPUBufferDescriptor){
             .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
             .size = sizeof(FlecsIblFaceUniform)
         });
-    if (!uniform_buffer) {
+    if (!prefilter_uniform_buffer) {
         goto cleanup;
     }
 
@@ -736,12 +755,73 @@ static bool flecsIblRunPreprocessPasses(
                 },
                 {
                     .binding = 2,
-                    .buffer = uniform_buffer,
+                    .buffer = prefilter_uniform_buffer,
                     .size = sizeof(FlecsIblFaceUniform)
                 }
             }
         });
     if (!prefilter_bind_group) {
+        goto cleanup;
+    }
+
+    WGPUBindGroupLayoutEntry brdf_layout_entries[1] = {
+        {
+            .binding = 0,
+            .visibility = WGPUShaderStage_Fragment,
+            .buffer = {
+                .type = WGPUBufferBindingType_Uniform,
+                .minBindingSize = sizeof(FlecsIblBrdfUniform)
+            }
+        }
+    };
+
+    brdf_bind_layout = wgpuDeviceCreateBindGroupLayout(
+        engine->device,
+        &(WGPUBindGroupLayoutDescriptor){
+            .entryCount = 1,
+            .entries = brdf_layout_entries
+        });
+    if (!brdf_bind_layout) {
+        goto cleanup;
+    }
+
+    brdf_uniform_buffer = wgpuDeviceCreateBuffer(
+        engine->device,
+        &(WGPUBufferDescriptor){
+            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+            .size = sizeof(FlecsIblBrdfUniform)
+        });
+    if (!brdf_uniform_buffer) {
+        goto cleanup;
+    }
+
+    FlecsIblBrdfUniform brdf_uniform = {
+        .sample_count = lut_sample_count,
+        ._padding0 = 0u,
+        ._padding1 = 0u,
+        ._padding2 = 0u
+    };
+    wgpuQueueWriteBuffer(
+        engine->queue,
+        brdf_uniform_buffer,
+        0,
+        &brdf_uniform,
+        sizeof(brdf_uniform));
+
+    brdf_bind_group = wgpuDeviceCreateBindGroup(
+        engine->device,
+        &(WGPUBindGroupDescriptor){
+            .layout = brdf_bind_layout,
+            .entryCount = 1,
+            .entries = (WGPUBindGroupEntry[1]){
+                {
+                    .binding = 0,
+                    .buffer = brdf_uniform_buffer,
+                    .size = sizeof(FlecsIblBrdfUniform)
+                }
+            }
+        });
+    if (!brdf_bind_group) {
         goto cleanup;
     }
 
@@ -755,8 +835,8 @@ static bool flecsIblRunPreprocessPasses(
     brdf_pipeline = flecsIblCreatePipeline(
         engine,
         brdf_shader,
-        NULL,
-        0,
+        &brdf_bind_layout,
+        1,
         "fs_main",
         WGPUTextureFormat_RG16Float);
     if (!prefilter_pipeline || !brdf_pipeline) {
@@ -777,11 +857,11 @@ static bool flecsIblRunPreprocessPasses(
                 .face_index = (float)face,
                 .roughness = roughness,
                 .face_size = (float)face_size_u,
-                ._padding1 = 0.0f
+                .sample_count = (float)filter_sample_count
             };
             wgpuQueueWriteBuffer(
                 engine->queue,
-                uniform_buffer,
+                prefilter_uniform_buffer,
                 0,
                 &uniform,
                 sizeof(uniform));
@@ -811,7 +891,7 @@ static bool flecsIblRunPreprocessPasses(
         engine,
         ibl->ibl_brdf_lut_texture_view,
         brdf_pipeline,
-        NULL))
+        brdf_bind_group))
     {
         goto cleanup;
     }
@@ -827,11 +907,20 @@ cleanup:
     if (prefilter_bind_group) {
         wgpuBindGroupRelease(prefilter_bind_group);
     }
-    if (uniform_buffer) {
-        wgpuBufferRelease(uniform_buffer);
+    if (brdf_bind_group) {
+        wgpuBindGroupRelease(brdf_bind_group);
+    }
+    if (prefilter_uniform_buffer) {
+        wgpuBufferRelease(prefilter_uniform_buffer);
+    }
+    if (brdf_uniform_buffer) {
+        wgpuBufferRelease(brdf_uniform_buffer);
     }
     if (prefilter_bind_layout) {
         wgpuBindGroupLayoutRelease(prefilter_bind_layout);
+    }
+    if (brdf_bind_layout) {
+        wgpuBindGroupLayoutRelease(brdf_bind_layout);
     }
     if (brdf_shader) {
         wgpuShaderModuleRelease(brdf_shader);
@@ -846,7 +935,9 @@ cleanup:
 bool flecsEngineInitIblResources(
     FlecsEngineImpl *engine,
     FlecHdriImpl *ibl,
-    const char *hdri_path)
+    const char *hdri_path,
+    uint32_t filter_sample_count,
+    uint32_t lut_sample_count)
 {
     flecsIblReleaseRuntimeResources(ibl);
 
@@ -906,7 +997,12 @@ bool flecsEngineInitIblResources(
         goto done;
     }
 
-    if (!flecsIblRunPreprocessPasses(engine, ibl)) {
+    if (!flecsIblRunPreprocessPasses(
+        engine,
+        ibl,
+        filter_sample_count,
+        lut_sample_count))
+    {
         goto done;
     }
 

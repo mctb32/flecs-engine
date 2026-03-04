@@ -185,7 +185,7 @@ int main(
   v->camera = camera;
   v->light = light;
   v->hdri = flecsEngine_createHdri(
-    world, view, "hdri", "industrial_sunset_puresky_4k.exr");
+    world, view, "hdri", "industrial_sunset_puresky_4k.exr", 1024, 64);
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
   ecs_vec_append_t(NULL, &v->effects, ecs_entity_t)[0] =
     flecsEngine_createEffect_bloom(

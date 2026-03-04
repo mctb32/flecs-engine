@@ -42,7 +42,7 @@ void flecsEngineGetClearColorVec4(
 }
 
 void flecsEngineRenderViews(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *impl,
     WGPUTextureView view_texture,
     WGPUCommandEncoder encoder)

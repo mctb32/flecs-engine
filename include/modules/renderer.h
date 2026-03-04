@@ -70,6 +70,8 @@ ECS_STRUCT(FlecsRenderBatchSet, {
 
 ECS_STRUCT(FlecsHdri, {
     const char *file;
+    uint32_t filter_sample_count;
+    uint32_t lut_sample_count;
 });
 
 extern ECS_COMPONENT_DECLARE(FlecsHdri);
@@ -85,7 +87,9 @@ ecs_entity_t flecsEngine_createHdri(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name,
-    const char *file);
+    const char *file,
+    uint32_t filterSampleCount,
+    uint32_t lutSampleCount);
 
 ecs_entity_t flecsEngine_createBatch_infiniteGrid(
     ecs_world_t *world,

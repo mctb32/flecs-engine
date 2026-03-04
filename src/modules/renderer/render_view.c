@@ -29,7 +29,7 @@ ECS_DTOR(FlecsRenderView, ptr, {
 })
 
 static void flecsEngineRenderBatchSet(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
@@ -61,7 +61,7 @@ static void flecsEngineRenderBatchSet(
 }
 
 void flecsEngineRenderView(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     ecs_entity_t view_entity,

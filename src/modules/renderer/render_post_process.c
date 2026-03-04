@@ -198,7 +198,7 @@ static WGPURenderPassEncoder flecsEngineBeginEffectPass(
 }
 
 static bool flecsEngineRenderViewWithEffects(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *impl,
     ecs_entity_t view_entity,
     const FlecsRenderView *view,
@@ -302,7 +302,7 @@ static bool flecsEngineRenderViewWithEffects(
 }
 
 void flecsEngineRenderViewsWithEffects(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *impl,
     WGPUTextureView view_texture,
     WGPUCommandEncoder encoder)

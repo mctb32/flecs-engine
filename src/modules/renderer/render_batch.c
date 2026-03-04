@@ -739,7 +739,7 @@ static void flecsRenderBatchUpdateUniforms(
 }
 
 void flecsEngineRenderBatch(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
@@ -778,6 +778,10 @@ void flecsEngineRenderBatch(
     if (impl->uses_ibl) {
         ecs_entity_t hdri = view->hdri;
         if (!hdri) {
+            if (!engine->fallback_hdri) {
+                engine->fallback_hdri = flecsEngine_createHdri(
+                    world, 0, "hdri", NULL, 1, 1);
+            }
             hdri = engine->fallback_hdri;
         }
 

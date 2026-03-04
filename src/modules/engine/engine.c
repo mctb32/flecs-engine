@@ -385,9 +385,6 @@ int flecsEngineInit(
 
     *ptr = impl;
 
-    ptr->fallback_hdri = flecsEngine_createHdri(
-        world, engine_parent, "hdri", NULL);
-
     return 0;
 
 error:

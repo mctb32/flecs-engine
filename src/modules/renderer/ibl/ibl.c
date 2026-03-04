@@ -7,6 +7,8 @@ ECS_COMPONENT_DECLARE(FlecHdriImpl);
 
 ECS_CTOR(FlecsHdri, ptr, {
     ptr->file = NULL;
+    ptr->filter_sample_count = 0;
+    ptr->lut_sample_count = 0;
 })
 
 ECS_MOVE(FlecsHdri, dst, src, {
@@ -24,6 +26,8 @@ ECS_COPY(FlecsHdri, dst, src, {
     }
 
     dst->file = src->file ? ecs_os_strdup(src->file) : NULL;
+    dst->filter_sample_count = src->filter_sample_count;
+    dst->lut_sample_count = src->lut_sample_count;
 })
 
 ECS_DTOR(FlecsHdri, ptr, {
@@ -206,7 +210,13 @@ static void FlecsIbl_on_set(
             it->world, it->entities[i], FlecHdriImpl);
         flecsIblReleaseRuntimeResources(ibl_impl);
 
-        if (!flecsEngineInitIblResources(engine, ibl_impl, hdri[i].file)) {
+        if (!flecsEngineInitIblResources(
+            engine,
+            ibl_impl,
+            hdri[i].file,
+            hdri[i].filter_sample_count,
+            hdri[i].lut_sample_count))
+        {
             ecs_err("failed to initialize IBL resources");
             continue;
         }
@@ -219,7 +229,9 @@ ecs_entity_t flecsEngine_createHdri(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name,
-    const char *file)
+    const char *file,
+    uint32_t filterSampleCount,
+    uint32_t lutSampleCount)
 {
     ecs_entity_t hdri = ecs_entity(world, {
         .parent = parent,
@@ -227,7 +239,9 @@ ecs_entity_t flecsEngine_createHdri(
     });
 
     ecs_set(world, hdri, FlecsHdri, {
-        .file = file
+        .file = file,
+        .filter_sample_count = filterSampleCount,
+        .lut_sample_count = lutSampleCount
     });
 
     return hdri;
@@ -256,7 +270,9 @@ void flecsEngine_ibl_register(
     ecs_struct(world, {
         .entity = ecs_id(FlecsHdri),
         .members = {
-            { .name = "file", .type = ecs_id(ecs_string_t) }
+            { .name = "file", .type = ecs_id(ecs_string_t) },
+            { .name = "filter_sample_count", .type = ecs_id(ecs_u32_t) },
+            { .name = "lut_sample_count", .type = ecs_id(ecs_u32_t) }
         }
     });
 }

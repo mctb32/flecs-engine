@@ -104,7 +104,7 @@ ecs_entity_t flecsEngine_shader_ensure(
     const FlecsShader *shader);
 
 void flecsEngineRenderViews(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *impl,
     WGPUTextureView view_texture,
     WGPUCommandEncoder encoder);
@@ -119,7 +119,9 @@ void flecsEngineReleaseMaterialBuffer(
 bool flecsEngineInitIblResources(
     FlecsEngineImpl *engine,
     FlecHdriImpl *ibl,
-    const char *hdri_path);
+    const char *hdri_path,
+    uint32_t filter_sample_count,
+    uint32_t lut_sample_count);
 
 WGPUBindGroupLayout flecsEngineEnsureIblBindLayout(
     FlecsEngineImpl *impl);
@@ -141,20 +143,20 @@ void flecsEngineGetClearColorVec4(
     float out[4]);
 
 void flecsEngineRenderViewsWithEffects(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *impl,
     WGPUTextureView view_texture,
     WGPUCommandEncoder encoder);
 
 void flecsEngineRenderView(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *impl,
     const WGPURenderPassEncoder pass,
     ecs_entity_t view_entity,
     const FlecsRenderView *view);
 
 void flecsEngineRenderBatch(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
