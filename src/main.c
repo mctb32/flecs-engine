@@ -151,7 +151,7 @@ int main(
     });
   }
 
-  ecs_entity_t camera = ecs_new(world);
+  ecs_entity_t camera = ecs_entity(world, { .name = "camera" });
   ecs_set(world, camera, FlecsCamera, {
       .fov = glm_rad(60.0f),
       .near_ = 0.1f,
@@ -163,16 +163,18 @@ int main(
   ecs_set(world, camera, FlecsPosition3, {0, 10, 24});
   ecs_set(world, camera, FlecsLookAt, {0, 8, 0});
 
-  ecs_entity_t light = ecs_new(world);
+  ecs_entity_t light = ecs_entity(world, { .name = "light" });
   ecs_set(world, light, FlecsPosition3, {0, 0, 5});
-  ecs_set(world, light, FlecsDirectionalLight, { .intensity = 1000.0f });
+  ecs_set(world, light, FlecsDirectionalLight, { .intensity = 10.0f });
   ecs_set(world, light, FlecsLookAt, { 0, 0, 0 });
   ecs_set(world, light, FlecsRgba, {255, 255, 255, 255});
 
-  ecs_entity_t view = ecs_new(world);
-  FlecsRenderBatchSet *batch_set = ecs_ensure(world, view, FlecsRenderBatchSet);
-  ecs_vec_append_t(NULL, &batch_set->batches, ecs_entity_t)[0] = flecsEngine_createBatch_infiniteGrid(world);
-  ecs_vec_append_t(NULL, &batch_set->batches, ecs_entity_t)[0] = flecsEngine_createBatchSet_primitiveShapes(world);
+  ecs_entity_t view =  ecs_entity(world, { .name = "view" });
+  FlecsRenderBatchSet batch_set = *ecs_ensure(world, view, FlecsRenderBatchSet);
+  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] = flecsEngine_createBatch_infiniteGrid(world);
+  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] = flecsEngine_createBatchSet_primitiveShapes(world);
+  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] = flecsEngine_createBatchSet_primitiveShapes_wMatIndex(world);
+  ecs_set_ptr(world, view, FlecsRenderBatchSet, &batch_set);
 
   FlecsRenderView *v = ecs_ensure(world, view, FlecsRenderView);
   v->camera = camera;
@@ -188,46 +190,47 @@ int main(
   const float spinSpeed = 1.0f;
 
   // 3D shapes
-  ecs_entity_t box = ecs_new(world);
+  ecs_entity_t shapes =  ecs_entity(world, { .name = "shapes" });
+  ecs_entity_t box = ecs_new_w_pair(world, EcsChildOf, shapes);
   ecs_set(world, box, FlecsBox, {2, 2, 2});
   ecs_set(world, box, FlecsPosition3, {-9, shapeY, shapeZ});
   ecs_set(world, box, FlecsRgba, {255, 0, 0});
   ecs_set(world, box, FlecsPbrMaterial, {0, 0});
   ecs_set(world, box, FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
 
-  ecs_entity_t triangle_prism = ecs_new(world);
+  ecs_entity_t triangle_prism = ecs_new_w_pair(world, EcsChildOf, shapes);
   ecs_set(world, triangle_prism, FlecsTrianglePrism, {2, 2, 2});
   ecs_set(world, triangle_prism, FlecsPosition3, {-6, shapeY, shapeZ});
   ecs_set(world, triangle_prism, FlecsRgba, {128, 128, 0});
   ecs_set(world, triangle_prism, FlecsPbrMaterial, {0, 0});
   ecs_set(world, triangle_prism, FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
 
-  ecs_entity_t right_triangle_prism = ecs_new(world);
+  ecs_entity_t right_triangle_prism = ecs_new_w_pair(world, EcsChildOf, shapes);
   ecs_set(world, right_triangle_prism, FlecsRightTrianglePrism, {2, 2, 2});
   ecs_set(world, right_triangle_prism, FlecsPosition3, {-3, shapeY, shapeZ});
   ecs_set(world, right_triangle_prism, FlecsRgba, {0, 128, 0});
   ecs_set(world, right_triangle_prism, FlecsPbrMaterial, {0, 0});
   ecs_set(world, right_triangle_prism, FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
 
-  ecs_entity_t quad = ecs_new(world);
+  ecs_entity_t quad = ecs_new_w_pair(world, EcsChildOf, shapes);
   ecs_set(world, quad, FlecsQuad, {2, 2});
   ecs_set(world, quad, FlecsPosition3, {0, shapeY, shapeZ});
   ecs_set(world, quad, FlecsPbrMaterial, {0, 0});
   ecs_set(world, quad, FlecsRgba, {255, 0, 0});
 
-  ecs_entity_t triangle = ecs_new(world);
+  ecs_entity_t triangle = ecs_new_w_pair(world, EcsChildOf, shapes);
   ecs_set(world, triangle, FlecsTriangle, {2, 2});
   ecs_set(world, triangle, FlecsPosition3, {3, shapeY, shapeZ});
   ecs_set(world, triangle, FlecsPbrMaterial, {0, 0});
   ecs_set(world, triangle, FlecsRgba, {128, 128, 0});
 
-  ecs_entity_t right_triangle = ecs_new(world);
+  ecs_entity_t right_triangle = ecs_new_w_pair(world, EcsChildOf, shapes);
   ecs_set(world, right_triangle, FlecsRightTriangle, {2, 2});
   ecs_set(world, right_triangle, FlecsPosition3, {6, shapeY, shapeZ});
   ecs_set(world, right_triangle, FlecsPbrMaterial, {0, 0});
   ecs_set(world, right_triangle, FlecsRgba, {0, 255, 0});
 
-  ecs_entity_t ngon = ecs_new(world);
+  ecs_entity_t ngon = ecs_new_w_pair(world, EcsChildOf, shapes);
   ecs_set(world, ngon, FlecsNGon, { .sides = 6 });
   ecs_set(world, ngon, FlecsPosition3, {9, shapeY, shapeZ});
   ecs_set(world, ngon, FlecsScale3, {2, 2, 2});
@@ -237,7 +240,7 @@ int main(
   // Spheres
   ecs_entity_t spheres[numShapes];
   for (int i = 0; i < numShapes; i ++) {
-    spheres[i] = ecs_new(world);
+    spheres[i] = ecs_new_w_pair(world, EcsChildOf, shapes);
     ecs_set(world, spheres[i], FlecsSphere, { .segments = 3 + i, .smooth = i == (numShapes - 1), .radius = 1 });
     ecs_set(world, spheres[i], FlecsPosition3, {-9 + i * 3, shapeY - 3, shapeZ});
     ecs_set(world, spheres[i], FlecsRgba, {255});
@@ -248,7 +251,7 @@ int main(
   // Icospheres
   ecs_entity_t icospheres[numShapes];
   for (int i = 0; i < numShapes; i ++) {
-    icospheres[i] = ecs_new(world);
+    icospheres[i] = ecs_new_w_pair(world, EcsChildOf, shapes);
     ecs_set(world, icospheres[i], FlecsIcoSphere, { .segments = i, .smooth = i == (numShapes - 1), .radius = 1 });
     ecs_set(world, icospheres[i], FlecsPosition3, {-9 + i * 3, shapeY - 6, shapeZ});
     ecs_set(world, icospheres[i], FlecsRgba, {128, 128});
@@ -259,7 +262,7 @@ int main(
   // Cylinders
   ecs_entity_t cylinders[numShapes];
   for (int i = 0; i < numShapes; i ++) {
-    cylinders[i] = ecs_new(world);
+    cylinders[i] = ecs_new_w_pair(world, EcsChildOf, shapes);
     ecs_set(world, cylinders[i], FlecsCylinder, { .segments = 3 + i, .smooth = i == (numShapes - 1), .length = 1 });
     ecs_set(world, cylinders[i], FlecsPosition3, {-9 + i * 3, shapeY - 9, shapeZ});
     ecs_set(world, cylinders[i], FlecsScale3, {2, 2, 2});
@@ -271,7 +274,7 @@ int main(
   // Cones
   ecs_entity_t cones[numShapes];
   for (int i = 0; i < numShapes; i ++) {
-    cones[i] = ecs_new(world);
+    cones[i] = ecs_new_w_pair(world, EcsChildOf, shapes);
     ecs_set(world, cones[i], FlecsCone, { .sides = 3 + i, .smooth = i == (numShapes - 1), .length = 1 });
     ecs_set(world, cones[i], FlecsPosition3, {-9 + i * 3, shapeY - 12, shapeZ});
     ecs_set(world, cones[i], FlecsScale3, {2, 2, 2});
@@ -283,7 +286,7 @@ int main(
   // Hemispheres
   ecs_entity_t hemispheres[numShapes];
   for (int i = 0; i < numShapes; i ++) {
-    hemispheres[i] = ecs_new(world);
+    hemispheres[i] = ecs_new_w_pair(world, EcsChildOf, shapes);
     ecs_set(world, hemispheres[i], FlecsHemiSphere, { .segments = 3 + i, .smooth = i == (numShapes - 1), .radius = 1 });
     ecs_set(world, hemispheres[i], FlecsPosition3, {-9 + i * 3, shapeY - 15, shapeZ});
     ecs_set(world, hemispheres[i], FlecsRgba, {128, 0, 128});
@@ -296,7 +299,7 @@ int main(
     for (int y = 0; y < numShapes; y ++) {
       float metallic = ((float)x / (float)(numShapes - 1));
       float roughness = ((float)y / (float)(numShapes - 1));
-      ecs_entity_t sphere = ecs_new(world);
+      ecs_entity_t sphere = ecs_new_w_pair(world, EcsChildOf, shapes);
       ecs_set(world, sphere, FlecsSphere, {
         .segments = 24,
         .smooth = true,
@@ -321,19 +324,19 @@ int main(
     for (int y = 0; y < numShapes; y ++) {
       float metallic = ((float)x / (float)(numShapes - 1));
       float roughness = ((float)y / (float)(numShapes - 1));
-      ecs_entity_t sphere = ecs_new(world);
+      ecs_entity_t sphere = ecs_new_w_pair(world, EcsChildOf, shapes);
       ecs_set(world, sphere, FlecsSphere, {
         .segments = 24,
         .smooth = true,
         .radius = 1
       });
       ecs_set(world, sphere, FlecsPosition3, {
-        -9 + x * 3 + 2 * (numShapes * 3) + 6,
+        -9 + x * 3 - (numShapes * 3) - 3,
         -9 + y * 3 + (numShapes * 3) / 2,
         0
       });
 
-      ecs_entity_t material = ecs_new(world);
+      ecs_entity_t material = ecs_new_w_id(world, EcsPrefab);
       ecs_set(world, material, FlecsRgba, {230, 230, 230, 255});
       ecs_set(world, material, FlecsPbrMaterial, {
         .metallic = metallic,

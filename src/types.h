@@ -57,7 +57,7 @@ typedef struct {
 
     ecs_query_t *view_query;
     ecs_query_t *material_query;
-    uint16_t last_material_id;
+    uint32_t last_material_id;
     WGPURenderPipeline last_pipeline;
 } FlecsEngineImpl;
 

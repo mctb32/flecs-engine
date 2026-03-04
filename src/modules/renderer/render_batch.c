@@ -235,6 +235,12 @@ static int32_t flecsVertexAttrFromType(
             attrs[attr].offset = members[i].offset;
             attr ++;
 
+        } else if (members[i].type == ecs_id(ecs_u32_t)) {
+            attrs[attr].format = WGPUVertexFormat_Uint32;
+            attrs[attr].shaderLocation = location_offset + attr;
+            attrs[attr].offset = members[i].offset;
+            attr ++;
+
         } else if (members[i].type == ecs_id(flecs_mat4_t)) {
             if ((attr + 4) >= attr_count) {
                 char *str = ecs_id_str(world, type);
@@ -279,6 +285,37 @@ static uint64_t flecs_type_sizeof(
     return ti->size;
 }
 
+static bool flecsBatchUsesMaterialId(
+    const FlecsRenderBatch *batch)
+{
+    for (int32_t i = 0; i < FLECS_ENGINE_INSTANCE_TYPES_MAX; i ++) {
+        ecs_entity_t type = batch->instance_types[i];
+        if (!type) {
+            break;
+        }
+
+        if (type == ecs_id(FlecsInstanceMaterialId)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static uint8_t flecsBatchUniformCount(
+    const ecs_entity_t *uniform_types)
+{
+    uint8_t result = 0;
+    for (int32_t i = 0; i < FLECS_ENGINE_UNIFORMS_MAX; i ++) {
+        if (!uniform_types[i]) {
+            break;
+        }
+        result ++;
+    }
+
+    return result;
+}
+
 static int32_t flecsSetupInstanceBindings(
     const ecs_world_t *world,
     FlecsRenderBatch *rb,
@@ -316,29 +353,29 @@ static int32_t flecsSetupInstanceBindings(
     return vertex_buffer_count;
 }
 
-static void flecsSetupUniformBindings(
+static bool flecsSetupBatchBindings(
     ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const ecs_entity_t *uniform_types,
     WGPUShaderStage visibility,
+    bool include_material_buffer,
     FlecsRenderBatchImpl *impl)
 {
-    WGPUBindGroupLayoutEntry layout_entries[FLECS_ENGINE_UNIFORMS_MAX];
+    WGPUBindGroupLayoutEntry layout_entries[FLECS_ENGINE_UNIFORMS_MAX + 1];
     WGPUBindGroupLayoutDescriptor bind_layout_desc = { .entries = layout_entries };
     WGPUBindGroupEntry entries[FLECS_ENGINE_UNIFORMS_MAX];
 
-    ecs_os_zeromem(layout_entries);
-    ecs_os_zeromem(entries);
+    ecs_os_memset_n(
+        layout_entries, 0, WGPUBindGroupLayoutEntry, FLECS_ENGINE_UNIFORMS_MAX + 1);
+    ecs_os_memset_n(entries, 0, WGPUBindGroupEntry, FLECS_ENGINE_UNIFORMS_MAX);
 
-    for (int b = 0; b < FLECS_ENGINE_UNIFORMS_MAX; b ++) {
+    impl->uniform_count = flecsBatchUniformCount(uniform_types);
+    if (!impl->uniform_count) {
+        return false;
+    }
+
+    for (uint8_t b = 0; b < impl->uniform_count; b ++) {
         ecs_entity_t type = uniform_types[b];
-        if (!type) {
-            if (!b) {
-                return;
-            }
-
-            break;
-        }
 
         uint64_t type_size = flecs_type_sizeof(world, type);
         layout_entries[b].binding = b;
@@ -359,20 +396,41 @@ static void flecsSetupUniformBindings(
                 engine->device, &uniform_desc);
         entries[b].size = type_size;
 
-        bind_layout_desc.entryCount = b + 1;
+        bind_layout_desc.entryCount = (uint32_t)b + 1;
+    }
+
+    if (include_material_buffer) {
+        uint32_t binding = impl->uniform_count;
+        layout_entries[binding].binding = binding;
+        layout_entries[binding].visibility = WGPUShaderStage_Fragment;
+        layout_entries[binding].buffer = (WGPUBufferBindingLayout){
+            .type = WGPUBufferBindingType_ReadOnlyStorage,
+            .minBindingSize = sizeof(FlecsGpuMaterial)
+        };
+        bind_layout_desc.entryCount = binding + 1;
     }
 
     impl->bind_layout = wgpuDeviceCreateBindGroupLayout(
         engine->device, &bind_layout_desc);
+    if (!impl->bind_layout) {
+        return false;
+    }
 
-    WGPUBindGroupDescriptor bind_group_desc = {
-        .entries = entries,
-        .entryCount = bind_layout_desc.entryCount,
-        .layout = impl->bind_layout
-    };
+    if (!include_material_buffer) {
+        WGPUBindGroupDescriptor bind_group_desc = {
+            .entries = entries,
+            .entryCount = impl->uniform_count,
+            .layout = impl->bind_layout
+        };
 
-    impl->bind_group = wgpuDeviceCreateBindGroup(
-        engine->device, &bind_group_desc);
+        impl->bind_group = wgpuDeviceCreateBindGroup(
+            engine->device, &bind_group_desc);
+        if (!impl->bind_group) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 static WGPURenderPipeline flecsCreateRenderBatchPipeline(
@@ -529,11 +587,18 @@ void FlecsRenderBatch_on_set(
             vertex_attr_count, vertex_buffers, vertex_buffer_count, 
             instance_attrs);
 
-        // Setup uniform bindings
-        flecsSetupUniformBindings(world, engine, 
+        bool use_material_buffer = flecsBatchUsesMaterialId(&rb[i]);
+
+        // Setup uniform + optional storage buffer bindings
+        if (!flecsSetupBatchBindings(world, engine, 
             rb[i].uniforms,
             WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
-            &impl);
+            use_material_buffer,
+            &impl))
+        {
+            flecsRenderBatchImplRelease(&impl);
+            continue;
+        }
 
         WGPUTextureFormat hdr_format = engine->hdr_color_format;
         if (hdr_format == WGPUTextureFormat_Undefined) {
@@ -662,6 +727,7 @@ void flecsEngineRenderBatch(
         world, batch_entity, FlecsRenderBatch);
     const FlecsRenderBatchImpl *impl = ecs_get(
         world, batch_entity, FlecsRenderBatchImpl);
+    bool use_material_buffer = flecsBatchUsesMaterialId(batch);
 
     WGPURenderPipeline pipeline = impl->pipeline_hdr;
     ecs_assert(pipeline != NULL, ECS_INTERNAL_ERROR, NULL);
@@ -691,7 +757,46 @@ void flecsEngineRenderBatch(
             sizeof(FlecsUniform));
     }
 
-    wgpuRenderPassEncoderSetBindGroup(pass, 0, impl->bind_group, 0, NULL);
+    WGPUBindGroup bind_group = impl->bind_group;
+    if (use_material_buffer) {
+        if (!engine->material_buffer || !engine->material_count) {
+            return;
+        }
+
+        WGPUBindGroupEntry entries[FLECS_ENGINE_UNIFORMS_MAX + 1] = {0};
+        for (uint8_t i = 0; i < impl->uniform_count; i ++) {
+            entries[i] = (WGPUBindGroupEntry){
+                .binding = i,
+                .buffer = impl->uniform_buffers[i],
+                .size = flecs_type_sizeof(world, batch->uniforms[i])
+            };
+        }
+
+        uint32_t storage_binding = impl->uniform_count;
+        entries[storage_binding] = (WGPUBindGroupEntry){
+            .binding = storage_binding,
+            .buffer = engine->material_buffer,
+            .size = (uint64_t)engine->material_count * sizeof(FlecsGpuMaterial)
+        };
+
+        WGPUBindGroupDescriptor bind_group_desc = {
+            .entries = entries,
+            .entryCount = storage_binding + 1,
+            .layout = impl->bind_layout
+        };
+
+        bind_group = wgpuDeviceCreateBindGroup(
+            engine->device, &bind_group_desc);
+        if (!bind_group) {
+            return;
+        }
+    }
+
+    wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
 
     batch->callback(world, engine, pass, batch);
+
+    if (use_material_buffer) {
+        wgpuBindGroupRelease(bind_group);
+    }
 }

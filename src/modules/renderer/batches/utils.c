@@ -1,4 +1,12 @@
+#include <stddef.h>
+
 #include "batches.h"
+
+_Static_assert(sizeof(FlecsMaterialId) == sizeof(FlecsInstanceMaterialId),
+    "FlecsMaterialId and FlecsInstanceMaterialId must share layout");
+_Static_assert(offsetof(FlecsMaterialId, value) ==
+        offsetof(FlecsInstanceMaterialId, value),
+    "FlecsMaterialId and FlecsInstanceMaterialId must share layout");
 
 static float flecsEngine_clampf(
     float value,
@@ -21,6 +29,7 @@ void flecsEngine_batchCtx_init(
     ctx->instance_transform = NULL;
     ctx->instance_color = NULL;
     ctx->instance_pbr = NULL;
+    ctx->instance_material_id = NULL;
     ctx->cpu_transforms = NULL;
     ctx->cpu_pbr = NULL;
     ctx->count = 0;
@@ -46,6 +55,10 @@ void flecsEngine_batchCtx_fini(
     if (ctx->instance_pbr) {
         wgpuBufferRelease(ctx->instance_pbr);
         ctx->instance_pbr = NULL;
+    }
+    if (ctx->instance_material_id) {
+        wgpuBufferRelease(ctx->instance_material_id);
+        ctx->instance_material_id = NULL;
     }
     if (ctx->cpu_transforms) {
         ecs_os_free(ctx->cpu_transforms);
@@ -83,6 +96,9 @@ void flecsEngine_batchCtx_ensureCapacity(
     if (ctx->instance_pbr) {
         wgpuBufferRelease(ctx->instance_pbr);
     }
+    if (ctx->instance_material_id) {
+        wgpuBufferRelease(ctx->instance_material_id);
+    }
     if (ctx->cpu_transforms) {
         ecs_os_free(ctx->cpu_transforms);
     }
@@ -106,6 +122,12 @@ void flecsEngine_batchCtx_ensureCapacity(
         &(WGPUBufferDescriptor){
             .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
             .size = (uint64_t)new_capacity * sizeof(FlecsInstancePbrMaterial)
+        });
+
+    ctx->instance_material_id = wgpuDeviceCreateBuffer(engine->device,
+        &(WGPUBufferDescriptor){
+            .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+            .size = (uint64_t)new_capacity * sizeof(FlecsInstanceMaterialId)
         });
 
     ctx->cpu_transforms =
@@ -149,6 +171,37 @@ void flecsEngine_batchCtx_draw(
     wgpuRenderPassEncoderDrawIndexed(pass, ctx->mesh.index_count, ctx->count, 0, 0, 0);
 }
 
+void flecsEngine_batchCtx_drawMaterialIndex(
+    const WGPURenderPassEncoder pass,
+    const flecs_engine_batch_ctx_t *ctx)
+{
+    if (!ctx->count) {
+        return;
+    }
+
+    if (!ctx->mesh.vertex_buffer || !ctx->mesh.index_buffer || !ctx->mesh.index_count) {
+        return;
+    }
+
+    WGPUBufferUsage vertex_usage = wgpuBufferGetUsage(ctx->mesh.vertex_buffer);
+    if (!(vertex_usage & WGPUBufferUsage_Vertex)) {
+        return;
+    }
+
+    WGPUBufferUsage index_usage = wgpuBufferGetUsage(ctx->mesh.index_buffer);
+    if (!(index_usage & WGPUBufferUsage_Index)) {
+        return;
+    }
+
+    wgpuRenderPassEncoderSetVertexBuffer(pass, 0, ctx->mesh.vertex_buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(pass, 1, ctx->instance_transform, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+        pass, 2, ctx->instance_material_id, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetIndexBuffer(
+        pass, ctx->mesh.index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexed(pass, ctx->mesh.index_count, ctx->count, 0, 0, 0);
+}
+
 void flecsEngine_batchCtx_uploadInstances(
     const FlecsEngineImpl *engine,
     const flecs_engine_batch_ctx_t *ctx,
@@ -181,6 +234,32 @@ void flecsEngine_batchCtx_uploadInstances(
         (uint64_t)offset * sizeof(FlecsInstancePbrMaterial),
         materials,
         (uint64_t)count * sizeof(FlecsInstancePbrMaterial));
+}
+
+void flecsEngine_batchCtx_uploadMaterialIds(
+    const FlecsEngineImpl *engine,
+    const flecs_engine_batch_ctx_t *ctx,
+    int32_t offset,
+    const FlecsMaterialId *material_ids,
+    int32_t count)
+{
+    if (!count) {
+        return;
+    }
+
+    wgpuQueueWriteBuffer(
+        engine->queue,
+        ctx->instance_transform,
+        (uint64_t)offset * sizeof(FlecsInstanceTransform),
+        &ctx->cpu_transforms[offset],
+        (uint64_t)count * sizeof(FlecsInstanceTransform));
+
+    wgpuQueueWriteBuffer(
+        engine->queue,
+        ctx->instance_material_id,
+        (uint64_t)offset * sizeof(FlecsInstanceMaterialId),
+        material_ids,
+        (uint64_t)count * sizeof(FlecsInstanceMaterialId));
 }
 
 void flecsEngine_packInstanceTransform(

@@ -18,6 +18,7 @@ ECS_COMPONENT_DECLARE(FlecsLitVertex);
 ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
 ECS_COMPONENT_DECLARE(FlecsInstanceColor);
 ECS_COMPONENT_DECLARE(FlecsInstancePbrMaterial);
+ECS_COMPONENT_DECLARE(FlecsInstanceMaterialId);
 ECS_COMPONENT_DECLARE(FlecsUniform);
 ECS_COMPONENT_DECLARE(FlecsShader);
 ECS_COMPONENT_DECLARE(FlecsShaderImpl);
@@ -140,6 +141,7 @@ void FlecsEngineRendererImport(
     ECS_COMPONENT_DEFINE(world, FlecsInstanceTransform);
     ECS_COMPONENT_DEFINE(world, FlecsInstanceColor);
     ECS_COMPONENT_DEFINE(world, FlecsInstancePbrMaterial);
+    ECS_COMPONENT_DEFINE(world, FlecsInstanceMaterialId);
     ECS_COMPONENT_DEFINE(world, FlecsUniform);
     ECS_COMPONENT_DEFINE(world, FlecsShader);
     ECS_COMPONENT_DEFINE(world, FlecsShaderImpl);
@@ -248,6 +250,13 @@ void FlecsEngineRendererImport(
         .members = {
             { .name = "metallic", .type = ecs_id(ecs_f32_t) },
             { .name = "roughness", .type = ecs_id(ecs_f32_t) }
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_id(FlecsInstanceMaterialId),
+        .members = {
+            { .name = "value", .type = ecs_id(ecs_u32_t) }
         }
     });
 

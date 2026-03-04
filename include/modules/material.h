@@ -18,7 +18,7 @@ ECS_STRUCT(FlecsPbrMaterial, {
 extern ECS_COMPONENT_DECLARE(FlecsPbrMaterial);
 
 ECS_STRUCT(FlecsMaterialId, {
-    uint16_t value;
+    uint32_t value;
 });
 
 extern ECS_COMPONENT_DECLARE(FlecsMaterialId);

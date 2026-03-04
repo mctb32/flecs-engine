@@ -42,6 +42,12 @@ typedef struct {
 extern ECS_COMPONENT_DECLARE(FlecsInstancePbrMaterial);
 
 typedef struct {
+    uint32_t value;
+} FlecsInstanceMaterialId;
+
+extern ECS_COMPONENT_DECLARE(FlecsInstanceMaterialId);
+
+typedef struct {
     flecs_mat4_t mvp;
     float clear_color[4];
     float light_ray_dir[4];
@@ -102,6 +108,9 @@ ecs_entity_t flecsEngine_createBatch_infiniteGrid(
     ecs_world_t *world);
 
 ecs_entity_t flecsEngine_createBatchSet_primitiveShapes(
+    ecs_world_t *world);
+
+ecs_entity_t flecsEngine_createBatchSet_primitiveShapes_wMatIndex(
     ecs_world_t *world);
 
 ecs_entity_t flecsEngine_createEffect_tonyMcMapFace(

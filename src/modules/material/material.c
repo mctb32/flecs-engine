@@ -54,7 +54,7 @@ void FlecsEngineMaterialImport(
     ecs_struct(world, {
         .entity = ecs_id(FlecsMaterialId),
         .members = {
-            { .name = "value", .type = ecs_id(ecs_u16_t) }
+            { .name = "value", .type = ecs_id(ecs_u32_t) }
         }
     });
     ecs_add_pair(

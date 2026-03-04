@@ -7,6 +7,7 @@ typedef struct {
     WGPUBuffer instance_transform;
     WGPUBuffer instance_color;
     WGPUBuffer instance_pbr;
+    WGPUBuffer instance_material_id;
     FlecsInstanceTransform *cpu_transforms;
     FlecsInstancePbrMaterial *cpu_pbr;
     int32_t count;
@@ -30,12 +31,23 @@ void flecsEngine_batchCtx_draw(
     const WGPURenderPassEncoder pass,
     const flecs_engine_batch_ctx_t *ctx);
 
+void flecsEngine_batchCtx_drawMaterialIndex(
+    const WGPURenderPassEncoder pass,
+    const flecs_engine_batch_ctx_t *ctx);
+
 void flecsEngine_batchCtx_uploadInstances(
     const FlecsEngineImpl *engine,
     const flecs_engine_batch_ctx_t *ctx,
     int32_t offset,
     const FlecsRgba *colors,
     const FlecsPbrMaterial *materials,
+    int32_t count);
+
+void flecsEngine_batchCtx_uploadMaterialIds(
+    const FlecsEngineImpl *engine,
+    const flecs_engine_batch_ctx_t *ctx,
+    int32_t offset,
+    const FlecsMaterialId *material_ids,
     int32_t count);
 
 void flecsEngine_packInstanceTransform(
