@@ -10,8 +10,6 @@ typedef struct {
     WGPUBuffer instance_emissive;
     WGPUBuffer instance_material_id;
     FlecsInstanceTransform *cpu_transforms;
-    FlecsInstancePbrMaterial *cpu_pbr;
-    FlecsInstanceEmissive *default_emissive;
     int32_t count;
     int32_t capacity;
     FlecsMesh3Impl mesh;

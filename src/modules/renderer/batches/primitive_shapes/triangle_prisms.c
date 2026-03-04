@@ -40,11 +40,6 @@ redo: {
             const FlecsTrianglePrism *triangle_prisms =
                 ecs_field(&it, FlecsTrianglePrism, 0);
             const FlecsWorldTransform3 *wt = ecs_field(&it, FlecsWorldTransform3, 1);
-            const FlecsRgba *colors = ecs_field(&it, FlecsRgba, 2);
-            const FlecsPbrMaterial *materials =
-                ecs_field(&it, FlecsPbrMaterial, 3);
-            const FlecsEmissive *emissives =
-                ecs_field(&it, FlecsEmissive, 4);
 
             if ((ctx->batch.count + it.count) <= ctx->batch.capacity) {
                 for (int32_t i = 0; i < it.count; i ++) {
@@ -62,9 +57,9 @@ redo: {
                     engine,
                     &ctx->batch,
                     ctx->batch.count,
-                    colors,
-                    materials,
-                    emissives,
+                    ecs_field(&it, FlecsRgba, 2),
+                    ecs_field(&it, FlecsPbrMaterial, 3),
+                    ecs_field(&it, FlecsEmissive, 4),
                     it.count);
             }
 
@@ -104,9 +99,10 @@ ecs_entity_t flecsEngine_createBatch_triangle_prisms(
         .terms = {
             { .id = ecs_id(FlecsTrianglePrism), .src.id = EcsSelf },
             { .id = ecs_id(FlecsWorldTransform3), .src.id = EcsSelf },
-            { .id = ecs_id(FlecsRgba), .src.id = EcsSelf },
-            { .id = ecs_id(FlecsPbrMaterial), .src.id = EcsSelf },
-            { .id = ecs_id(FlecsEmissive), .src.id = EcsSelf, .oper = EcsOptional }
+            { .id = ecs_id(FlecsRgba), .src.id = EcsSelf, .oper = EcsOptional },
+            { .id = ecs_id(FlecsPbrMaterial), .src.id = EcsSelf, .oper = EcsOptional },
+            { .id = ecs_id(FlecsEmissive), .src.id = EcsSelf, .oper = EcsOptional },
+            { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA, .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto
     });

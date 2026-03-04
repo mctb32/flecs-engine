@@ -251,6 +251,8 @@ static void flecsEngineCleanup(
         ecs_os_free((char*)impl->frame_output_path);
         impl->frame_output_path = NULL;
     }
+
+    flecsEngine_defaultAttrCache_free(impl->default_attr_cache);
 }
 
 int flecsEngineInit(
@@ -280,7 +282,8 @@ int flecsEngineInit(
         .output_done = false,
         .depth_texture_width = 0,
         .depth_texture_height = 0,
-        .last_material_id = 0
+        .last_material_id = 0,
+        .default_attr_cache = flecsEngine_defaultAttrCache_create()
     };
 
     WGPUInstanceDescriptor instance_desc = {0};

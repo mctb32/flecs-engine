@@ -174,6 +174,23 @@ const FlecsShaderImpl* flecsEngine_shader_ensureImpl(
     ecs_world_t *world,
     ecs_entity_t shader_entity);
 
+FlecsDefaultAttrCache* flecsEngine_defaultAttrCache_create(void);
+
+void flecsEngine_defaultAttrCache_free(
+    FlecsDefaultAttrCache *ptr);
+
+FlecsInstancePbrMaterial* flecsEngine_defaultAttrCache_getMaterial(
+    const FlecsEngineImpl *engine,
+    int32_t count);
+
+FlecsInstanceEmissive* flecsEngine_defaultAttrCache_getEmissive(
+    const FlecsEngineImpl *engine,
+    int32_t count);
+
+FlecsInstanceColor* flecsEngine_defaultAttrCache_getColor(
+    const FlecsEngineImpl *engine,
+    int32_t count);
+
 void FlecsEngineRendererImport(
     ecs_world_t *world);
 

@@ -40,8 +40,6 @@ void flecsEngine_batchCtx_init(
     ctx->instance_emissive = NULL;
     ctx->instance_material_id = NULL;
     ctx->cpu_transforms = NULL;
-    ctx->cpu_pbr = NULL;
-    ctx->default_emissive = NULL;
     ctx->count = 0;
     ctx->capacity = 0;
     if (mesh) {
@@ -77,14 +75,6 @@ void flecsEngine_batchCtx_fini(
     if (ctx->cpu_transforms) {
         ecs_os_free(ctx->cpu_transforms);
         ctx->cpu_transforms = NULL;
-    }
-    if (ctx->cpu_pbr) {
-        ecs_os_free(ctx->cpu_pbr);
-        ctx->cpu_pbr = NULL;
-    }
-    if (ctx->default_emissive) {
-        ecs_os_free(ctx->default_emissive);
-        ctx->default_emissive = NULL;
     }
 
     ctx->count = 0;
@@ -123,12 +113,6 @@ void flecsEngine_batchCtx_ensureCapacity(
     if (ctx->cpu_transforms) {
         ecs_os_free(ctx->cpu_transforms);
     }
-    if (ctx->cpu_pbr) {
-        ecs_os_free(ctx->cpu_pbr);
-    }
-    if (ctx->default_emissive) {
-        ecs_os_free(ctx->default_emissive);
-    }
 
     ctx->instance_transform = wgpuDeviceCreateBuffer(engine->device,
         &(WGPUBufferDescriptor){
@@ -162,17 +146,6 @@ void flecsEngine_batchCtx_ensureCapacity(
 
     ctx->cpu_transforms =
         ecs_os_malloc_n(FlecsInstanceTransform, new_capacity);
-    ctx->cpu_pbr =
-        ecs_os_malloc_n(FlecsInstancePbrMaterial, new_capacity);
-    ctx->default_emissive =
-        ecs_os_malloc_n(FlecsInstanceEmissive, new_capacity);
-
-    for (int32_t i = 0; i < new_capacity; i ++) {
-        ctx->default_emissive[i] = (FlecsInstanceEmissive){
-            .color = {0, 0, 0, 255},
-            .strength = 0.0f
-        };
-    }
 
     ctx->capacity = new_capacity;
 }
@@ -199,19 +172,27 @@ void flecsEngine_batchCtx_draw(
         return;
     }
 
-    wgpuRenderPassEncoderSetVertexBuffer(pass, 0, ctx->mesh.vertex_buffer, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(pass, 1, ctx->instance_transform, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(pass, 2, ctx->instance_color, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+        pass, 0, ctx->mesh.vertex_buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+        pass, 1, ctx->instance_transform, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+        pass, 2, ctx->instance_color, 0, WGPU_WHOLE_SIZE);
+
     if (ctx->instance_pbr) {
         wgpuRenderPassEncoderSetVertexBuffer(
             pass, 3, ctx->instance_pbr, 0, WGPU_WHOLE_SIZE);
     }
+
     if (ctx->instance_emissive) {
         wgpuRenderPassEncoderSetVertexBuffer(
             pass, 4, ctx->instance_emissive, 0, WGPU_WHOLE_SIZE);
     }
-    wgpuRenderPassEncoderSetIndexBuffer(pass, ctx->mesh.index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderDrawIndexed(pass, ctx->mesh.index_count, ctx->count, 0, 0, 0);
+
+    wgpuRenderPassEncoderSetIndexBuffer(
+        pass, ctx->mesh.index_buffer, WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexed(
+        pass, ctx->mesh.index_count, ctx->count, 0, 0, 0);
 }
 
 void flecsEngine_batchCtx_drawMaterialIndex(
@@ -265,19 +246,37 @@ void flecsEngine_batchCtx_uploadInstances(
         &ctx->cpu_transforms[offset],
         (uint64_t)count * sizeof(FlecsInstanceTransform));
 
-    wgpuQueueWriteBuffer(
-        engine->queue,
-        ctx->instance_color,
-        (uint64_t)offset * sizeof(flecs_rgba_t),
-        colors,
-        (uint64_t)count * sizeof(flecs_rgba_t));
+    if (colors) {
+        wgpuQueueWriteBuffer(
+            engine->queue,
+            ctx->instance_color,
+            (uint64_t)offset * sizeof(flecs_rgba_t),
+            colors,
+            (uint64_t)count * sizeof(flecs_rgba_t));
+    } else {
+        wgpuQueueWriteBuffer(
+            engine->queue,
+            ctx->instance_color,
+            (uint64_t)offset * sizeof(flecs_rgba_t),
+            flecsEngine_defaultAttrCache_getColor(engine, count),
+            (uint64_t)count * sizeof(flecs_rgba_t));
+    }
 
-    wgpuQueueWriteBuffer(
-        engine->queue,
-        ctx->instance_pbr,
-        (uint64_t)offset * sizeof(FlecsInstancePbrMaterial),
-        materials,
-        (uint64_t)count * sizeof(FlecsInstancePbrMaterial));
+    if (materials) {
+        wgpuQueueWriteBuffer(
+            engine->queue,
+            ctx->instance_pbr,
+            (uint64_t)offset * sizeof(FlecsInstancePbrMaterial),
+            materials,
+            (uint64_t)count * sizeof(FlecsInstancePbrMaterial));
+    } else {
+        wgpuQueueWriteBuffer(
+            engine->queue,
+            ctx->instance_pbr,
+            (uint64_t)offset * sizeof(FlecsInstancePbrMaterial),
+            flecsEngine_defaultAttrCache_getMaterial(engine, count),
+            (uint64_t)count * sizeof(FlecsInstancePbrMaterial));
+    }
 
     if (emissives) {
         wgpuQueueWriteBuffer(
@@ -291,7 +290,7 @@ void flecsEngine_batchCtx_uploadInstances(
             engine->queue,
             ctx->instance_emissive,
             (uint64_t)offset * sizeof(FlecsInstanceEmissive),
-            ctx->default_emissive,
+            flecsEngine_defaultAttrCache_getEmissive(engine, count),
             (uint64_t)count * sizeof(FlecsInstanceEmissive));
     }
 }

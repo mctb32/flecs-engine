@@ -91,7 +91,6 @@ redo: {
                         1.0f,
                         1.0f,
                         1.0f);
-
                 }
 
                 flecsEngine_batchCtx_uploadMaterialIds(

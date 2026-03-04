@@ -1,5 +1,5 @@
 # Flecs engine
-A fast, low footprint, opinionated, flecs native game engine.
+A fast, low footprint, opinionated (but hackable), flecs native game engine.
 
 ## Usage
 Build & run the engine:

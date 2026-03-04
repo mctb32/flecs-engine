@@ -19,6 +19,15 @@ typedef struct {
 } FlecsGpuMaterial;
 
 typedef struct {
+    FlecsInstanceColor *color;
+    ecs_size_t color_count;
+    FlecsInstancePbrMaterial *material;
+    ecs_size_t material_count;
+    FlecsInstanceEmissive *emissive;
+    ecs_size_t emissive_count;
+} FlecsDefaultAttrCache;
+
+typedef struct {
     GLFWwindow *window;
     int32_t width;
     int32_t height;
@@ -64,6 +73,8 @@ typedef struct {
     ecs_query_t *material_query;
     uint32_t last_material_id;
     WGPURenderPipeline last_pipeline;
+    
+    FlecsDefaultAttrCache *default_attr_cache;
 } FlecsEngineImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);

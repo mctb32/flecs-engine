@@ -34,11 +34,6 @@ redo: {
         while (ecs_query_next(&it)) {
             const FlecsBox *boxes = ecs_field(&it, FlecsBox, 0);
             const FlecsWorldTransform3 *wt = ecs_field(&it, FlecsWorldTransform3, 1);
-            const FlecsRgba *colors = ecs_field(&it, FlecsRgba, 2);
-            const FlecsPbrMaterial *materials =
-                ecs_field(&it, FlecsPbrMaterial, 3);
-            const FlecsEmissive *emissives =
-                ecs_field(&it, FlecsEmissive, 4);
 
             if ((ctx->count + it.count) <= ctx->capacity) {
                 for (int32_t i = 0; i < it.count; i ++) {
@@ -56,9 +51,9 @@ redo: {
                     engine,
                     ctx,
                     ctx->count,
-                    colors,
-                    materials,
-                    emissives,
+                    ecs_field(&it, FlecsRgba, 2),
+                    ecs_field(&it, FlecsPbrMaterial, 3),
+                    ecs_field(&it, FlecsEmissive, 4),
                     it.count);
             }
 
@@ -97,9 +92,10 @@ ecs_entity_t flecsEngine_createBatch_boxes(
         .terms = {
             { .id = ecs_id(FlecsBox), .src.id = EcsSelf },
             { .id = ecs_id(FlecsWorldTransform3), .src.id = EcsSelf },
-            { .id = ecs_id(FlecsRgba), .src.id = EcsSelf },
-            { .id = ecs_id(FlecsPbrMaterial), .src.id = EcsSelf },
-            { .id = ecs_id(FlecsEmissive), .src.id = EcsSelf, .oper = EcsOptional }
+            { .id = ecs_id(FlecsRgba), .src.id = EcsSelf, .oper = EcsOptional  },
+            { .id = ecs_id(FlecsPbrMaterial), .src.id = EcsSelf, .oper = EcsOptional },
+            { .id = ecs_id(FlecsEmissive), .src.id = EcsSelf, .oper = EcsOptional },
+            { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA, .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto
     });

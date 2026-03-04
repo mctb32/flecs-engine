@@ -30,7 +30,7 @@ static const char *kPrefilterShaderSource =
     "@group(0) @binding(1) var env_sampler : sampler;\n"
     "@group(0) @binding(2) var<uniform> face_uniform : FaceUniform;\n"
     "const PI : f32 = 3.141592653589793;\n"
-    "const SAMPLE_COUNT : u32 = 1024u;\n"
+    "const SAMPLE_COUNT : u32 = 2048u;\n"
     "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VertexOutput {\n"
     "  var out : VertexOutput;\n"
     "  var pos = array<vec2<f32>, 3>(\n"
