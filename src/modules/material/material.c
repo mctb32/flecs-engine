@@ -5,18 +5,6 @@ ECS_COMPONENT_DECLARE(FlecsPbrMaterial);
 ECS_COMPONENT_DECLARE(FlecsEmissive);
 ECS_COMPONENT_DECLARE(FlecsMaterialId);
 
-static void FlecsEmissive_on_add(
-    ecs_iter_t *it)
-{
-    FlecsEmissive *emissive = ecs_field(it, FlecsEmissive, 0);
-    for (int32_t i = 0; i < it->count; i ++) {
-        const FlecsRgba *color = ecs_get(it->world, it->entities[i], FlecsRgba);
-        if (color) {
-            ecs_os_memcpy_t(&emissive[i].color, &color, FlecsRgba);
-        }
-    }
-}
-
 static void FlecsMaterialIdOnAdd(
     ecs_iter_t *it)
 {
@@ -74,7 +62,6 @@ void FlecsEngineMaterialImport(
     ecs_struct(world, {
         .entity = ecs_id(FlecsEmissive),
         .members = {
-            { .name = "color", .type = ecs_id(flecs_rgba_t) },
             { .name = "strength", .type = ecs_id(ecs_f32_t) }
         }
     });

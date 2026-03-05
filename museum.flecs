@@ -266,7 +266,7 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 Rgba: {255, 255, 255}
-                Emissive: {{255, 255, 255}, strength: 10}
+                Emissive: {strength: 10}
             }}
         }
     }
@@ -355,4 +355,3 @@ ground {
         }
     }
 }
-

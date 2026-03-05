@@ -266,7 +266,7 @@ int main(
   //   ecs_set(world, spheres[i], FlecsSphere, { .segments = 3 + i, .smooth = i == (numShapes - 1), .radius = 1 });
   //   ecs_set(world, spheres[i], FlecsPosition3, {-9 + i * 3, shapeY - 3, shapeZ});
   //   ecs_set(world, spheres[i], FlecsRgba, {255});
-  //   ecs_set(world, spheres[i], FlecsEmissive, {{255, 0, 0}, 25.0});
+  //   ecs_set(world, spheres[i], FlecsEmissive, {25.0});
   //   ecs_set(world, spheres[i], FlecsAngularVelocity3, {0.0f, spinSpeed, 0.0f});
   // }
 

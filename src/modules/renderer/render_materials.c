@@ -116,9 +116,7 @@ redo: {
                     .color = colors[i],
                     .metallic = materials[i].metallic,
                     .roughness = materials[i].roughness,
-                    .emissive_color = emissive.color,
-                    .emissive_strength = emissive.strength,
-                    ._pad = {0.0f, 0.0f, 0.0f}
+                    .emissive_strength = emissive.strength
                 };
             }
         }

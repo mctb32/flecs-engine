@@ -18,7 +18,6 @@ ECS_STRUCT(FlecsPbrMaterial, {
 extern ECS_COMPONENT_DECLARE(FlecsPbrMaterial);
 
 ECS_STRUCT(FlecsEmissive, {
-    flecs_rgba_t color;
     float strength;
 });
 
