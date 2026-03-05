@@ -75,6 +75,10 @@ ECS_PRIVATE
     void (*free_ctx)(void *ctx);
 });
 
+int flecsEngine_initRenderer(
+    ecs_world_t *world,
+    FlecsEngineImpl *impl);
+
 void flecsEngine_shader_register(
     ecs_world_t *world);
 
