@@ -13,7 +13,7 @@ ECS_STRUCT(FlecsBox, {
 });
 
 ECS_STRUCT(FlecsCone, {
-    int32_t sides;
+    int32_t segments;
     bool smooth;
     float length;
 });

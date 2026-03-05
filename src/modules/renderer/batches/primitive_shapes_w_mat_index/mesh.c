@@ -59,6 +59,12 @@ static void flecsEngine_mesh_onGroupDelete(
     (void)group_id;
     (void)ptr;
 
+    // TODO
+    // ecs_assert(group_ptr != NULL, ECS_INTERNAL_ERROR, NULL);
+    if (!group_ptr) {
+        return;
+    }
+
     flecs_engine_mesh_group_ctx_t *ctx = group_ptr;
     flecsEngine_batch_fini(&ctx->batch);
     ecs_os_free(ctx);

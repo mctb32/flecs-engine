@@ -382,9 +382,9 @@ void FlecsCone_on_replace(
 
     for (int32_t i = 0; i < it->count; i ++) {
         int32_t old_sides = flecsGeometry3_coneSidesNormalize(
-            old[i].sides, old[i].smooth);
+            old[i].segments, old[i].smooth);
         int32_t new_sides = flecsGeometry3_coneSidesNormalize(
-            new[i].sides, new[i].smooth);
+            new[i].segments, new[i].smooth);
         uint64_t old_key = flecsGeometry3_coneCacheKey(
             old_sides, old[i].smooth, old[i].length);
         uint64_t new_key = flecsGeometry3_coneCacheKey(
@@ -398,7 +398,7 @@ void FlecsCone_on_replace(
         }
 
         ecs_entity_t asset = flecsGeometry3_getConeEntity(
-            world, new[i].sides, new[i].smooth, new[i].length);
+            world, new[i].segments, new[i].smooth, new[i].length);
         ecs_add_pair(world, it->entities[i], EcsIsA, asset);
     }
 }

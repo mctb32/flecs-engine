@@ -295,7 +295,7 @@ int main(
   // ecs_entity_t cones[numShapes];
   // for (int i = 0; i < numShapes; i ++) {
   //   cones[i] = ecs_new_w_pair(world, EcsChildOf, shapes);
-  //   ecs_set(world, cones[i], FlecsCone, { .sides = 3 + i, .smooth = i == (numShapes - 1), .length = 1 });
+  //   ecs_set(world, cones[i], FlecsCone, { .segments = 3 + i, .smooth = i == (numShapes - 1), .length = 1 });
   //   ecs_set(world, cones[i], FlecsPosition3, {-9 + i * 3, shapeY - 12, shapeZ});
   //   ecs_set(world, cones[i], FlecsScale3, {2, 2, 2});
   //   ecs_set(world, cones[i], FlecsRgba, {0, 0, 255});

@@ -2,7 +2,7 @@ using flecs.engine.*
 using flecs.script
 
 const ItemSize: 3
-const ItemSpacing: 4
+const ItemSpacing: 4.5
 const ItemCount: 8
 
 template Display {
@@ -61,7 +61,7 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 PbrMaterial: {metallic: 1, roughness: i / (ItemCount - 1)}
-                Rgba: {255, 0, 0}
+                Rgba: {1, 1, 1}
             }}
         }
     }
@@ -76,7 +76,7 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 PbrMaterial: {metallic: 1, roughness: i / (ItemCount - 1)}
-                Rgba: {255, 128, 0}
+                Rgba: {255, 0, 0}
             }}
         }
     }
@@ -91,7 +91,7 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 PbrMaterial: {metallic: 1, roughness: i / (ItemCount - 1)}
-                Rgba: {0, 255, 0}
+                Rgba: {255, 128, 0}
             }}
         }
     }
@@ -106,7 +106,7 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 PbrMaterial: {metallic: 1, roughness: i / (ItemCount - 1)}
-                Rgba: {0, 128, 255}
+                Rgba: {0, 255, 0}
             }}
         }
     }
@@ -121,13 +121,28 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 PbrMaterial: {metallic: 1, roughness: i / (ItemCount - 1)}
-                Rgba: {0, 0, 255}
+                Rgba: {0, 128, 255}
             }}
         }
     }
 
     Display(items: ItemCount) {
         Position3: {0, 0, -70}
+
+        {
+            Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+            for i in 0..ItemCount {{
+                Position3: {i * ItemSpacing}
+                IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
+                PbrMaterial: {metallic: 1, roughness: i / (ItemCount - 1)}
+                Rgba: {0, 0, 255}
+            }}
+        }
+    }
+
+    Display(items: ItemCount) {
+        Position3: {0, 0, -80}
 
         {
             Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
@@ -171,7 +186,7 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 PbrMaterial: {metallic: 0, roughness: i / (ItemCount - 1)}
-                Rgba: {255, 0, 0}
+                Rgba: {1, 1, 1}
             }}
         }
     }
@@ -186,7 +201,7 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 PbrMaterial: {metallic: 0, roughness: i / (ItemCount - 1)}
-                Rgba: {255, 128, 0}
+                Rgba: {255, 0, 0}
             }}
         }
     }
@@ -201,7 +216,7 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 PbrMaterial: {metallic: 0, roughness: i / (ItemCount - 1)}
-                Rgba: {0, 255, 0}
+                Rgba: {255, 128, 0}
             }}
         }
     }
@@ -216,7 +231,7 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 PbrMaterial: {metallic: 0, roughness: i / (ItemCount - 1)}
-                Rgba: {0, 128, 255}
+                Rgba: {0, 255, 0}
             }}
         }
     }
@@ -231,13 +246,28 @@ ground {
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 PbrMaterial: {metallic: 0, roughness: i / (ItemCount - 1)}
-                Rgba: {0, 0, 255}
+                Rgba: {0, 128, 255}
             }}
         }
     }
 
     Display(items: ItemCount) {
         Position3: {0, 0, -70}
+
+        {
+            Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+            for i in 0..ItemCount {{
+                Position3: {i * ItemSpacing}
+                IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
+                PbrMaterial: {metallic: 0, roughness: i / (ItemCount - 1)}
+                Rgba: {0, 0, 255}
+            }}
+        }
+    }
+
+    Display(items: ItemCount) {
+        Position3: {0, 0, -80}
 
         {
             Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
@@ -280,7 +310,7 @@ ground {
             for i in 0..ItemCount {{
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
-                Rgba: {255, 0, 0}
+                Rgba: {1, 1, 1}
                 Emissive: {10 * i / (ItemCount - 1)}
             }}
         }
@@ -295,7 +325,7 @@ ground {
             for i in 0..ItemCount {{
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
-                Rgba: {255, 128, 0}
+                Rgba: {255, 0, 0}
                 Emissive: {10 * i / (ItemCount - 1)}
             }}
         }
@@ -310,7 +340,7 @@ ground {
             for i in 0..ItemCount {{
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
-                Rgba: {0, 255, 0}
+                Rgba: {255, 128, 0}
                 Emissive: {10 * i / (ItemCount - 1)}
             }}
         }
@@ -325,7 +355,7 @@ ground {
             for i in 0..ItemCount {{
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
-                Rgba: {0, 128, 255}
+                Rgba: {0, 255, 0}
                 Emissive: {10 * i / (ItemCount - 1)}
             }}
         }
@@ -340,7 +370,7 @@ ground {
             for i in 0..ItemCount {{
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
-                Rgba: {0, 0, 255}
+                Rgba: {0, 128, 255}
                 Emissive: {10 * i / (ItemCount - 1)}
             }}
         }
@@ -355,8 +385,568 @@ ground {
             for i in 0..ItemCount {{
                 Position3: {i * ItemSpacing}
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
+                Rgba: {0, 0, 255}
+                Emissive: {10 * i / (ItemCount - 1)}
+            }}
+        }
+    }
+
+    Display(items: ItemCount) {
+        Position3: {0, 0, -80}
+
+        {
+            Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+            for i in 0..ItemCount {{
+                Position3: {i * ItemSpacing}
+                IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 Rgba: {128, 0, 255}
                 Emissive: {10 * i / (ItemCount - 1)}
+            }}
+        }
+    }
+}
+
+// Spheres
+{
+    Position3: {-50}
+
+    for i in 0..8 {
+        Display(items: ItemCount) {
+            Position3: {0, 0, -((1 + i) * 10)}
+
+            {
+                Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+                with AngularVelocity3(0, 1, 0), Sphere(segments: i + 3, radius: ItemSize / 2) {{
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {0 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {1 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {2 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {3 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {4 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {5 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {6 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {7 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                }}
+            }
+        }
+    }
+}
+
+// Icospheres
+{
+    Position3: {-100}
+
+    for i in 0..6 {
+        Display(items: ItemCount) {
+            Position3: {0, 0, -((1 + i) * 10)}
+
+            {
+                Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+                with AngularVelocity3(0, 1, 0), IcoSphere(segments: i, radius: ItemSize / 2) {{
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {0 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {1 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {2 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {3 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {4 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {5 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {6 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {7 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                }}
+            }
+        }
+    }
+}
+
+// Hemispheres
+{
+    Position3: {-150}
+
+    for i in 0..8 {
+        Display(items: ItemCount) {
+            Position3: {0, 0, -((1 + i) * 10)}
+
+            {
+                Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+                with AngularVelocity3(0, 1, 0), HemiSphere(segments: 3 + i, radius: ItemSize / 2) {{
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {0 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {1 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {2 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {3 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {4 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {5 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {6 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {7 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                }}
+            }
+        }
+    }
+}
+
+
+// Cylinders
+{
+    Position3: {-200}
+
+    for i in 0..8 {
+        Display(items: ItemCount) {
+            Position3: {0, 0, -((1 + i) * 10)}
+
+            {
+                Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+                with AngularVelocity3(0, 1, 0), Cylinder(segments: 3 + i, length: ItemSize / 2), Scale3(ItemSize, ItemSize, ItemSize) {{
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {0 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {1 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {2 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {3 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {4 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {5 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {6 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {7 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                }}
+            }
+        }
+    }
+}
+
+// Cones
+{
+    Position3: {-250}
+
+    for i in 0..8 {
+        Display(items: ItemCount) {
+            Position3: {0, 0, -((1 + i) * 10)}
+
+            {
+                Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+                with AngularVelocity3(0, 1, 0), Cone(segments: 3 + i, length: ItemSize / 2), Scale3(ItemSize, ItemSize, ItemSize) {{
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {0 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {1 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {2 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {3 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {4 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {5 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {6 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {7 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                }}
+            }
+        }
+    }
+}
+
+// Shapes
+{
+    Position3: {-300}
+
+    Display(items: ItemCount) {
+        Position3: {0, 0, -10}
+
+        {
+            Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+            with AngularVelocity3(0, 1, 0), Box(ItemSize, ItemSize, ItemSize) {{
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {0 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {1 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {2 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {3 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {4 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {5 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {6 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {7 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            }}
+        }
+    }
+
+    Display(items: ItemCount) {
+        Position3: {0, 0, -20}
+
+        {
+            Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+            with AngularVelocity3(0, 1, 0), TrianglePrism(ItemSize, ItemSize, ItemSize) {{
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {0 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {1 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {2 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {3 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {4 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {5 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {6 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {7 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            }}
+        }
+    }
+
+    Display(items: ItemCount) {
+        Position3: {0, 0, -30}
+
+        {
+            Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+            with AngularVelocity3(0, 1, 0), RightTrianglePrism(ItemSize, ItemSize, ItemSize) {{
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {0 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {1 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {2 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {3 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {4 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {5 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {6 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {7 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            }}
+        }
+    }
+
+    Display(items: ItemCount) {
+        Position3: {0, 0, -40}
+
+        {
+            Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+            with AngularVelocity3(0, 0, 1), Quad(ItemSize, ItemSize) {{
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {0 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {1 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {2 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {3 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {4 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {5 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {6 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {7 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            }}
+        }
+    }
+
+    Display(items: ItemCount) {
+        Position3: {0, 0, -50}
+
+        {
+            Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+            with AngularVelocity3(0, 0, 1), Triangle(ItemSize, ItemSize) {{
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {0 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {1 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {2 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {3 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {4 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {5 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {6 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {7 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            }}
+        }
+    }
+
+    Display(items: ItemCount) {
+        Position3: {0, 0, -60}
+
+        {
+            Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+            with AngularVelocity3(0, 0, 1), RightTriangle(ItemSize, ItemSize) {{
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {0 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {1 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {2 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {3 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {4 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {5 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {6 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {7 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            }}
+        }
+    }
+
+    Display(items: ItemCount) {
+        Position3: {0, 0, -70}
+
+        {
+            Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+            with AngularVelocity3(0, 0, 1), NGon(sides: 6), Scale3(ItemSize, ItemSize, ItemSize) {{
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {0 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {1 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {2 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {3 * ItemSpacing}
+                Rgba: {255, 255, 255}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 1}
+                Position3: {4 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 0, roughness: 0}
+                Position3: {5 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 1}
+                Position3: {6 * ItemSpacing}
+                Rgba: {1, 1, 1}
+            } {
+                PbrMaterial: {metallic: 1, roughness: 0}
+                Position3: {7 * ItemSpacing}
+                Rgba: {1, 1, 1}
             }}
         }
     }
