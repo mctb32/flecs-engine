@@ -16,7 +16,7 @@ static flecs_engine_infinite_grid_ctx_t* flecsEngine_infinite_grid_createCtx(
 {
     flecs_engine_infinite_grid_ctx_t *result =
         ecs_os_calloc_t(flecs_engine_infinite_grid_ctx_t);
-    flecsEngine_batch_init(&result->batch, flecsEngine_quad_getAsset(world));
+    flecsEngine_batch_init(&result->batch, world, flecsEngine_quad_getAsset(world), 0, false, 0, NULL);
 
     glm_mat4_identity(result->transform.m);
     glm_rotate(result->transform.m, -glm_rad(90.0f), (vec3){1.0f, 0.0f, 0.0f});
@@ -30,7 +30,7 @@ static void flecsEngine_infinite_grid_deleteCtx(
     void *arg)
 {
     flecs_engine_infinite_grid_ctx_t *ctx = arg;
-    flecsEngine_batch_fini(&ctx->batch);
+    flecsEngine_batch_delete(&ctx->batch);
     ecs_os_free(ctx);
 }
 
@@ -42,7 +42,7 @@ static void flecsEngine_infinite_grid_prepareInstance(
         flecsEngine_batch_ensureCapacity(engine, &ctx->batch, 1);
     }
 
-    flecsEngine_packInstanceTransform(
+    flecsEngine_batch_transformInstance(
         &ctx->batch.cpu_transforms[0],
         &ctx->transform,
         ctx->size.x,

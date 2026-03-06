@@ -1,12 +1,8 @@
-#include "../../renderer.h"
-#include "../../shaders/shaders.h"
-#include "../../../geometry3/geometry3.h"
-#include "../batches.h"
+#include "../renderer.h"
+#include "../shaders/shaders.h"
+#include "../../geometry3/geometry3.h"
+#include "batches.h"
 #include "flecs_engine.h"
-
-typedef struct {
-    flecsEngine_batch_t batch;
-} flecs_engine_mesh_group_ctx_t;
 
 static uint64_t flecsEngine_mesh_groupByMesh(
     ecs_world_t *world,
@@ -35,18 +31,24 @@ static uint64_t flecsEngine_mesh_groupByMesh(
     return tgt;
 }
 
-static void* flecsEngine_mesh_onGroupCreate(
+static void* flecsEngine_mesh_onGroupCreate_materialData(
     ecs_world_t *world,
     uint64_t group_id,
     void *ptr)
 {
     (void)world;
-    (void)group_id;
     (void)ptr;
-    flecs_engine_mesh_group_ctx_t *result =
-        ecs_os_calloc_t(flecs_engine_mesh_group_ctx_t);
-    flecsEngine_batch_init(&result->batch, NULL);
-    return result;
+    return flecsEngine_batch_create(world, NULL, group_id, true, 0, NULL);
+}
+
+static void* flecsEngine_mesh_onGroupCreate_materialIndex(
+    ecs_world_t *world,
+    uint64_t group_id,
+    void *ptr)
+{
+    (void)world;
+    (void)ptr;
+    return flecsEngine_batch_create(world, NULL, group_id, false, 0, NULL);
 }
 
 static void flecsEngine_mesh_onGroupDelete(
@@ -58,65 +60,7 @@ static void flecsEngine_mesh_onGroupDelete(
     (void)world;
     (void)group_id;
     (void)ptr;
-
-    ecs_assert(group_ptr != NULL, ECS_INTERNAL_ERROR, NULL);
-
-    flecs_engine_mesh_group_ctx_t *ctx = group_ptr;
-    flecsEngine_batch_fini(&ctx->batch);
-    ecs_os_free(ctx);
-}
-
-static void flecsEngine_mesh_prepareInstances(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderBatch *batch,
-    uint64_t group_id,
-    flecs_engine_mesh_group_ctx_t *ctx)
-{
-redo: {
-        ecs_iter_t it = ecs_query_iter(world, batch->query);
-        ecs_iter_set_group(&it, group_id);
-        ctx->batch.count = 0;
-
-        while (ecs_query_next(&it)) {
-            const FlecsWorldTransform3 *wt = ecs_field(
-                &it, FlecsWorldTransform3, 1);
-
-            if ((ctx->batch.count + it.count) <= ctx->batch.capacity) {
-                for (int32_t i = 0; i < it.count; i ++) {
-                    int32_t index = ctx->batch.count + i;
-                    flecsEngine_packInstanceTransform(
-                        &ctx->batch.cpu_transforms[index],
-                        &wt[i],
-                        1.0f,
-                        1.0f,
-                        1.0f);
-
-                }
-
-                flecsEngine_batch_uploadInstances(
-                    engine,
-                    &ctx->batch,
-                    ctx->batch.count,
-                    ecs_field(&it, FlecsRgba, 2),
-                    ecs_field(&it, FlecsPbrMaterial, 3),
-                    ecs_field(&it, FlecsEmissive, 4),
-                    it.count);
-            }
-
-            ctx->batch.count += it.count;
-        }
-
-        if (ctx->batch.count > ctx->batch.capacity) {
-            flecsEngine_batch_ensureCapacity(
-                engine, &ctx->batch, ctx->batch.count);
-            ecs_assert(
-                ctx->batch.count <= ctx->batch.capacity,
-                ECS_INTERNAL_ERROR,
-                NULL);
-            goto redo;
-        }
-    }
+    flecsEngine_batch_delete(group_ptr);
 }
 
 static void flecsEngine_mesh_renderGroup(
@@ -130,7 +74,7 @@ static void flecsEngine_mesh_renderGroup(
         return;
     }
 
-    flecs_engine_mesh_group_ctx_t *ctx =
+    flecsEngine_batch_t *ctx =
         ecs_query_get_group_ctx(batch->query, group_id);
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
@@ -150,9 +94,9 @@ static void flecsEngine_mesh_renderGroup(
         return;
     }
 
-    flecsEngine_mesh_prepareInstances(world, engine, batch, group_id, ctx);
-    ctx->batch.mesh = *mesh;
-    flecsEngine_batch_draw(pass, &ctx->batch);
+    flecsEngine_batch_prepareInstances(world, engine, batch, ctx);
+    ctx->mesh = *mesh;
+    flecsEngine_batch_draw(pass, ctx);
 }
 
 static void flecsEngine_mesh_callback(
@@ -171,7 +115,46 @@ static void flecsEngine_mesh_callback(
     }
 }
 
-ecs_entity_t flecsEngine_createBatch_mesh(
+ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name)
+{
+    ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
+    ecs_entity_t shader = flecsEngine_shader_pbrColoredMaterialIndex(world);
+
+    ecs_query_t *q = ecs_query(world, {
+        .entity = batch,
+        .terms = {
+            { .id = ecs_id(FlecsMesh3Impl), .src.id = EcsUp, .trav = EcsIsA },
+            { .id = ecs_id(FlecsWorldTransform3), .src.id = EcsSelf },
+            { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA },
+        },
+        .cache_kind = EcsQueryCacheAuto,
+        .group_by = EcsIsA,
+        .group_by_callback = flecsEngine_mesh_groupByMesh,
+        .on_group_create = flecsEngine_mesh_onGroupCreate_materialIndex,
+        .on_group_delete = flecsEngine_mesh_onGroupDelete
+    });
+
+    ecs_set(world, batch, FlecsRenderBatch, {
+        .shader = shader,
+        .query = q,
+        .vertex_type = ecs_id(FlecsLitVertex),
+        .instance_types = {
+            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsMaterialId)
+        },
+        .uniforms = {
+            ecs_id(FlecsUniform)
+        },
+        .callback = flecsEngine_mesh_callback
+    });
+
+    return batch;
+}
+
+ecs_entity_t flecsEngine_createBatch_mesh_materialData(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name)
@@ -192,7 +175,7 @@ ecs_entity_t flecsEngine_createBatch_mesh(
         .cache_kind = EcsQueryCacheAuto,
         .group_by = EcsIsA,
         .group_by_callback = flecsEngine_mesh_groupByMesh,
-        .on_group_create = flecsEngine_mesh_onGroupCreate,
+        .on_group_create = flecsEngine_mesh_onGroupCreate_materialData,
         .on_group_delete = flecsEngine_mesh_onGroupDelete
     });
 

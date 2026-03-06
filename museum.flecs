@@ -407,6 +407,41 @@ ground {
     }
 }
 
+materials {
+    prefab dielectricRoughWhite {
+        PbrMaterial: {metallic: 0, roughness: 1}
+        Rgba: {255, 255, 255}
+    }
+    prefab dielectricSmoothWhite {
+        PbrMaterial: {metallic: 0, roughness: 0}
+        Rgba: {255, 255, 255}
+    }
+    prefab metalRoughWhite {
+        PbrMaterial: {metallic: 1, roughness: 1}
+        Rgba: {255, 255, 255}
+    }
+    prefab metalSmoothWhite {
+        PbrMaterial: {metallic: 1, roughness: 0}
+        Rgba: {255, 255, 255}
+    }
+    prefab dielectricRoughBlack {
+        PbrMaterial: {metallic: 0, roughness: 1}
+        Rgba: {1, 1, 1}
+    }
+    prefab dielectricSmoothBlack {
+        PbrMaterial: {metallic: 0, roughness: 0}
+        Rgba: {1, 1, 1}
+    }
+    prefab metalRoughBlack {
+        PbrMaterial: {metallic: 1, roughness: 1}
+        Rgba: {1, 1, 1}
+    }
+    prefab metalSmoothBlack {
+        PbrMaterial: {metallic: 1, roughness: 0}
+        Rgba: {1, 1, 1}
+    }
+}
+
 // Spheres
 {
     Position3: {-50}
@@ -419,37 +454,29 @@ ground {
                 Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
                 with AngularVelocity3(0, 1, 0), Sphere(segments: i + 3, radius: ItemSize / 2) {{
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughWhite)
                     Position3: {0 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothWhite)
                     Position3: {1 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughWhite)
                     Position3: {2 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothWhite)
                     Position3: {3 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughBlack)
                     Position3: {4 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothBlack)
                     Position3: {5 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughBlack)
                     Position3: {6 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothBlack)
                     Position3: {7 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 }}
             }
         }
@@ -468,37 +495,29 @@ ground {
                 Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
                 with AngularVelocity3(0, 1, 0), IcoSphere(segments: i, radius: ItemSize / 2) {{
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughWhite)
                     Position3: {0 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothWhite)
                     Position3: {1 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughWhite)
                     Position3: {2 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothWhite)
                     Position3: {3 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughBlack)
                     Position3: {4 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothBlack)
                     Position3: {5 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughBlack)
                     Position3: {6 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothBlack)
                     Position3: {7 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 }}
             }
         }
@@ -517,37 +536,29 @@ ground {
                 Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
                 with AngularVelocity3(0, 1, 0), HemiSphere(segments: 3 + i, radius: ItemSize / 2) {{
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughWhite)
                     Position3: {0 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothWhite)
                     Position3: {1 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughWhite)
                     Position3: {2 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothWhite)
                     Position3: {3 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughBlack)
                     Position3: {4 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothBlack)
                     Position3: {5 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughBlack)
                     Position3: {6 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothBlack)
                     Position3: {7 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 }}
             }
         }
@@ -567,37 +578,29 @@ ground {
                 Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
                 with AngularVelocity3(0, 1, 0), Cylinder(segments: 3 + i, length: ItemSize / 2), Scale3(ItemSize, ItemSize, ItemSize) {{
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughWhite)
                     Position3: {0 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothWhite)
                     Position3: {1 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughWhite)
                     Position3: {2 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothWhite)
                     Position3: {3 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughBlack)
                     Position3: {4 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothBlack)
                     Position3: {5 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughBlack)
                     Position3: {6 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothBlack)
                     Position3: {7 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 }}
             }
         }
@@ -616,37 +619,29 @@ ground {
                 Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
                 with AngularVelocity3(0, 1, 0), Cone(segments: 3 + i, length: ItemSize / 2), Scale3(ItemSize, ItemSize, ItemSize) {{
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughWhite)
                     Position3: {0 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothWhite)
                     Position3: {1 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughWhite)
                     Position3: {2 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothWhite)
                     Position3: {3 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughBlack)
                     Position3: {4 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothBlack)
                     Position3: {5 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughBlack)
                     Position3: {6 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothBlack)
                     Position3: {7 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 }}
             }
         }
@@ -665,37 +660,29 @@ ground {
                 Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
                 with Bevel(segments: i + 1), Scale3(ItemSize, ItemSize, ItemSize) {{
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughWhite)
                     Position3: {0 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothWhite)
                     Position3: {1 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughWhite)
                     Position3: {2 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothWhite)
                     Position3: {3 * ItemSpacing}
-                    Rgba: {255, 255, 255}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 1}
+                    (IsA, materials.dielectricRoughBlack)
                     Position3: {4 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 0, roughness: 0}
+                    (IsA, materials.dielectricSmoothBlack)
                     Position3: {5 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 1}
+                    (IsA, materials.metalRoughBlack)
                     Position3: {6 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 } {
-                    PbrMaterial: {metallic: 1, roughness: 0}
+                    (IsA, materials.metalSmoothBlack)
                     Position3: {7 * ItemSpacing}
-                    Rgba: {1, 1, 1}
                 }}
             }
         }
@@ -713,37 +700,29 @@ ground {
             Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
             with AngularVelocity3(0, 1, 0), Box(ItemSize, ItemSize, ItemSize) {{
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughWhite)
                 Position3: {0 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothWhite)
                 Position3: {1 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughWhite)
                 Position3: {2 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothWhite)
                 Position3: {3 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughBlack)
                 Position3: {4 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothBlack)
                 Position3: {5 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughBlack)
                 Position3: {6 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothBlack)
                 Position3: {7 * ItemSpacing}
-                Rgba: {1, 1, 1}
             }}
         }
     }
@@ -755,37 +734,29 @@ ground {
             Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
             with AngularVelocity3(0, 1, 0), TrianglePrism(ItemSize, ItemSize, ItemSize) {{
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughWhite)
                 Position3: {0 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothWhite)
                 Position3: {1 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughWhite)
                 Position3: {2 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothWhite)
                 Position3: {3 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughBlack)
                 Position3: {4 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothBlack)
                 Position3: {5 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughBlack)
                 Position3: {6 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothBlack)
                 Position3: {7 * ItemSpacing}
-                Rgba: {1, 1, 1}
             }}
         }
     }
@@ -797,37 +768,29 @@ ground {
             Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
             with AngularVelocity3(0, 1, 0), RightTrianglePrism(ItemSize, ItemSize, ItemSize) {{
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughWhite)
                 Position3: {0 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothWhite)
                 Position3: {1 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughWhite)
                 Position3: {2 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothWhite)
                 Position3: {3 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughBlack)
                 Position3: {4 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothBlack)
                 Position3: {5 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughBlack)
                 Position3: {6 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothBlack)
                 Position3: {7 * ItemSpacing}
-                Rgba: {1, 1, 1}
             }}
         }
     }
@@ -839,37 +802,29 @@ ground {
             Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
             with AngularVelocity3(0, 0, 1), Quad(ItemSize, ItemSize) {{
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughWhite)
                 Position3: {0 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothWhite)
                 Position3: {1 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughWhite)
                 Position3: {2 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothWhite)
                 Position3: {3 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughBlack)
                 Position3: {4 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothBlack)
                 Position3: {5 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughBlack)
                 Position3: {6 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothBlack)
                 Position3: {7 * ItemSpacing}
-                Rgba: {1, 1, 1}
             }}
         }
     }
@@ -881,37 +836,29 @@ ground {
             Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
             with AngularVelocity3(0, 0, 1), Triangle(ItemSize, ItemSize) {{
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughWhite)
                 Position3: {0 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothWhite)
                 Position3: {1 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughWhite)
                 Position3: {2 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothWhite)
                 Position3: {3 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughBlack)
                 Position3: {4 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothBlack)
                 Position3: {5 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughBlack)
                 Position3: {6 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothBlack)
                 Position3: {7 * ItemSpacing}
-                Rgba: {1, 1, 1}
             }}
         }
     }
@@ -923,37 +870,29 @@ ground {
             Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
             with AngularVelocity3(0, 0, 1), RightTriangle(ItemSize, ItemSize) {{
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughWhite)
                 Position3: {0 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothWhite)
                 Position3: {1 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughWhite)
                 Position3: {2 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothWhite)
                 Position3: {3 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughBlack)
                 Position3: {4 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothBlack)
                 Position3: {5 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughBlack)
                 Position3: {6 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothBlack)
                 Position3: {7 * ItemSpacing}
-                Rgba: {1, 1, 1}
             }}
         }
     }
@@ -965,37 +904,29 @@ ground {
             Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
 
             with AngularVelocity3(0, 0, 1), NGon(sides: 6), Scale3(ItemSize, ItemSize, ItemSize) {{
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughWhite)
                 Position3: {0 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothWhite)
                 Position3: {1 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughWhite)
                 Position3: {2 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothWhite)
                 Position3: {3 * ItemSpacing}
-                Rgba: {255, 255, 255}
             } {
-                PbrMaterial: {metallic: 0, roughness: 1}
+                (IsA, materials.dielectricRoughBlack)
                 Position3: {4 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 0, roughness: 0}
+                (IsA, materials.dielectricSmoothBlack)
                 Position3: {5 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 1}
+                (IsA, materials.metalRoughBlack)
                 Position3: {6 * ItemSpacing}
-                Rgba: {1, 1, 1}
             } {
-                PbrMaterial: {metallic: 1, roughness: 0}
+                (IsA, materials.metalSmoothBlack)
                 Position3: {7 * ItemSpacing}
-                Rgba: {1, 1, 1}
             }}
         }
     }

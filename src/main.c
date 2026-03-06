@@ -167,11 +167,7 @@ void initEngine(
     flecsEngine_createBatch_skybox(world, view_entity, 
       "skyboxBatch");
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-    flecsEngine_createBatchSet_primitiveShapes(world, view_entity, 
-      "primitiveBatch");
-  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-    flecsEngine_createBatchSet_primitiveShapes_matIndex(world, view_entity,
-       "primitiveWMatIndexBatch");
+    flecsEngine_createBatchSet_geometry(world, view_entity, "geometry");
 
   // Post process effects
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
