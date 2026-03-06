@@ -11,6 +11,7 @@ typedef struct {
     ecs_map_t ngon_cache;
     ecs_map_t cylinder_cache;
     ecs_map_t bevel_cache;
+    ecs_map_t bevel_corner_cache;
     ecs_entity_t unit_box_asset;
     ecs_entity_t unit_quad_asset;
     ecs_entity_t unit_triangle_asset;
@@ -69,6 +70,9 @@ void FlecsCylinder_on_replace(
     ecs_iter_t *it);
 
 void FlecsBevel_on_replace(
+    ecs_iter_t *it);
+
+void FlecsBevelCorner_on_replace(
     ecs_iter_t *it);
 
 void FlecsEngineGeometry3Import(

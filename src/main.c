@@ -164,11 +164,14 @@ void initEngine(
 
   // RenderBatches (what to render in scene)
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-    flecsEngine_createBatch_skybox(world, view_entity, "skyboxBatch");
+    flecsEngine_createBatch_skybox(world, view_entity, 
+      "skyboxBatch");
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-    flecsEngine_createBatchSet_primitiveShapes(world, view_entity, "primitiveBatch");
+    flecsEngine_createBatchSet_primitiveShapes(world, view_entity, 
+      "primitiveBatch");
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-    flecsEngine_createBatchSet_primitiveShapes_matIndex(world, view_entity, "primitiveWMatIndexBatch");
+    flecsEngine_createBatchSet_primitiveShapes_matIndex(world, view_entity,
+       "primitiveWMatIndexBatch");
 
   // Post process effects
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
@@ -176,12 +179,14 @@ void initEngine(
     flecsEngine_exponentialHeightFogSettingsDefault();
 
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
-    flecsEngine_createEffect_bloom(world, view_entity, "bloomEffect", 0, &bloom_settings);
+    flecsEngine_createEffect_bloom(world, view_entity, 
+      "bloomEffect", 0, &bloom_settings);
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
     flecsEngine_createEffect_exponentialHeightFog(
       world, view_entity, "heightFogEffect", 1, &fog_settings);
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
-    flecsEngine_createEffect_tonyMcMapFace(world, view_entity, "tonyMcMapFaceEffect", 2);
+    flecsEngine_createEffect_tonyMcMapFace(world, view_entity, 
+      "tonyMcMapFaceEffect", 2);
 
   ecs_set_ptr(world, view_entity, FlecsRenderView, &view);
   ecs_set_ptr(world, view_entity, FlecsRenderBatchSet, &batch_set);
@@ -211,9 +216,10 @@ int main(
   initEngine(world, options);
 
   ecs_entity_t s = ecs_script(world, {
-    .filename = "museum.flecs"
+    // .filename = "museum.flecs"
     // .filename = "city.flecs"
     // .filename = "cube.flecs"
+    .filename = "bevels.flecs"
   });
   if (!s) {
     printf("failed to load museum script\n");
@@ -223,7 +229,6 @@ int main(
 
   double i = 0;
   while (ecs_progress(world, 0)) {
-    // ecs_set(world, light, FlecsPosition3, {sin(i) * 5, 0, cos(i) * 5});
     i -= 0.005;
   }
 

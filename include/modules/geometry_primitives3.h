@@ -78,4 +78,9 @@ ECS_STRUCT(FlecsBevel, {
     bool smooth;
 });
 
+ECS_STRUCT(FlecsBevelCorner, {
+    int32_t segments;
+    bool smooth;
+});
+
 #endif
