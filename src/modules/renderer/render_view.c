@@ -239,17 +239,13 @@ void flecsEngine_renderView_register(
 
     ecs_add_pair(world, ecs_id(FlecsRenderView), EcsWith, ecs_id(FlecsRenderViewImpl));
 
-    ecs_entity_t entity_vector_t = ecs_vector(world, {
-        .type = ecs_id(ecs_entity_t)
-    });
-
     ecs_struct(world, {
         .entity = ecs_id(FlecsRenderView),
         .members = {
             { .name = "camera", .type = ecs_id(ecs_entity_t) },
             { .name = "light", .type = ecs_id(ecs_entity_t) },
             { .name = "hdri", .type = ecs_id(ecs_entity_t) },
-            { .name = "effects", .type = entity_vector_t }
+            { .name = "effects", .type = flecsEngine_vecEntity(world) }
         }
     });
 }

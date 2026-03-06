@@ -143,8 +143,8 @@ void initEngine(
   view.camera = ecs_entity(world, { .name = "camera" });
   ecs_set(world, view.camera, FlecsCamera, {
       .fov = glm_rad(60.0f),
-      .near_ = 0.1f,
-      .far_ = 100.0f,
+      .near_ = 1f,
+      .far_ = 1000.0f,
       .aspect_ratio = options.width / (float)options.height
   });
   ecs_add(world, view.camera, FlecsCameraController);
@@ -174,6 +174,7 @@ void initEngine(
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
   FlecsExponentialHeightFog fog_settings =
     flecsEngine_exponentialHeightFogSettingsDefault();
+
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
     flecsEngine_createEffect_bloom(world, view_entity, "bloomEffect", 0, &bloom_settings);
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
@@ -210,9 +211,9 @@ int main(
   initEngine(world, options);
 
   ecs_entity_t s = ecs_script(world, {
-    // .filename = "museum.flecs"
+    .filename = "museum.flecs"
     // .filename = "city.flecs"
-    .filename = "cube.flecs"
+    // .filename = "cube.flecs"
   });
   if (!s) {
     printf("failed to load museum script\n");

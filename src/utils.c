@@ -4,6 +4,7 @@ void flecsEngine_registerVec3Type(
     ecs_world_t *world,
     ecs_entity_t component)
 {
+    ecs_assert(component != 0, ECS_INVALID_PARAMETER, NULL);
     ecs_struct(world, {
         .entity = component,
         .members = {
@@ -19,8 +20,6 @@ float flecsEngine_colorChannelToFloat(
 {
     return (float)value / 255.0f;
 }
-
-
 
 WGPUColor flecsEngine_getClearColor(
     const FlecsEngineImpl *impl)
@@ -146,4 +145,40 @@ int32_t flecsEngine_vertexAttrFromType(
     }
 
     return attr;
+}
+
+ecs_entity_t flecsEngine_vecEntity(
+    ecs_world_t *world) 
+{
+    return ecs_vector(world, {
+        .entity = ecs_entity(world, {
+            .name = "::flecs.engine.types.vecEntity",
+            .root_sep = "::"
+        }),
+        .type = ecs_id(ecs_entity_t)
+    });
+}
+
+ecs_entity_t flecsEngine_vecVec3(
+    ecs_world_t *world) 
+{
+    return ecs_vector(world, {
+        .entity = ecs_entity(world, {
+            .name = "::flecs.engine.types.vecVec3",
+            .root_sep = "::"
+        }),
+        .type = ecs_id(flecs_vec3_t)
+    });
+}
+
+ecs_entity_t flecsEngine_vecU16(
+    ecs_world_t *world) 
+{
+    return ecs_vector(world, {
+        .entity = ecs_entity(world, {
+            .name = "::flecs.engine.types.vecU16",
+            .root_sep = "::"
+        }),
+        .type = ecs_id(ecs_u16_t)
+    });
 }

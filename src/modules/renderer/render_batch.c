@@ -695,10 +695,6 @@ void flecsEngine_renderBatch_register(
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchSet);
     ECS_TAG_DEFINE(world, FlecsSkyboxBatch);
 
-    ecs_entity_t entity_vector_t = ecs_vector(world, {
-        .type = ecs_id(ecs_entity_t)
-    });
-
     ecs_set_hooks(world, FlecsRenderBatch, {
         .ctor = flecs_default_ctor,
         .move = ecs_move(FlecsRenderBatch),
@@ -722,7 +718,7 @@ void flecsEngine_renderBatch_register(
     ecs_struct(world, {
         .entity = ecs_id(FlecsRenderBatchSet),
         .members = {
-            { .name = "batches", .type = entity_vector_t }
+            { .name = "batches", .type = flecsEngine_vecEntity(world) }
         }
     });
 }

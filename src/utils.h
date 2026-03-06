@@ -24,3 +24,12 @@ int32_t flecsEngine_vertexAttrFromType(
     WGPUVertexAttribute *attrs,
     int32_t attr_count,
     int32_t location_offset);
+
+ecs_entity_t flecsEngine_vecEntity(
+    ecs_world_t *world);
+
+ecs_entity_t flecsEngine_vecVec3(
+    ecs_world_t *world);
+
+ecs_entity_t flecsEngine_vecU16(
+    ecs_world_t *world);
