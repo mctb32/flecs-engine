@@ -17,6 +17,7 @@ ECS_COMPONENT_DECLARE(FlecsHemiSphere);
 ECS_COMPONENT_DECLARE(FlecsIcoSphere);
 ECS_COMPONENT_DECLARE(FlecsNGon);
 ECS_COMPONENT_DECLARE(FlecsCylinder);
+ECS_COMPONENT_DECLARE(FlecsBevel);
 ECS_COMPONENT_DECLARE(FlecsMesh3Impl);
 ECS_COMPONENT_DECLARE(FlecsGeometry3Cache);
 
@@ -62,6 +63,7 @@ ECS_CTOR(FlecsGeometry3Cache, ptr, {
     ecs_map_init(&ptr->cone_cache, NULL);
     ecs_map_init(&ptr->ngon_cache, NULL);
     ecs_map_init(&ptr->cylinder_cache, NULL);
+    ecs_map_init(&ptr->bevel_cache, NULL);
     ptr->unit_box_asset = 0;
     ptr->unit_quad_asset = 0;
     ptr->unit_triangle_asset = 0;
@@ -77,6 +79,7 @@ ECS_DTOR(FlecsGeometry3Cache, ptr, {
     ecs_map_fini(&ptr->cone_cache);
     ecs_map_fini(&ptr->ngon_cache);
     ecs_map_fini(&ptr->cylinder_cache);
+    ecs_map_fini(&ptr->bevel_cache);
 })
 
 static void FlecsMesh3_on_set(
@@ -210,6 +213,7 @@ void FlecsEngineGeometry3Import(
     ECS_COMPONENT_DEFINE(world, FlecsIcoSphere);
     ECS_COMPONENT_DEFINE(world, FlecsNGon);
     ECS_COMPONENT_DEFINE(world, FlecsCylinder);
+    ECS_COMPONENT_DEFINE(world, FlecsBevel);
     ECS_COMPONENT_DEFINE(world, FlecsGeometry3Cache);
 
     ecs_struct(world, {
@@ -324,6 +328,14 @@ void FlecsEngineGeometry3Import(
         }
     });
 
+    ecs_struct(world, {
+        .entity = ecs_id(FlecsBevel),
+        .members = {
+            { .name = "segments", .type = ecs_id(ecs_i32_t) },
+            { .name = "smooth", .type = ecs_id(ecs_bool_t) }
+        }
+    });
+
     ecs_set_hooks(world, FlecsMesh3, {
         .ctor = flecs_default_ctor,
         .move = ecs_move(FlecsMesh3),
@@ -358,6 +370,10 @@ void FlecsEngineGeometry3Import(
 
     ecs_set_hooks(world, FlecsCylinder, {
         .on_replace = FlecsCylinder_on_replace
+    });
+
+    ecs_set_hooks(world, FlecsBevel, {
+        .on_replace = FlecsBevel_on_replace
     });
 
     ecs_set_hooks(world, FlecsGeometry3Cache, {

@@ -653,9 +653,58 @@ ground {
     }
 }
 
-// Shapes
+// Bevels
 {
     Position3: {-300}
+
+    for i in 0..8 {
+        Display(items: ItemCount) {
+            Position3: {0, 0, -((1 + i) * 10)}
+
+            {
+                Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+                with Bevel(segments: i + 1), Scale3(ItemSize, ItemSize, ItemSize) {{
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {0 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {1 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {2 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {3 * ItemSpacing}
+                    Rgba: {255, 255, 255}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 1}
+                    Position3: {4 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 0, roughness: 0}
+                    Position3: {5 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 1}
+                    Position3: {6 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                } {
+                    PbrMaterial: {metallic: 1, roughness: 0}
+                    Position3: {7 * ItemSpacing}
+                    Rgba: {1, 1, 1}
+                }}
+            }
+        }
+    }
+}
+
+// Shapes
+{
+    Position3: {-350}
 
     Display(items: ItemCount) {
         Position3: {0, 0, -10}

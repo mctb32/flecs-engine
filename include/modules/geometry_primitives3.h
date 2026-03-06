@@ -73,4 +73,9 @@ ECS_STRUCT(FlecsCylinder, {
     float length;
 });
 
+ECS_STRUCT(FlecsBevel, {
+    int32_t segments;
+    bool smooth;
+});
+
 #endif
