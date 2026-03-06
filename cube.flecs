@@ -3,7 +3,7 @@ using flecs.script
 
 {
     Position3: {}
-    Quad: {2000, 2000}
+    Quad: {10000, 10000}
     Rotation3: {-math.PI / 2}
 }
 

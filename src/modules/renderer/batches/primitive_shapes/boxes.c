@@ -9,7 +9,7 @@ static flecsEngine_batch_t* flecsEngine_boxes_createCtx(
 {
     flecsEngine_batch_t *result =
         ecs_os_calloc_t(flecsEngine_batch_t);
-    flecsEngine_batch_init(result, flecsGeometry3_getBoxAsset(world));
+    flecsEngine_batch_init(result, flecsEngine_box_getAsset(world));
     return result;
 }
 
@@ -85,7 +85,7 @@ ecs_entity_t flecsEngine_createBatch_boxes(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngineShader_pbrColored(world);
+    ecs_entity_t shader = flecsEngine_shader_pbrColored(world);
 
     ecs_query_t *q = ecs_query(world, {
         .entity = batch,

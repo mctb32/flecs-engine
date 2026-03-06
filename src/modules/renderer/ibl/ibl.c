@@ -38,16 +38,16 @@ ECS_DTOR(FlecsHdri, ptr, {
 })
 
 ECS_DTOR(FlecHdriImpl, ptr, {
-    flecsIblReleaseRuntimeResources(ptr);
+    flecsEngie_ibl_releaseRuntimeResources(ptr);
 })
 
 ECS_MOVE(FlecHdriImpl, dst, src, {
-    flecsIblReleaseRuntimeResources(dst);
+    flecsEngie_ibl_releaseRuntimeResources(dst);
     *dst = *src;
     ecs_os_zeromem(src);
 })
 
-WGPUBindGroupLayout flecsEngineEnsureIblBindLayout(
+WGPUBindGroupLayout flecsEngine_ibl_ensureBindLayout(
     FlecsEngineImpl *impl)
 {
     if (impl->ibl_bind_layout) {
@@ -92,7 +92,7 @@ WGPUBindGroupLayout flecsEngineEnsureIblBindLayout(
     return impl->ibl_bind_layout;
 }
 
-bool flecsIblCreateRuntimeBindGroup(
+bool flecsEngine_ibl_createRuntimeBindGroup(
     const FlecsEngineImpl *engine,
     FlecHdriImpl *ibl)
 {
@@ -130,7 +130,7 @@ bool flecsIblCreateRuntimeBindGroup(
     return ibl->ibl_bind_group != NULL;
 }
 
-void flecsIblReleaseRuntimeResources(
+void flecsEngie_ibl_releaseRuntimeResources(
     FlecHdriImpl *ibl)
 {
     if (!ibl) {
@@ -180,7 +180,7 @@ void flecsIblReleaseRuntimeResources(
     ibl->ibl_prefilter_mip_count = 0;
 }
 
-void flecsEngineReleaseIblResources(
+void flecsEngine_ibl_releaseResources(
     FlecsEngineImpl *impl)
 {
     if (impl && impl->ibl_bind_layout) {
@@ -199,7 +199,7 @@ static void FlecsIbl_on_set(
         return;
     }
 
-    if (!flecsEngineEnsureIblBindLayout(engine)) {
+    if (!flecsEngine_ibl_ensureBindLayout(engine)) {
         ecs_err("failed to create IBL bind layout");
         return;
     }
@@ -208,9 +208,9 @@ static void FlecsIbl_on_set(
     for (int32_t i = 0; i < it->count; i ++) {
         FlecHdriImpl *ibl_impl = ecs_ensure(
             it->world, it->entities[i], FlecHdriImpl);
-        flecsIblReleaseRuntimeResources(ibl_impl);
+        flecsEngie_ibl_releaseRuntimeResources(ibl_impl);
 
-        if (!flecsEngineInitIblResources(
+        if (!flecsEngine_ibl_initResources(
             engine,
             ibl_impl,
             hdri[i].file,

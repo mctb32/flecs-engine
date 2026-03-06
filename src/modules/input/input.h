@@ -1,4 +1,4 @@
-#include "../../types.h"
+#include "../../private.h"
 
 #ifndef FLECS_ENGINE_INPUT_IMPL_H
 #define FLECS_ENGINE_INPUT_IMPL_H

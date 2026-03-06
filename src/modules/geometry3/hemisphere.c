@@ -8,7 +8,7 @@
 #define FLECS_GEOMETRY3_HEMISPHERE_CACHE_SEGMENTS_MASK (0x7fffffffULL)
 #define FLECS_GEOMETRY3_HEMISPHERE_CACHE_SMOOTH_MASK (1ULL << 63)
 
-static int32_t flecsGeometry3_hemisphereSegmentsNormalize(
+static int32_t flecsEngine_hemisphere_segmentsNormalize(
     int32_t segments,
     bool smooth)
 {
@@ -26,7 +26,7 @@ static int32_t flecsGeometry3_hemisphereSegmentsNormalize(
     return segments;
 }
 
-static uint32_t flecsGeometry3_hemisphereRadiusBits(
+static uint32_t flecsEngine_hemisphere_radiusBits(
     float radius)
 {
     union {
@@ -37,14 +37,14 @@ static uint32_t flecsGeometry3_hemisphereRadiusBits(
     return radius_bits.u;
 }
 
-static uint64_t flecsGeometry3_hemisphereCacheKey(
+static uint64_t flecsEngine_hemisphere_cacheKey(
     int32_t segments,
     bool smooth,
     float radius)
 {
     uint64_t key =
         (((uint64_t)segments & FLECS_GEOMETRY3_HEMISPHERE_CACHE_SEGMENTS_MASK) << 32) |
-        (uint64_t)flecsGeometry3_hemisphereRadiusBits(radius);
+        (uint64_t)flecsEngine_hemisphere_radiusBits(radius);
 
     if (smooth) {
         key |= FLECS_GEOMETRY3_HEMISPHERE_CACHE_SMOOTH_MASK;
@@ -53,7 +53,7 @@ static uint64_t flecsGeometry3_hemisphereCacheKey(
     return key;
 }
 
-static ecs_entity_t flecsGeometry3_findHemiSphereAsset(
+static ecs_entity_t flecsEngine_hemisphere_findAsset(
     const FlecsGeometry3Cache *ctx,
     uint64_t key)
 {
@@ -66,7 +66,7 @@ static ecs_entity_t flecsGeometry3_findHemiSphereAsset(
     return (ecs_entity_t)entry[0];
 }
 
-static flecs_vec3_t flecsGeometry3_hemisphereUnitPoint(
+static flecs_vec3_t flecsEngine_hemisphere_unitPoint(
     float theta,
     float phi)
 {
@@ -82,23 +82,23 @@ static flecs_vec3_t flecsGeometry3_hemisphereUnitPoint(
     };
 }
 
-static flecs_vec3_t flecsGeometry3_hemispherePoint(
+static flecs_vec3_t flecsEngine_hemisphere_point(
     float theta,
     float phi,
     float radius)
 {
-    flecs_vec3_t p = flecsGeometry3_hemisphereUnitPoint(theta, phi);
+    flecs_vec3_t p = flecsEngine_hemisphere_unitPoint(theta, phi);
     return (flecs_vec3_t){p.x * radius, p.y * radius, p.z * radius};
 }
 
-static flecs_vec3_t flecsGeometry3_hemisphereVec3Sub(
+static flecs_vec3_t flecsEngine_hemisphere_vec3Sub(
     flecs_vec3_t a,
     flecs_vec3_t b)
 {
     return (flecs_vec3_t){a.x - b.x, a.y - b.y, a.z - b.z};
 }
 
-static flecs_vec3_t flecsGeometry3_hemisphereVec3Cross(
+static flecs_vec3_t flecsEngine_hemisphere_vec3Cross(
     flecs_vec3_t a,
     flecs_vec3_t b)
 {
@@ -109,14 +109,14 @@ static flecs_vec3_t flecsGeometry3_hemisphereVec3Cross(
     };
 }
 
-static float flecsGeometry3_hemisphereVec3Dot(
+static float flecsEngine_hemisphere_vec3Dot(
     flecs_vec3_t a,
     flecs_vec3_t b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-static flecs_vec3_t flecsGeometry3_hemisphereVec3Normalize(
+static flecs_vec3_t flecsEngine_hemisphere_vec3Normalize(
     flecs_vec3_t v,
     flecs_vec3_t fallback)
 {
@@ -129,7 +129,7 @@ static flecs_vec3_t flecsGeometry3_hemisphereVec3Normalize(
     return (flecs_vec3_t){v.x * inv_len, v.y * inv_len, v.z * inv_len};
 }
 
-static flecs_vec3_t flecsGeometry3_hemisphereTriangleNormal(
+static flecs_vec3_t flecsEngine_hemisphere_triangleNormal(
     flecs_vec3_t a,
     flecs_vec3_t b,
     flecs_vec3_t c)
@@ -139,22 +139,22 @@ static flecs_vec3_t flecsGeometry3_hemisphereTriangleNormal(
         (a.y + b.y + c.y) / 3.0f,
         (a.z + b.z + c.z) / 3.0f
     };
-    flecs_vec3_t fallback = flecsGeometry3_hemisphereVec3Normalize(
+    flecs_vec3_t fallback = flecsEngine_hemisphere_vec3Normalize(
         centroid, (flecs_vec3_t){0.0f, 1.0f, 0.0f});
 
-    flecs_vec3_t edge_ab = flecsGeometry3_hemisphereVec3Sub(b, a);
-    flecs_vec3_t edge_ac = flecsGeometry3_hemisphereVec3Sub(c, a);
-    flecs_vec3_t normal = flecsGeometry3_hemisphereVec3Normalize(
-        flecsGeometry3_hemisphereVec3Cross(edge_ab, edge_ac), fallback);
+    flecs_vec3_t edge_ab = flecsEngine_hemisphere_vec3Sub(b, a);
+    flecs_vec3_t edge_ac = flecsEngine_hemisphere_vec3Sub(c, a);
+    flecs_vec3_t normal = flecsEngine_hemisphere_vec3Normalize(
+        flecsEngine_hemisphere_vec3Cross(edge_ab, edge_ac), fallback);
 
-    if (flecsGeometry3_hemisphereVec3Dot(normal, centroid) < 0.0f) {
+    if (flecsEngine_hemisphere_vec3Dot(normal, centroid) < 0.0f) {
         normal = (flecs_vec3_t){-normal.x, -normal.y, -normal.z};
     }
 
     return normal;
 }
 
-static void flecsGeometry3_generateSmoothHemiSphereMesh(
+static void flecsEngine_hemisphere_generateSmoothMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     float radius)
@@ -180,7 +180,7 @@ static void flecsGeometry3_generateSmoothHemiSphereMesh(
         for (int32_t x = 0; x <= cols; x ++) {
             float u = (float)x / (float)cols;
             float phi = u * 2.0f * (float)M_PI;
-            vn[vi] = flecsGeometry3_hemisphereUnitPoint(theta, phi);
+            vn[vi] = flecsEngine_hemisphere_unitPoint(theta, phi);
             v[vi] = (flecs_vec3_t){
                 vn[vi].x * radius,
                 vn[vi].y * radius,
@@ -209,7 +209,7 @@ static void flecsGeometry3_generateSmoothHemiSphereMesh(
     }
 }
 
-static void flecsGeometry3_generateFlatHemiSphereMesh(
+static void flecsEngine_hemisphere_generateFlatMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     float radius)
@@ -241,13 +241,13 @@ static void flecsGeometry3_generateFlatHemiSphereMesh(
             float phi0 = u0 * 2.0f * (float)M_PI;
             float phi1 = u1 * 2.0f * (float)M_PI;
 
-            flecs_vec3_t a = flecsGeometry3_hemispherePoint(theta0, phi0, radius);
-            flecs_vec3_t b = flecsGeometry3_hemispherePoint(theta1, phi0, radius);
-            flecs_vec3_t c = flecsGeometry3_hemispherePoint(theta1, phi1, radius);
-            flecs_vec3_t d = flecsGeometry3_hemispherePoint(theta0, phi1, radius);
+            flecs_vec3_t a = flecsEngine_hemisphere_point(theta0, phi0, radius);
+            flecs_vec3_t b = flecsEngine_hemisphere_point(theta1, phi0, radius);
+            flecs_vec3_t c = flecsEngine_hemisphere_point(theta1, phi1, radius);
+            flecs_vec3_t d = flecsEngine_hemisphere_point(theta0, phi1, radius);
 
-            flecs_vec3_t n0 = flecsGeometry3_hemisphereTriangleNormal(a, b, d);
-            flecs_vec3_t n1 = flecsGeometry3_hemisphereTriangleNormal(b, c, d);
+            flecs_vec3_t n0 = flecsEngine_hemisphere_triangleNormal(a, b, d);
+            flecs_vec3_t n1 = flecsEngine_hemisphere_triangleNormal(b, c, d);
 
             v[vi] = a;
             vn[vi] = n0;
@@ -288,32 +288,32 @@ static void flecsGeometry3_generateFlatHemiSphereMesh(
     }
 }
 
-static void flecsGeometry3_generateHemiSphereMesh(
+static void flecsEngine_hemisphere_generateMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     bool smooth,
     float radius)
 {
     if (smooth) {
-        flecsGeometry3_generateSmoothHemiSphereMesh(mesh, segments, radius);
+        flecsEngine_hemisphere_generateSmoothMesh(mesh, segments, radius);
     } else {
-        flecsGeometry3_generateFlatHemiSphereMesh(mesh, segments, radius);
+        flecsEngine_hemisphere_generateFlatMesh(mesh, segments, radius);
     }
 }
 
-static ecs_entity_t flecsGeometry3_getHemiSphereAsset(
+static ecs_entity_t flecsEngine_hemisphere_getAsset(
     ecs_world_t *world,
     int32_t segments,
     bool smooth,
     float radius)
 {
-    int32_t normalized_segments = flecsGeometry3_hemisphereSegmentsNormalize(
+    int32_t normalized_segments = flecsEngine_hemisphere_segmentsNormalize(
         segments, smooth);
-    uint64_t key = flecsGeometry3_hemisphereCacheKey(
+    uint64_t key = flecsEngine_hemisphere_cacheKey(
         normalized_segments, smooth, radius);
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
 
-    ecs_entity_t asset = flecsGeometry3_findHemiSphereAsset(ctx, key);
+    ecs_entity_t asset = flecsEngine_hemisphere_findAsset(ctx, key);
     if (asset) {
         return asset;
     }
@@ -324,10 +324,10 @@ static ecs_entity_t flecsGeometry3_getHemiSphereAsset(
         sizeof(asset_name),
         "HemiSphere.hemisphere%llu", key);
 
-    asset = flecsGeometry3_createAsset(world, ctx, asset_name);
+    asset = flecsEngine_geometry3_createAsset(world, ctx, asset_name);
 
     FlecsMesh3 *mesh = ecs_ensure(world, asset, FlecsMesh3);
-    flecsGeometry3_generateHemiSphereMesh(mesh, normalized_segments, smooth, radius);
+    flecsEngine_hemisphere_generateMesh(mesh, normalized_segments, smooth, radius);
     ecs_modified(world, asset, FlecsMesh3);
 
     ecs_map_insert(
@@ -348,25 +348,25 @@ void FlecsHemiSphere_on_replace(
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        int32_t old_segments = flecsGeometry3_hemisphereSegmentsNormalize(
+        int32_t old_segments = flecsEngine_hemisphere_segmentsNormalize(
             old[i].segments, old[i].smooth);
-        int32_t new_segments = flecsGeometry3_hemisphereSegmentsNormalize(
+        int32_t new_segments = flecsEngine_hemisphere_segmentsNormalize(
             new[i].segments, new[i].smooth);
-        uint64_t old_key = flecsGeometry3_hemisphereCacheKey(
+        uint64_t old_key = flecsEngine_hemisphere_cacheKey(
             old_segments, old[i].smooth, old[i].radius);
-        uint64_t new_key = flecsGeometry3_hemisphereCacheKey(
+        uint64_t new_key = flecsEngine_hemisphere_cacheKey(
             new_segments, new[i].smooth, new[i].radius);
 
         if (old_key == new_key) {
             continue;
         }
 
-        ecs_entity_t old_asset = flecsGeometry3_findHemiSphereAsset(ctx, old_key);
+        ecs_entity_t old_asset = flecsEngine_hemisphere_findAsset(ctx, old_key);
         if (old_asset) {
             ecs_remove_pair(world, it->entities[i], EcsIsA, old_asset);
         }
 
-        ecs_entity_t asset = flecsGeometry3_getHemiSphereAsset(
+        ecs_entity_t asset = flecsEngine_hemisphere_getAsset(
             world, new[i].segments, new[i].smooth, new[i].radius);
         ecs_add_pair(world, it->entities[i], EcsIsA, asset);
     }

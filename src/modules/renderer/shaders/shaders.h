@@ -3,16 +3,19 @@
 
 #include "../../../types.h"
 
-ecs_entity_t flecsEngineShader_pbrColored(
+bool flecsEngine_shader_usesIbl(
+    const FlecsShader *shader);
+
+ecs_entity_t flecsEngine_shader_pbrColored(
     ecs_world_t *world);
 
-ecs_entity_t flecsEngineShader_pbrColoredMaterialIndex(
+ecs_entity_t flecsEngine_shader_pbrColoredMaterialIndex(
     ecs_world_t *world);
 
-ecs_entity_t flecsEngineShader_infiniteGrid(
+ecs_entity_t flecsEngine_shader_infiniteGrid(
     ecs_world_t *world);
 
-ecs_entity_t flecsEngineShader_skybox(
+ecs_entity_t flecsEngine_shader_skybox(
     ecs_world_t *world);
 
 #endif

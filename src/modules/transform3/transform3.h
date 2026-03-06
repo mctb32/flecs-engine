@@ -1,4 +1,4 @@
-#include "../../types.h"
+#include "../../private.h"
 
 #ifndef FLECS_ENGINE_TRANSFORM3_IMPL
 #define FLECS_ENGINE_TRANSFORM3_IMPL

@@ -172,7 +172,7 @@ static void FlecsMesh3_on_set(
     }
 }
 
-ecs_entity_t flecsGeometry3_createAsset(
+ecs_entity_t flecsEngine_geometry3_createAsset(
     ecs_world_t *world,
     FlecsGeometry3Cache *ctx,
     const char *name)

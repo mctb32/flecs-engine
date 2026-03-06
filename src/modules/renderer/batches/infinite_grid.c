@@ -16,7 +16,7 @@ static flecs_engine_infinite_grid_ctx_t* flecsEngine_infinite_grid_createCtx(
 {
     flecs_engine_infinite_grid_ctx_t *result =
         ecs_os_calloc_t(flecs_engine_infinite_grid_ctx_t);
-    flecsEngine_batch_init(&result->batch, flecsGeometry3_getQuadAsset(world));
+    flecsEngine_batch_init(&result->batch, flecsEngine_quad_getAsset(world));
 
     glm_mat4_identity(result->transform.m);
     glm_rotate(result->transform.m, -glm_rad(90.0f), (vec3){1.0f, 0.0f, 0.0f});
@@ -85,7 +85,7 @@ ecs_entity_t flecsEngine_createBatch_infiniteGrid(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngineShader_infiniteGrid(world);
+    ecs_entity_t shader = flecsEngine_shader_infiniteGrid(world);
 
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,

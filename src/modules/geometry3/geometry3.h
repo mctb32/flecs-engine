@@ -1,4 +1,4 @@
-#include "../../types.h"
+#include "../../private.h"
 
 #ifndef FLECS_ENGINE_GEOMETRY_3D_IMPL
 #define FLECS_ENGINE_GEOMETRY_3D_IMPL
@@ -20,30 +20,30 @@ typedef struct {
 
 extern ECS_COMPONENT_DECLARE(FlecsGeometry3Cache);
 
-ecs_entity_t flecsGeometry3_createAsset(
+ecs_entity_t flecsEngine_geometry3_createAsset(
     ecs_world_t *world,
     FlecsGeometry3Cache *ctx,
     const char *name);
 
-const FlecsMesh3Impl* flecsGeometry3_getBoxAsset(
+const FlecsMesh3Impl* flecsEngine_box_getAsset(
     ecs_world_t *world);
 
-const FlecsMesh3Impl* flecsGeometry3_getConeAsset(
+const FlecsMesh3Impl* flecsEngine_cone_getAsset(
     ecs_world_t *world);
 
-const FlecsMesh3Impl* flecsGeometry3_getQuadAsset(
+const FlecsMesh3Impl* flecsEngine_quad_getAsset(
     ecs_world_t *world);
 
-const FlecsMesh3Impl* flecsGeometry3_getTriangleAsset(
+const FlecsMesh3Impl* flecsEngine_triangle_getAsset(
     ecs_world_t *world);
 
-const FlecsMesh3Impl* flecsGeometry3_getRightTriangleAsset(
+const FlecsMesh3Impl* flecsEngine_rightTriangle_getAsset(
     ecs_world_t *world);
 
-const FlecsMesh3Impl* flecsGeometry3_getTrianglePrismAsset(
+const FlecsMesh3Impl* flecsEngine_trianglePrism_getAsset(
     ecs_world_t *world);
 
-const FlecsMesh3Impl* flecsGeometry3_getRightTrianglePrismAsset(
+const FlecsMesh3Impl* flecsEngine_rightTrianglePrism_getAsset(
     ecs_world_t *world);
 
 void FlecsSphere_on_replace(

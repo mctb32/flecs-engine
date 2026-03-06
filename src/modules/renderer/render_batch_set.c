@@ -1,13 +1,13 @@
 #include "renderer.h"
 #include "flecs_engine.h"
 
-static WGPURenderPassEncoder flecsEngineBeginBatchPass(
+static WGPURenderPassEncoder flecsEngine_renderBatch_beginPass(
     const FlecsEngineImpl *impl,
     WGPUCommandEncoder encoder,
     WGPUTextureView color_view,
     WGPULoadOp color_load_op)
 {
-    WGPUColor clear_color = flecsEngineGetClearColor(impl);
+    WGPUColor clear_color = flecsEngine_getClearColor(impl);
 
     WGPURenderPassColorAttachment color_attachment = {
         .view = color_view,
@@ -38,7 +38,7 @@ static WGPURenderPassEncoder flecsEngineBeginBatchPass(
     return wgpuCommandEncoderBeginRenderPass(encoder, &pass_desc);
 }
 
-static void flecsEngineRenderBatchSet(
+static void flecsEngine_renderBatch_renderSet(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
@@ -57,7 +57,7 @@ static void flecsEngineRenderBatchSet(
         const FlecsRenderBatchSet *nested_batch_set = ecs_get(
             world, batch_entity, FlecsRenderBatchSet);
         if (nested_batch_set) {
-            flecsEngineRenderBatchSet(
+            flecsEngine_renderBatch_renderSet(
                 world,
                 engine,
                 pass,
@@ -66,11 +66,11 @@ static void flecsEngineRenderBatchSet(
             continue;
         }
 
-        flecsEngineRenderBatch(world, engine, pass, view, batch_entity);
+        flecsEngine_renderBatch_render(world, engine, pass, view, batch_entity);
     }
 }
 
-void flecsEngineRenderView_renderBatches(
+void flecsEngine_renderView_renderBatches(
     ecs_world_t *world,
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
@@ -83,7 +83,7 @@ void flecsEngineRenderView_renderBatches(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    WGPURenderPassEncoder batch_pass = flecsEngineBeginBatchPass(
+    WGPURenderPassEncoder batch_pass = flecsEngine_renderBatch_beginPass(
         engine,
         encoder,
         viewImpl->effect_target_views[0],
@@ -92,7 +92,7 @@ void flecsEngineRenderView_renderBatches(
     /* Always set pipeline/uniforms for first batch in view */
     engine->last_pipeline = NULL;
 
-    flecsEngineRenderBatchSet(
+    flecsEngine_renderBatch_renderSet(
         world,
         engine,
         batch_pass,

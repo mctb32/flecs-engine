@@ -10,7 +10,7 @@
 #define FLECS_GEOMETRY3_NGON_SIDES_MAX (65534)
 #define FLECS_GEOMETRY3_NGON_CACHE_SIDES_MASK (0xffffffffULL)
 
-static int32_t flecsGeometry3_ngonSidesNormalize(
+static int32_t flecsEngine_ngon_sidesNormalize(
     int32_t sides)
 {
     if (sides < FLECS_GEOMETRY3_NGON_SIDES_MIN) {
@@ -22,13 +22,13 @@ static int32_t flecsGeometry3_ngonSidesNormalize(
     return sides;
 }
 
-static uint64_t flecsGeometry3_ngonCacheKey(
+static uint64_t flecsEngine_ngon_cacheKey(
     int32_t sides)
 {
     return (uint64_t)sides & FLECS_GEOMETRY3_NGON_CACHE_SIDES_MASK;
 }
 
-static ecs_entity_t flecsGeometry3_findNGonAsset(
+static ecs_entity_t flecsEngine_ngon_findAsset(
     const FlecsGeometry3Cache *ctx,
     uint64_t key)
 {
@@ -41,7 +41,7 @@ static ecs_entity_t flecsGeometry3_findNGonAsset(
     return (ecs_entity_t)entry[0];
 }
 
-static void flecsGeometry3_generateNGonMesh(
+static void flecsEngine_ngon_generateMesh(
     FlecsMesh3 *mesh,
     int32_t sides)
 {
@@ -82,15 +82,15 @@ static void flecsGeometry3_generateNGonMesh(
     }
 }
 
-static ecs_entity_t flecsGeometry3_getNGonAsset(
+static ecs_entity_t flecsEngine_ngon_getAsset(
     ecs_world_t *world,
     int32_t sides)
 {
-    int32_t normalized_sides = flecsGeometry3_ngonSidesNormalize(sides);
-    uint64_t key = flecsGeometry3_ngonCacheKey(normalized_sides);
+    int32_t normalized_sides = flecsEngine_ngon_sidesNormalize(sides);
+    uint64_t key = flecsEngine_ngon_cacheKey(normalized_sides);
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
 
-    ecs_entity_t asset = flecsGeometry3_findNGonAsset(ctx, key);
+    ecs_entity_t asset = flecsEngine_ngon_findAsset(ctx, key);
     if (asset) {
         return asset;
     }
@@ -101,10 +101,10 @@ static ecs_entity_t flecsGeometry3_getNGonAsset(
         sizeof(asset_name),
         "NGon.ngon%llu", key);
 
-    asset = flecsGeometry3_createAsset(world, ctx, asset_name);
+    asset = flecsEngine_geometry3_createAsset(world, ctx, asset_name);
 
     FlecsMesh3 *mesh = ecs_ensure(world, asset, FlecsMesh3);
-    flecsGeometry3_generateNGonMesh(mesh, normalized_sides);
+    flecsEngine_ngon_generateMesh(mesh, normalized_sides);
     ecs_modified(world, asset, FlecsMesh3);
 
     ecs_map_insert(
@@ -125,19 +125,19 @@ void FlecsNGon_on_replace(
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        int32_t old_sides = flecsGeometry3_ngonSidesNormalize(old[i].sides);
-        int32_t new_sides = flecsGeometry3_ngonSidesNormalize(new[i].sides);
-        uint64_t old_key = flecsGeometry3_ngonCacheKey(old_sides);
-        uint64_t new_key = flecsGeometry3_ngonCacheKey(new_sides);
+        int32_t old_sides = flecsEngine_ngon_sidesNormalize(old[i].sides);
+        int32_t new_sides = flecsEngine_ngon_sidesNormalize(new[i].sides);
+        uint64_t old_key = flecsEngine_ngon_cacheKey(old_sides);
+        uint64_t new_key = flecsEngine_ngon_cacheKey(new_sides);
 
         if (old_key != new_key) {
-            ecs_entity_t old_asset = flecsGeometry3_findNGonAsset(ctx, old_key);
+            ecs_entity_t old_asset = flecsEngine_ngon_findAsset(ctx, old_key);
             if (old_asset) {
                 ecs_remove_pair(world, it->entities[i], EcsIsA, old_asset);
             }
         }
 
-        ecs_entity_t asset = flecsGeometry3_getNGonAsset(world, new[i].sides);
+        ecs_entity_t asset = flecsEngine_ngon_getAsset(world, new[i].sides);
         ecs_add_pair(world, it->entities[i], EcsIsA, asset);
     }
 }

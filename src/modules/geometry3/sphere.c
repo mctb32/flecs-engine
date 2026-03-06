@@ -8,7 +8,7 @@
 #define FLECS_GEOMETRY3_SPHERE_CACHE_SEGMENTS_MASK (0x7fffffffULL)
 #define FLECS_GEOMETRY3_SPHERE_CACHE_SMOOTH_MASK (1ULL << 63)
 
-static int32_t flecsGeometry3_sphereSegmentsNormalize(
+static int32_t flecsEngine_sphere_segmentsNormalize(
     int32_t segments,
     bool smooth)
 {
@@ -26,7 +26,7 @@ static int32_t flecsGeometry3_sphereSegmentsNormalize(
     return segments;
 }
 
-static uint32_t flecsGeometry3_sphereRadiusBits(
+static uint32_t flecsEngine_sphere_radiusBits(
     float radius)
 {
     union {
@@ -37,14 +37,14 @@ static uint32_t flecsGeometry3_sphereRadiusBits(
     return radius_bits.u;
 }
 
-static uint64_t flecsGeometry3_sphereCacheKey(
+static uint64_t flecsEngine_sphere_cacheKey(
     int32_t segments,
     bool smooth,
     float radius)
 {
     uint64_t key =
         (((uint64_t)segments & FLECS_GEOMETRY3_SPHERE_CACHE_SEGMENTS_MASK) << 32) |
-        (uint64_t)flecsGeometry3_sphereRadiusBits(radius);
+        (uint64_t)flecsEngine_sphere_radiusBits(radius);
 
     if (smooth) {
         key |= FLECS_GEOMETRY3_SPHERE_CACHE_SMOOTH_MASK;
@@ -53,7 +53,7 @@ static uint64_t flecsGeometry3_sphereCacheKey(
     return key;
 }
 
-static ecs_entity_t flecsGeometry3_findSphereAsset(
+static ecs_entity_t flecsEngine_sphere_findAsset(
     const FlecsGeometry3Cache *ctx,
     uint64_t key)
 {
@@ -66,7 +66,7 @@ static ecs_entity_t flecsGeometry3_findSphereAsset(
     return (ecs_entity_t)entry[0];
 }
 
-static flecs_vec3_t flecsGeometry3_sphereUnitPoint(
+static flecs_vec3_t flecsEngine_sphere_unitPoint(
     float theta,
     float phi)
 {
@@ -82,23 +82,23 @@ static flecs_vec3_t flecsGeometry3_sphereUnitPoint(
     };
 }
 
-static flecs_vec3_t flecsGeometry3_spherePoint(
+static flecs_vec3_t flecsEngine_sphere_point(
     float theta,
     float phi,
     float radius)
 {
-    flecs_vec3_t p = flecsGeometry3_sphereUnitPoint(theta, phi);
+    flecs_vec3_t p = flecsEngine_sphere_unitPoint(theta, phi);
     return (flecs_vec3_t){p.x * radius, p.y * radius, p.z * radius};
 }
 
-static flecs_vec3_t flecsGeometry3_vec3_sub(
+static flecs_vec3_t flecsEngine_sphere_vec3_sub(
     flecs_vec3_t a,
     flecs_vec3_t b)
 {
     return (flecs_vec3_t){a.x - b.x, a.y - b.y, a.z - b.z};
 }
 
-static flecs_vec3_t flecsGeometry3_vec3_cross(
+static flecs_vec3_t flecsEngine_sphere_vec3_cross(
     flecs_vec3_t a,
     flecs_vec3_t b)
 {
@@ -109,14 +109,14 @@ static flecs_vec3_t flecsGeometry3_vec3_cross(
     };
 }
 
-static float flecsGeometry3_vec3_dot(
+static float flecsEngine_sphere_vec3_dot(
     flecs_vec3_t a,
     flecs_vec3_t b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-static flecs_vec3_t flecsGeometry3_vec3_normalize(
+static flecs_vec3_t flecsEngine_sphere_vec3_normalize(
     flecs_vec3_t v,
     flecs_vec3_t fallback)
 {
@@ -129,7 +129,7 @@ static flecs_vec3_t flecsGeometry3_vec3_normalize(
     return (flecs_vec3_t){v.x * inv_len, v.y * inv_len, v.z * inv_len};
 }
 
-static flecs_vec3_t flecsGeometry3_triangleNormal(
+static flecs_vec3_t flecsEngine_sphere_triangleNormal(
     flecs_vec3_t a,
     flecs_vec3_t b,
     flecs_vec3_t c)
@@ -139,23 +139,23 @@ static flecs_vec3_t flecsGeometry3_triangleNormal(
         (a.y + b.y + c.y) / 3.0f,
         (a.z + b.z + c.z) / 3.0f
     };
-    flecs_vec3_t fallback = flecsGeometry3_vec3_normalize(
+    flecs_vec3_t fallback = flecsEngine_sphere_vec3_normalize(
         centroid, (flecs_vec3_t){0.0f, 1.0f, 0.0f});
 
-    flecs_vec3_t edge_ab = flecsGeometry3_vec3_sub(b, a);
-    flecs_vec3_t edge_ac = flecsGeometry3_vec3_sub(c, a);
-    flecs_vec3_t normal = flecsGeometry3_vec3_normalize(
-        flecsGeometry3_vec3_cross(edge_ab, edge_ac), fallback);
+    flecs_vec3_t edge_ab = flecsEngine_sphere_vec3_sub(b, a);
+    flecs_vec3_t edge_ac = flecsEngine_sphere_vec3_sub(c, a);
+    flecs_vec3_t normal = flecsEngine_sphere_vec3_normalize(
+        flecsEngine_sphere_vec3_cross(edge_ab, edge_ac), fallback);
 
     /* Ensure flat-shaded sphere normals always point outwards. */
-    if (flecsGeometry3_vec3_dot(normal, centroid) < 0.0f) {
+    if (flecsEngine_sphere_vec3_dot(normal, centroid) < 0.0f) {
         normal = (flecs_vec3_t){-normal.x, -normal.y, -normal.z};
     }
 
     return normal;
 }
 
-static void flecsGeometry3_generateSmoothSphereMesh(
+static void flecsEngine_sphere_generateSmoothMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     float radius)
@@ -181,7 +181,7 @@ static void flecsGeometry3_generateSmoothSphereMesh(
         for (int32_t x = 0; x <= cols; x ++) {
             float u = (float)x / (float)cols;
             float phi = u * 2.0f * (float)M_PI;
-            vn[vi] = flecsGeometry3_sphereUnitPoint(theta, phi);
+            vn[vi] = flecsEngine_sphere_unitPoint(theta, phi);
             v[vi] = (flecs_vec3_t){
                 vn[vi].x * radius,
                 vn[vi].y * radius,
@@ -210,7 +210,7 @@ static void flecsGeometry3_generateSmoothSphereMesh(
     }
 }
 
-static void flecsGeometry3_generateFlatSphereMesh(
+static void flecsEngine_sphere_generateFlatMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     float radius)
@@ -242,13 +242,13 @@ static void flecsGeometry3_generateFlatSphereMesh(
             float phi0 = u0 * 2.0f * (float)M_PI;
             float phi1 = u1 * 2.0f * (float)M_PI;
 
-            flecs_vec3_t a = flecsGeometry3_spherePoint(theta0, phi0, radius);
-            flecs_vec3_t b = flecsGeometry3_spherePoint(theta1, phi0, radius);
-            flecs_vec3_t c = flecsGeometry3_spherePoint(theta1, phi1, radius);
-            flecs_vec3_t d = flecsGeometry3_spherePoint(theta0, phi1, radius);
+            flecs_vec3_t a = flecsEngine_sphere_point(theta0, phi0, radius);
+            flecs_vec3_t b = flecsEngine_sphere_point(theta1, phi0, radius);
+            flecs_vec3_t c = flecsEngine_sphere_point(theta1, phi1, radius);
+            flecs_vec3_t d = flecsEngine_sphere_point(theta0, phi1, radius);
 
-            flecs_vec3_t n0 = flecsGeometry3_triangleNormal(a, b, d);
-            flecs_vec3_t n1 = flecsGeometry3_triangleNormal(b, c, d);
+            flecs_vec3_t n0 = flecsEngine_sphere_triangleNormal(a, b, d);
+            flecs_vec3_t n1 = flecsEngine_sphere_triangleNormal(b, c, d);
 
             v[vi] = a;
             vn[vi] = n0;
@@ -289,32 +289,32 @@ static void flecsGeometry3_generateFlatSphereMesh(
     }
 }
 
-static void flecsGeometry3_generateSphereMesh(
+static void flecsEngine_sphere_generateMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     bool smooth,
     float radius)
 {
     if (smooth) {
-        flecsGeometry3_generateSmoothSphereMesh(mesh, segments, radius);
+        flecsEngine_sphere_generateSmoothMesh(mesh, segments, radius);
     } else {
-        flecsGeometry3_generateFlatSphereMesh(mesh, segments, radius);
+        flecsEngine_sphere_generateFlatMesh(mesh, segments, radius);
     }
 }
 
-static ecs_entity_t flecsGeometry3_getSphereAsset(
+static ecs_entity_t flecsEngine_sphere_getAsset(
     ecs_world_t *world,
     int32_t segments,
     bool smooth,
     float radius)
 {
-    int32_t normalized_segments = flecsGeometry3_sphereSegmentsNormalize(
+    int32_t normalized_segments = flecsEngine_sphere_segmentsNormalize(
         segments, smooth);
-    uint64_t key = flecsGeometry3_sphereCacheKey(
+    uint64_t key = flecsEngine_sphere_cacheKey(
         normalized_segments, smooth, radius);
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
 
-    ecs_entity_t asset = flecsGeometry3_findSphereAsset(ctx, key);
+    ecs_entity_t asset = flecsEngine_sphere_findAsset(ctx, key);
     if (asset) {
         return asset;
     }
@@ -325,10 +325,10 @@ static ecs_entity_t flecsGeometry3_getSphereAsset(
         sizeof(asset_name),
         "Sphere.sphere%llu", key);
 
-    asset = flecsGeometry3_createAsset(world, ctx, asset_name);
+    asset = flecsEngine_geometry3_createAsset(world, ctx, asset_name);
 
     FlecsMesh3 *mesh = ecs_ensure(world, asset, FlecsMesh3);
-    flecsGeometry3_generateSphereMesh(mesh, normalized_segments, smooth, radius);
+    flecsEngine_sphere_generateMesh(mesh, normalized_segments, smooth, radius);
     ecs_modified(world, asset, FlecsMesh3);
 
     ecs_map_insert(
@@ -349,25 +349,25 @@ void FlecsSphere_on_replace(
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        int32_t old_segments = flecsGeometry3_sphereSegmentsNormalize(
+        int32_t old_segments = flecsEngine_sphere_segmentsNormalize(
             old[i].segments, old[i].smooth);
-        int32_t new_segments = flecsGeometry3_sphereSegmentsNormalize(
+        int32_t new_segments = flecsEngine_sphere_segmentsNormalize(
             new[i].segments, new[i].smooth);
-        uint64_t old_key = flecsGeometry3_sphereCacheKey(
+        uint64_t old_key = flecsEngine_sphere_cacheKey(
             old_segments, old[i].smooth, old[i].radius);
-        uint64_t new_key = flecsGeometry3_sphereCacheKey(
+        uint64_t new_key = flecsEngine_sphere_cacheKey(
             new_segments, new[i].smooth, new[i].radius);
 
         if (old_key == new_key) {
             continue;
         }
 
-        ecs_entity_t old_asset = flecsGeometry3_findSphereAsset(ctx, old_key);
+        ecs_entity_t old_asset = flecsEngine_sphere_findAsset(ctx, old_key);
         if (old_asset) {
             ecs_remove_pair(world, it->entities[i], EcsIsA, old_asset);
         }
 
-        ecs_entity_t asset = flecsGeometry3_getSphereAsset(
+        ecs_entity_t asset = flecsEngine_sphere_getAsset(
             world, new[i].segments, new[i].smooth, new[i].radius);
         ecs_add_pair(world, it->entities[i], EcsIsA, asset);
     }

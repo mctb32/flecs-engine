@@ -144,7 +144,7 @@ void initEngine(
   ecs_set(world, view.camera, FlecsCamera, {
       .fov = glm_rad(60.0f),
       .near_ = 0.1f,
-      .far_ = 1000.0f,
+      .far_ = 100.0f,
       .aspect_ratio = options.width / (float)options.height
   });
   ecs_add(world, view.camera, FlecsCameraController);
@@ -176,11 +176,11 @@ void initEngine(
     flecsEngine_exponentialHeightFogSettingsDefault();
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
     flecsEngine_createEffect_bloom(world, view_entity, "bloomEffect", 0, &bloom_settings);
-  // ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
-  //   flecsEngine_createEffect_exponentialHeightFog(
-  //     world, view_entity, "heightFogEffect", 1, &fog_settings);
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
-    flecsEngine_createEffect_tonyMcMapFace(world, view_entity, "tonyMcMapFaceEffect", 1);
+    flecsEngine_createEffect_exponentialHeightFog(
+      world, view_entity, "heightFogEffect", 1, &fog_settings);
+  ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
+    flecsEngine_createEffect_tonyMcMapFace(world, view_entity, "tonyMcMapFaceEffect", 2);
 
   ecs_set_ptr(world, view_entity, FlecsRenderView, &view);
   ecs_set_ptr(world, view_entity, FlecsRenderBatchSet, &batch_set);

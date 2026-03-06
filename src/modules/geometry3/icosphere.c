@@ -12,9 +12,9 @@ typedef struct {
     uint32_t a;
     uint32_t b;
     uint32_t c;
-} flecsGeometry3_icoTriangle;
+} flecsEngine_icosphere_icoTriangle;
 
-static int32_t flecsGeometry3_icosphereSegmentsNormalize(
+static int32_t flecsEngine_icosphere_segmentsNormalize(
     int32_t segments,
     bool smooth)
 {
@@ -32,7 +32,7 @@ static int32_t flecsGeometry3_icosphereSegmentsNormalize(
     return segments;
 }
 
-static uint32_t flecsGeometry3_icosphereRadiusBits(
+static uint32_t flecsEngine_icosphere_radiusBits(
     float radius)
 {
     union {
@@ -43,14 +43,14 @@ static uint32_t flecsGeometry3_icosphereRadiusBits(
     return radius_bits.u;
 }
 
-static uint64_t flecsGeometry3_icosphereCacheKey(
+static uint64_t flecsEngine_icosphere_cacheKey(
     int32_t segments,
     bool smooth,
     float radius)
 {
     uint64_t key =
         (((uint64_t)segments & FLECS_GEOMETRY3_ICOSPHERE_CACHE_SEGMENTS_MASK) << 32) |
-        (uint64_t)flecsGeometry3_icosphereRadiusBits(radius);
+        (uint64_t)flecsEngine_icosphere_radiusBits(radius);
 
     if (smooth) {
         key |= FLECS_GEOMETRY3_ICOSPHERE_CACHE_SMOOTH_MASK;
@@ -59,7 +59,7 @@ static uint64_t flecsGeometry3_icosphereCacheKey(
     return key;
 }
 
-static ecs_entity_t flecsGeometry3_findIcoSphereAsset(
+static ecs_entity_t flecsEngine_icosphere_findAsset(
     const FlecsGeometry3Cache *ctx,
     uint64_t key)
 {
@@ -72,14 +72,14 @@ static ecs_entity_t flecsGeometry3_findIcoSphereAsset(
     return (ecs_entity_t)entry[0];
 }
 
-static flecs_vec3_t flecsGeometry3_vec3_sub(
+static flecs_vec3_t flecsEngine_icosphere_vec3_sub(
     flecs_vec3_t a,
     flecs_vec3_t b)
 {
     return (flecs_vec3_t){a.x - b.x, a.y - b.y, a.z - b.z};
 }
 
-static flecs_vec3_t flecsGeometry3_vec3_cross(
+static flecs_vec3_t flecsEngine_icosphere_vec3_cross(
     flecs_vec3_t a,
     flecs_vec3_t b)
 {
@@ -90,14 +90,14 @@ static flecs_vec3_t flecsGeometry3_vec3_cross(
     };
 }
 
-static float flecsGeometry3_vec3_dot(
+static float flecsEngine_icosphere_vec3_dot(
     flecs_vec3_t a,
     flecs_vec3_t b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-static flecs_vec3_t flecsGeometry3_vec3_normalize(
+static flecs_vec3_t flecsEngine_icosphere_vec3_normalize(
     flecs_vec3_t v,
     flecs_vec3_t fallback)
 {
@@ -110,7 +110,7 @@ static flecs_vec3_t flecsGeometry3_vec3_normalize(
     return (flecs_vec3_t){v.x * inv_len, v.y * inv_len, v.z * inv_len};
 }
 
-static flecs_vec3_t flecsGeometry3_triangleNormal(
+static flecs_vec3_t flecsEngine_icosphere_triangleNormal(
     flecs_vec3_t a,
     flecs_vec3_t b,
     flecs_vec3_t c)
@@ -120,22 +120,22 @@ static flecs_vec3_t flecsGeometry3_triangleNormal(
         (a.y + b.y + c.y) / 3.0f,
         (a.z + b.z + c.z) / 3.0f
     };
-    flecs_vec3_t fallback = flecsGeometry3_vec3_normalize(
+    flecs_vec3_t fallback = flecsEngine_icosphere_vec3_normalize(
         centroid, (flecs_vec3_t){0.0f, 1.0f, 0.0f});
 
-    flecs_vec3_t edge_ab = flecsGeometry3_vec3_sub(b, a);
-    flecs_vec3_t edge_ac = flecsGeometry3_vec3_sub(c, a);
-    flecs_vec3_t normal = flecsGeometry3_vec3_normalize(
-        flecsGeometry3_vec3_cross(edge_ab, edge_ac), fallback);
+    flecs_vec3_t edge_ab = flecsEngine_icosphere_vec3_sub(b, a);
+    flecs_vec3_t edge_ac = flecsEngine_icosphere_vec3_sub(c, a);
+    flecs_vec3_t normal = flecsEngine_icosphere_vec3_normalize(
+        flecsEngine_icosphere_vec3_cross(edge_ab, edge_ac), fallback);
 
-    if (flecsGeometry3_vec3_dot(normal, centroid) < 0.0f) {
+    if (flecsEngine_icosphere_vec3_dot(normal, centroid) < 0.0f) {
         normal = (flecs_vec3_t){-normal.x, -normal.y, -normal.z};
     }
 
     return normal;
 }
 
-static bool flecsGeometry3_triangleNeedsFlip(
+static bool flecsEngine_icosphere_triangleNeedsFlip(
     flecs_vec3_t a,
     flecs_vec3_t b,
     flecs_vec3_t c)
@@ -145,14 +145,14 @@ static bool flecsGeometry3_triangleNeedsFlip(
         (a.y + b.y + c.y) / 3.0f,
         (a.z + b.z + c.z) / 3.0f
     };
-    flecs_vec3_t edge_ab = flecsGeometry3_vec3_sub(b, a);
-    flecs_vec3_t edge_ac = flecsGeometry3_vec3_sub(c, a);
-    flecs_vec3_t winding_normal = flecsGeometry3_vec3_cross(edge_ab, edge_ac);
+    flecs_vec3_t edge_ab = flecsEngine_icosphere_vec3_sub(b, a);
+    flecs_vec3_t edge_ac = flecsEngine_icosphere_vec3_sub(c, a);
+    flecs_vec3_t winding_normal = flecsEngine_icosphere_vec3_cross(edge_ab, edge_ac);
 
-    return flecsGeometry3_vec3_dot(winding_normal, centroid) < 0.0f;
+    return flecsEngine_icosphere_vec3_dot(winding_normal, centroid) < 0.0f;
 }
 
-static uint32_t flecsGeometry3_icosphereGetMidpoint(
+static uint32_t flecsEngine_icosphere_getMidpoint(
     ecs_vec_t *vertices,
     ecs_map_t *edge_cache,
     uint32_t a,
@@ -177,7 +177,7 @@ static uint32_t flecsGeometry3_icosphereGetMidpoint(
         (v[min_v].y + v[max_v].y) * 0.5f,
         (v[min_v].z + v[max_v].z) * 0.5f
     };
-    midpoint = flecsGeometry3_vec3_normalize(
+    midpoint = flecsEngine_icosphere_vec3_normalize(
         midpoint, (flecs_vec3_t){0.0f, 1.0f, 0.0f});
 
     uint32_t index = (uint32_t)ecs_vec_count(vertices);
@@ -192,7 +192,7 @@ static uint32_t flecsGeometry3_icosphereGetMidpoint(
     return index;
 }
 
-static void flecsGeometry3_generateUnitIcoSphere(
+static void flecsEngine_icosphere_generateUnitIcoSphere(
     ecs_vec_t *vertices,
     ecs_vec_t *triangles,
     int32_t segments)
@@ -212,7 +212,7 @@ static void flecsGeometry3_generateUnitIcoSphere(
         {-t, 0.0f, -1.0f},
         {-t, 0.0f, 1.0f}
     };
-    const flecsGeometry3_icoTriangle base_triangles[20] = {
+    const flecsEngine_icosphere_icoTriangle base_triangles[20] = {
         {0, 11, 5},
         {0, 5, 1},
         {0, 1, 7},
@@ -236,16 +236,16 @@ static void flecsGeometry3_generateUnitIcoSphere(
     };
 
     ecs_vec_init_t(NULL, vertices, flecs_vec3_t, 12);
-    ecs_vec_init_t(NULL, triangles, flecsGeometry3_icoTriangle, 20);
+    ecs_vec_init_t(NULL, triangles, flecsEngine_icosphere_icoTriangle, 20);
     ecs_vec_set_count_t(NULL, vertices, flecs_vec3_t, 12);
-    ecs_vec_set_count_t(NULL, triangles, flecsGeometry3_icoTriangle, 20);
+    ecs_vec_set_count_t(NULL, triangles, flecsEngine_icosphere_icoTriangle, 20);
 
     flecs_vec3_t *v = ecs_vec_first_t(vertices, flecs_vec3_t);
-    flecsGeometry3_icoTriangle *tri = ecs_vec_first_t(
-        triangles, flecsGeometry3_icoTriangle);
+    flecsEngine_icosphere_icoTriangle *tri = ecs_vec_first_t(
+        triangles, flecsEngine_icosphere_icoTriangle);
 
     for (int32_t i = 0; i < 12; i ++) {
-        v[i] = flecsGeometry3_vec3_normalize(
+        v[i] = flecsEngine_icosphere_vec3_normalize(
             base_vertices[i], (flecs_vec3_t){0.0f, 1.0f, 0.0f});
     }
     for (int32_t i = 0; i < 20; i ++) {
@@ -254,16 +254,16 @@ static void flecsGeometry3_generateUnitIcoSphere(
 
     for (int32_t s = 0; s < segments; s ++) {
         int32_t tri_count = ecs_vec_count(triangles);
-        const flecsGeometry3_icoTriangle *old_triangles = ecs_vec_first_t(
-            triangles, flecsGeometry3_icoTriangle);
+        const flecsEngine_icosphere_icoTriangle *old_triangles = ecs_vec_first_t(
+            triangles, flecsEngine_icosphere_icoTriangle);
 
         ecs_vec_t next_triangles;
         ecs_vec_init_t(
-            NULL, &next_triangles, flecsGeometry3_icoTriangle, tri_count * 4);
+            NULL, &next_triangles, flecsEngine_icosphere_icoTriangle, tri_count * 4);
         ecs_vec_set_count_t(
-            NULL, &next_triangles, flecsGeometry3_icoTriangle, tri_count * 4);
-        flecsGeometry3_icoTriangle *next = ecs_vec_first_t(
-            &next_triangles, flecsGeometry3_icoTriangle);
+            NULL, &next_triangles, flecsEngine_icosphere_icoTriangle, tri_count * 4);
+        flecsEngine_icosphere_icoTriangle *next = ecs_vec_first_t(
+            &next_triangles, flecsEngine_icosphere_icoTriangle);
 
         ecs_map_t edge_cache;
         ecs_map_init(&edge_cache, NULL);
@@ -274,33 +274,33 @@ static void flecsGeometry3_generateUnitIcoSphere(
             uint32_t b = old_triangles[i].b;
             uint32_t c = old_triangles[i].c;
 
-            uint32_t ab = flecsGeometry3_icosphereGetMidpoint(
+            uint32_t ab = flecsEngine_icosphere_getMidpoint(
                 vertices, &edge_cache, a, b);
-            uint32_t bc = flecsGeometry3_icosphereGetMidpoint(
+            uint32_t bc = flecsEngine_icosphere_getMidpoint(
                 vertices, &edge_cache, b, c);
-            uint32_t ca = flecsGeometry3_icosphereGetMidpoint(
+            uint32_t ca = flecsEngine_icosphere_getMidpoint(
                 vertices, &edge_cache, c, a);
 
-            next[ti ++] = (flecsGeometry3_icoTriangle){a, ab, ca};
-            next[ti ++] = (flecsGeometry3_icoTriangle){b, bc, ab};
-            next[ti ++] = (flecsGeometry3_icoTriangle){c, ca, bc};
-            next[ti ++] = (flecsGeometry3_icoTriangle){ab, bc, ca};
+            next[ti ++] = (flecsEngine_icosphere_icoTriangle){a, ab, ca};
+            next[ti ++] = (flecsEngine_icosphere_icoTriangle){b, bc, ab};
+            next[ti ++] = (flecsEngine_icosphere_icoTriangle){c, ca, bc};
+            next[ti ++] = (flecsEngine_icosphere_icoTriangle){ab, bc, ca};
         }
 
         ecs_map_fini(&edge_cache);
-        ecs_vec_fini_t(NULL, triangles, flecsGeometry3_icoTriangle);
+        ecs_vec_fini_t(NULL, triangles, flecsEngine_icosphere_icoTriangle);
         *triangles = next_triangles;
     }
 }
 
-static void flecsGeometry3_generateSmoothIcoSphereMesh(
+static void flecsEngine_icosphere_generateSmoothMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     float radius)
 {
     ecs_vec_t unit_vertices;
     ecs_vec_t unit_triangles;
-    flecsGeometry3_generateUnitIcoSphere(
+    flecsEngine_icosphere_generateUnitIcoSphere(
         &unit_vertices, &unit_triangles, segments);
 
     int32_t vert_count = ecs_vec_count(&unit_vertices);
@@ -312,8 +312,8 @@ static void flecsGeometry3_generateSmoothIcoSphereMesh(
     ecs_vec_set_count_t(NULL, &mesh->indices, uint16_t, index_count);
 
     const flecs_vec3_t *unit = ecs_vec_first_t(&unit_vertices, flecs_vec3_t);
-    const flecsGeometry3_icoTriangle *triangles = ecs_vec_first_t(
-        &unit_triangles, flecsGeometry3_icoTriangle);
+    const flecsEngine_icosphere_icoTriangle *triangles = ecs_vec_first_t(
+        &unit_triangles, flecsEngine_icosphere_icoTriangle);
 
     flecs_vec3_t *v = ecs_vec_first_t(&mesh->vertices, flecs_vec3_t);
     flecs_vec3_t *vn = ecs_vec_first_t(&mesh->normals, flecs_vec3_t);
@@ -334,7 +334,7 @@ static void flecsGeometry3_generateSmoothIcoSphereMesh(
         uint32_t b = triangles[i].b;
         uint32_t c = triangles[i].c;
 
-        if (flecsGeometry3_triangleNeedsFlip(unit[a], unit[b], unit[c])) {
+        if (flecsEngine_icosphere_triangleNeedsFlip(unit[a], unit[b], unit[c])) {
             uint32_t tmp = b;
             b = c;
             c = tmp;
@@ -353,17 +353,17 @@ static void flecsGeometry3_generateSmoothIcoSphereMesh(
     }
 
     ecs_vec_fini_t(NULL, &unit_vertices, flecs_vec3_t);
-    ecs_vec_fini_t(NULL, &unit_triangles, flecsGeometry3_icoTriangle);
+    ecs_vec_fini_t(NULL, &unit_triangles, flecsEngine_icosphere_icoTriangle);
 }
 
-static void flecsGeometry3_generateFlatIcoSphereMesh(
+static void flecsEngine_icosphere_generateFlatMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     float radius)
 {
     ecs_vec_t unit_vertices;
     ecs_vec_t unit_triangles;
-    flecsGeometry3_generateUnitIcoSphere(
+    flecsEngine_icosphere_generateUnitIcoSphere(
         &unit_vertices, &unit_triangles, segments);
 
     int32_t tri_count = ecs_vec_count(&unit_triangles);
@@ -374,8 +374,8 @@ static void flecsGeometry3_generateFlatIcoSphereMesh(
     ecs_vec_set_count_t(NULL, &mesh->indices, uint16_t, vert_count);
 
     const flecs_vec3_t *unit = ecs_vec_first_t(&unit_vertices, flecs_vec3_t);
-    const flecsGeometry3_icoTriangle *triangles = ecs_vec_first_t(
-        &unit_triangles, flecsGeometry3_icoTriangle);
+    const flecsEngine_icosphere_icoTriangle *triangles = ecs_vec_first_t(
+        &unit_triangles, flecsEngine_icosphere_icoTriangle);
 
     flecs_vec3_t *v = ecs_vec_first_t(&mesh->vertices, flecs_vec3_t);
     flecs_vec3_t *vn = ecs_vec_first_t(&mesh->normals, flecs_vec3_t);
@@ -399,13 +399,13 @@ static void flecsGeometry3_generateFlatIcoSphereMesh(
             unit[triangles[i].c].z * radius
         };
 
-        if (flecsGeometry3_triangleNeedsFlip(a, b, c)) {
+        if (flecsEngine_icosphere_triangleNeedsFlip(a, b, c)) {
             flecs_vec3_t tmp = b;
             b = c;
             c = tmp;
         }
 
-        flecs_vec3_t normal = flecsGeometry3_triangleNormal(a, b, c);
+        flecs_vec3_t normal = flecsEngine_icosphere_triangleNormal(a, b, c);
 
         {
             flecs_vec3_t tmp = b;
@@ -430,35 +430,35 @@ static void flecsGeometry3_generateFlatIcoSphereMesh(
     }
 
     ecs_vec_fini_t(NULL, &unit_vertices, flecs_vec3_t);
-    ecs_vec_fini_t(NULL, &unit_triangles, flecsGeometry3_icoTriangle);
+    ecs_vec_fini_t(NULL, &unit_triangles, flecsEngine_icosphere_icoTriangle);
 }
 
-static void flecsGeometry3_generateIcoSphereMesh(
+static void flecsEngine_icosphere_generateMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     bool smooth,
     float radius)
 {
     if (smooth) {
-        flecsGeometry3_generateSmoothIcoSphereMesh(mesh, segments, radius);
+        flecsEngine_icosphere_generateSmoothMesh(mesh, segments, radius);
     } else {
-        flecsGeometry3_generateFlatIcoSphereMesh(mesh, segments, radius);
+        flecsEngine_icosphere_generateFlatMesh(mesh, segments, radius);
     }
 }
 
-static ecs_entity_t flecsGeometry3_getIcoSphereAsset(
+static ecs_entity_t flecsEngine_icosphere_getAsset(
     ecs_world_t *world,
     int32_t segments,
     bool smooth,
     float radius)
 {
-    int32_t normalized_segments = flecsGeometry3_icosphereSegmentsNormalize(
+    int32_t normalized_segments = flecsEngine_icosphere_segmentsNormalize(
         segments, smooth);
-    uint64_t key = flecsGeometry3_icosphereCacheKey(
+    uint64_t key = flecsEngine_icosphere_cacheKey(
         normalized_segments, smooth, radius);
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
 
-    ecs_entity_t asset = flecsGeometry3_findIcoSphereAsset(ctx, key);
+    ecs_entity_t asset = flecsEngine_icosphere_findAsset(ctx, key);
     if (asset) {
         return asset;
     }
@@ -469,10 +469,10 @@ static ecs_entity_t flecsGeometry3_getIcoSphereAsset(
         sizeof(asset_name),
         "IcoSphere.icosphere%llu", key);
 
-    asset = flecsGeometry3_createAsset(world, ctx, asset_name);
+    asset = flecsEngine_geometry3_createAsset(world, ctx, asset_name);
 
     FlecsMesh3 *mesh = ecs_ensure(world, asset, FlecsMesh3);
-    flecsGeometry3_generateIcoSphereMesh(
+    flecsEngine_icosphere_generateMesh(
         mesh, normalized_segments, smooth, radius);
     ecs_modified(world, asset, FlecsMesh3);
 
@@ -494,25 +494,25 @@ void FlecsIcoSphere_on_replace(
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        int32_t old_segments = flecsGeometry3_icosphereSegmentsNormalize(
+        int32_t old_segments = flecsEngine_icosphere_segmentsNormalize(
             old[i].segments, old[i].smooth);
-        int32_t new_segments = flecsGeometry3_icosphereSegmentsNormalize(
+        int32_t new_segments = flecsEngine_icosphere_segmentsNormalize(
             new[i].segments, new[i].smooth);
-        uint64_t old_key = flecsGeometry3_icosphereCacheKey(
+        uint64_t old_key = flecsEngine_icosphere_cacheKey(
             old_segments, old[i].smooth, old[i].radius);
-        uint64_t new_key = flecsGeometry3_icosphereCacheKey(
+        uint64_t new_key = flecsEngine_icosphere_cacheKey(
             new_segments, new[i].smooth, new[i].radius);
 
         if (old_key == new_key) {
             continue;
         }
 
-        ecs_entity_t old_asset = flecsGeometry3_findIcoSphereAsset(ctx, old_key);
+        ecs_entity_t old_asset = flecsEngine_icosphere_findAsset(ctx, old_key);
         if (old_asset) {
             ecs_remove_pair(world, it->entities[i], EcsIsA, old_asset);
         }
 
-        ecs_entity_t asset = flecsGeometry3_getIcoSphereAsset(
+        ecs_entity_t asset = flecsEngine_icosphere_getAsset(
             world, new[i].segments, new[i].smooth, new[i].radius);
         ecs_add_pair(world, it->entities[i], EcsIsA, asset);
     }

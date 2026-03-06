@@ -51,7 +51,7 @@ static const char *kShaderSource =
     "  return vec4<f32>(sky, 1.0);\n"
     "}\n";
 
-ecs_entity_t flecsEngineShader_skybox(
+ecs_entity_t flecsEngine_shader_skybox(
     ecs_world_t *world)
 {
     return flecsEngine_shader_ensure(world, "SkyboxShader",

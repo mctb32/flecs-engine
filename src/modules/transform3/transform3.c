@@ -13,26 +13,11 @@ typedef struct {
     ecs_query_t *q_parent;
 } flecs_transform3_queries_t;
 
-static
-void flecsTransform3RegisterVec3Type(
-    ecs_world_t *world,
-    ecs_entity_t component)
-{
-    ecs_struct(world, {
-        .entity = component,
-        .members = {
-            { .name = "x", .type = ecs_id(ecs_f32_t) },
-            { .name = "y", .type = ecs_id(ecs_f32_t) },
-            { .name = "z", .type = ecs_id(ecs_f32_t) }
-        }
-    });
-}
-
-static void flecsTransform3QueriesFree(void *ptr) {
+static void flecsEngine_transform3_queriesFree(void *ptr) {
     ecs_os_free(ptr);
 }
 
-static void flecsTransform3RotationAndScale(
+static void flecsEngine_transform3_rotationAndScale(
     ecs_iter_t *it,
     FlecsWorldTransform3 *t) 
 {
@@ -63,7 +48,7 @@ static void flecsTransform3RotationAndScale(
     }
 }
 
-static bool flecsTransform3ChildOf(ecs_iter_t *it) {
+static bool flecsEngine_transform3_childOf(ecs_iter_t *it) {
     bool has_results = false;
 
     while (ecs_query_next(it)) {
@@ -94,7 +79,7 @@ static bool flecsTransform3ChildOf(ecs_iter_t *it) {
             }
         }
 
-        flecsTransform3RotationAndScale(it, t);
+        flecsEngine_transform3_rotationAndScale(it, t);
 
         has_results = true;
     }
@@ -102,7 +87,7 @@ static bool flecsTransform3ChildOf(ecs_iter_t *it) {
     return has_results;
 }
 
-static bool flecsTransform3Parent(ecs_iter_t *it) {
+static bool flecsEngine_transform3_parent(ecs_iter_t *it) {
     bool has_results = false;
     ecs_world_t *world = it->world;
 
@@ -140,7 +125,7 @@ static bool flecsTransform3Parent(ecs_iter_t *it) {
             }
         }
 
-        flecsTransform3RotationAndScale(it, t);
+        flecsEngine_transform3_rotationAndScale(it, t);
 
         has_results = true;
     }
@@ -158,11 +143,11 @@ static void FlecsTransform3(ecs_iter_t *it) {
         {
             ecs_iter_t it = ecs_query_iter(world, ctx->q_childof);
             ecs_iter_set_group(&it, depth);
-            has_results |= flecsTransform3ChildOf(&it);
+            has_results |= flecsEngine_transform3_childOf(&it);
         } {
             ecs_iter_t it = ecs_query_iter(world, ctx->q_parent);
             ecs_iter_set_group(&it, depth);
-            has_results |= flecsTransform3Parent(&it); 
+            has_results |= flecsEngine_transform3_parent(&it); 
         }
 
         if (!has_results) {
@@ -208,10 +193,10 @@ void FlecsEngineTransform3Import(
     ECS_COMPONENT_DEFINE(world, FlecsLookAt);
     ECS_META_COMPONENT(world, FlecsWorldTransform3);
 
-    flecsTransform3RegisterVec3Type(world, ecs_id(FlecsPosition3));
-    flecsTransform3RegisterVec3Type(world, ecs_id(FlecsRotation3));
-    flecsTransform3RegisterVec3Type(world, ecs_id(FlecsScale3));
-    flecsTransform3RegisterVec3Type(world, ecs_id(FlecsLookAt));
+    flecsEngine_registerVec3Type(world, ecs_id(FlecsPosition3));
+    flecsEngine_registerVec3Type(world, ecs_id(FlecsRotation3));
+    flecsEngine_registerVec3Type(world, ecs_id(FlecsScale3));
+    flecsEngine_registerVec3Type(world, ecs_id(FlecsLookAt));
 
     ecs_add_pair(world, ecs_id(FlecsPosition3), EcsWith, ecs_id(FlecsWorldTransform3));
     ecs_add_pair(world, ecs_id(FlecsRotation3), EcsWith, ecs_id(FlecsWorldTransform3));
@@ -288,6 +273,6 @@ void FlecsEngineTransform3Import(
         .phase = EcsPreStore,
         .run = FlecsTransform3,
         .ctx = ctx,
-        .ctx_free = flecsTransform3QueriesFree
+        .ctx_free = flecsEngine_transform3_queriesFree
     });
 }

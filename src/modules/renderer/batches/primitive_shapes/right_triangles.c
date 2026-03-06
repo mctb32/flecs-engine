@@ -14,7 +14,7 @@ static flecs_engine_right_triangles_ctx_t* flecsEngine_right_triangles_createCtx
     flecs_engine_right_triangles_ctx_t *result =
         ecs_os_calloc_t(flecs_engine_right_triangles_ctx_t);
     flecsEngine_batch_init(
-        &result->batch, flecsGeometry3_getRightTriangleAsset(world));
+        &result->batch, flecsEngine_rightTriangle_getAsset(world));
     return result;
 }
 
@@ -92,7 +92,7 @@ ecs_entity_t flecsEngine_createBatch_right_triangles(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngineShader_pbrColored(world);
+    ecs_entity_t shader = flecsEngine_shader_pbrColored(world);
 
     ecs_query_t *q = ecs_query(world, {
         .entity = batch,

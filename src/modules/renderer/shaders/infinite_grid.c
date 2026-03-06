@@ -66,7 +66,7 @@ static const char *kShaderSource =
     "  return vec4<f32>(color, 1.0);\n"
     "}\n";
 
-ecs_entity_t flecsEngineShader_infiniteGrid(
+ecs_entity_t flecsEngine_shader_infiniteGrid(
     ecs_world_t *world)
 {
     return flecsEngine_shader_ensure(world, "InfiniteGridShader",

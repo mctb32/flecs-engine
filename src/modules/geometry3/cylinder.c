@@ -8,7 +8,7 @@
 #define FLECS_GEOMETRY3_CYLINDER_CACHE_SEGMENTS_MASK (0x7fffffffULL)
 #define FLECS_GEOMETRY3_CYLINDER_CACHE_SMOOTH_MASK (1ULL << 63)
 
-static int32_t flecsGeometry3_cylinderSegmentsNormalize(
+static int32_t flecsEngine_cylinder_segmentsNormalize(
     int32_t segments,
     bool smooth)
 {
@@ -26,7 +26,7 @@ static int32_t flecsGeometry3_cylinderSegmentsNormalize(
     return segments;
 }
 
-static uint32_t flecsGeometry3_cylinderLengthBits(
+static uint32_t flecsEngine_cylinder_lengthBits(
     float length)
 {
     union {
@@ -37,14 +37,14 @@ static uint32_t flecsGeometry3_cylinderLengthBits(
     return length_bits.u;
 }
 
-static uint64_t flecsGeometry3_cylinderCacheKey(
+static uint64_t flecsEngine_cylinder_cacheKey(
     int32_t segments,
     bool smooth,
     float length)
 {
     uint64_t key =
         (((uint64_t)segments & FLECS_GEOMETRY3_CYLINDER_CACHE_SEGMENTS_MASK) << 32) |
-        (uint64_t)flecsGeometry3_cylinderLengthBits(length);
+        (uint64_t)flecsEngine_cylinder_lengthBits(length);
 
     if (smooth) {
         key |= FLECS_GEOMETRY3_CYLINDER_CACHE_SMOOTH_MASK;
@@ -53,7 +53,7 @@ static uint64_t flecsGeometry3_cylinderCacheKey(
     return key;
 }
 
-static ecs_entity_t flecsGeometry3_findCylinderAsset(
+static ecs_entity_t flecsEngine_cylinder_findAsset(
     const FlecsGeometry3Cache *ctx,
     uint64_t key)
 {
@@ -66,7 +66,7 @@ static ecs_entity_t flecsGeometry3_findCylinderAsset(
     return (ecs_entity_t)entry[0];
 }
 
-static void flecsGeometry3_generateSmoothCylinderMesh(
+static void flecsEngine_cylinder_generateSmoothMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     float length)
@@ -174,7 +174,7 @@ static void flecsGeometry3_generateSmoothCylinderMesh(
     }
 }
 
-static void flecsGeometry3_generateFlatCylinderMesh(
+static void flecsEngine_cylinder_generateFlatMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     float length)
@@ -299,32 +299,32 @@ static void flecsGeometry3_generateFlatCylinderMesh(
     }
 }
 
-static void flecsGeometry3_generateCylinderMesh(
+static void flecsEngine_cylinder_generateMesh(
     FlecsMesh3 *mesh,
     int32_t segments,
     bool smooth,
     float length)
 {
     if (smooth) {
-        flecsGeometry3_generateSmoothCylinderMesh(mesh, segments, length);
+        flecsEngine_cylinder_generateSmoothMesh(mesh, segments, length);
     } else {
-        flecsGeometry3_generateFlatCylinderMesh(mesh, segments, length);
+        flecsEngine_cylinder_generateFlatMesh(mesh, segments, length);
     }
 }
 
-static ecs_entity_t flecsGeometry3_getCylinderAsset(
+static ecs_entity_t flecsEngine_cylinder_getAsset(
     ecs_world_t *world,
     int32_t segments,
     bool smooth,
     float length)
 {
-    int32_t normalized_segments = flecsGeometry3_cylinderSegmentsNormalize(
+    int32_t normalized_segments = flecsEngine_cylinder_segmentsNormalize(
         segments, smooth);
-    uint64_t key = flecsGeometry3_cylinderCacheKey(
+    uint64_t key = flecsEngine_cylinder_cacheKey(
         normalized_segments, smooth, length);
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
 
-    ecs_entity_t asset = flecsGeometry3_findCylinderAsset(ctx, key);
+    ecs_entity_t asset = flecsEngine_cylinder_findAsset(ctx, key);
     if (asset) {
         return asset;
     }
@@ -335,10 +335,10 @@ static ecs_entity_t flecsGeometry3_getCylinderAsset(
         sizeof(asset_name),
         "Cylinder.cylinder%llu", key);
 
-    asset = flecsGeometry3_createAsset(world, ctx, asset_name);
+    asset = flecsEngine_geometry3_createAsset(world, ctx, asset_name);
 
     FlecsMesh3 *mesh = ecs_ensure(world, asset, FlecsMesh3);
-    flecsGeometry3_generateCylinderMesh(
+    flecsEngine_cylinder_generateMesh(
         mesh, normalized_segments, smooth, length);
     ecs_modified(world, asset, FlecsMesh3);
 
@@ -360,23 +360,23 @@ void FlecsCylinder_on_replace(
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        int32_t old_segments = flecsGeometry3_cylinderSegmentsNormalize(
+        int32_t old_segments = flecsEngine_cylinder_segmentsNormalize(
             old[i].segments, old[i].smooth);
-        int32_t new_segments = flecsGeometry3_cylinderSegmentsNormalize(
+        int32_t new_segments = flecsEngine_cylinder_segmentsNormalize(
             new[i].segments, new[i].smooth);
-        uint64_t old_key = flecsGeometry3_cylinderCacheKey(
+        uint64_t old_key = flecsEngine_cylinder_cacheKey(
             old_segments, old[i].smooth, old[i].length);
-        uint64_t new_key = flecsGeometry3_cylinderCacheKey(
+        uint64_t new_key = flecsEngine_cylinder_cacheKey(
             new_segments, new[i].smooth, new[i].length);
 
         if (old_key != new_key) {
-            ecs_entity_t old_asset = flecsGeometry3_findCylinderAsset(ctx, old_key);
+            ecs_entity_t old_asset = flecsEngine_cylinder_findAsset(ctx, old_key);
             if (old_asset) {
                 ecs_remove_pair(world, it->entities[i], EcsIsA, old_asset);
             }
         }
 
-        ecs_entity_t asset = flecsGeometry3_getCylinderAsset(
+        ecs_entity_t asset = flecsEngine_cylinder_getAsset(
             world, new[i].segments, new[i].smooth, new[i].length);
         ecs_add_pair(world, it->entities[i], EcsIsA, asset);
     }

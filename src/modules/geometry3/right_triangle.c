@@ -1,6 +1,6 @@
 #include "geometry3.h"
 
-static void flecsGeometry3_generateRightTriangleMesh(
+static void flecsEngine_rightTriangle_generateMesh(
     FlecsMesh3 *mesh)
 {
     const float half = 0.5f;
@@ -23,7 +23,7 @@ static void flecsGeometry3_generateRightTriangleMesh(
     idx[2] = 2;
 }
 
-const FlecsMesh3Impl* flecsGeometry3_getRightTriangleAsset(
+const FlecsMesh3Impl* flecsEngine_rightTriangle_getAsset(
     ecs_world_t *world)
 {
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
@@ -32,10 +32,10 @@ const FlecsMesh3Impl* flecsGeometry3_getRightTriangleAsset(
     }
 
     ctx->unit_right_triangle_asset =
-        flecsGeometry3_createAsset(world, ctx, "RightTriangle");
+        flecsEngine_geometry3_createAsset(world, ctx, "RightTriangle");
 
     FlecsMesh3 *mesh = ecs_ensure(world, ctx->unit_right_triangle_asset, FlecsMesh3);
-    flecsGeometry3_generateRightTriangleMesh(mesh);
+    flecsEngine_rightTriangle_generateMesh(mesh);
     ecs_modified(world, ctx->unit_right_triangle_asset, FlecsMesh3);
 
 done:

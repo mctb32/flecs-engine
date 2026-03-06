@@ -29,7 +29,7 @@ ECS_DTOR(FlecsRenderView, ptr, {
     ecs_vec_fini_t(NULL, &ptr->effects, ecs_entity_t);
 })
 
-static void flecsEngineReleaseViewTargets(
+static void flecsEngine_renderView_releaseTargets(
     FlecsRenderViewImpl *impl)
 {
     if (!impl) {
@@ -63,16 +63,16 @@ static void flecsEngineReleaseViewTargets(
 }
 
 ECS_MOVE(FlecsRenderViewImpl, dst, src, {
-    flecsEngineReleaseViewTargets(dst);
+    flecsEngine_renderView_releaseTargets(dst);
     *dst = *src;
     ecs_os_memset_t(src, 0, FlecsRenderViewImpl);
 })
 
 ECS_DTOR(FlecsRenderViewImpl, ptr, {
-    flecsEngineReleaseViewTargets(ptr);
+    flecsEngine_renderView_releaseTargets(ptr);
 })
 
-static bool flecsEngineCreateViewTargets(
+static bool flecsEngine_renderView_createTargets(
     FlecsEngineImpl *engine,
     FlecsRenderViewImpl *impl,
     int32_t effect_count,
@@ -121,17 +121,17 @@ static bool flecsEngineCreateViewTargets(
 
     return true;
 error:
-    flecsEngineReleaseViewTargets(impl);
+    flecsEngine_renderView_releaseTargets(impl);
     return false;
 }
 
-static int flecsEngineEnsureViewTargets(
+static int flecsEngine_renderView_ensureTargets(
     FlecsEngineImpl *engine,
     FlecsRenderViewImpl *impl,
     int32_t effect_count)
 {
     if (effect_count <= 0) {
-        goto error;
+        return 0;
     }
 
     uint32_t width = (uint32_t)engine->width;
@@ -153,16 +153,17 @@ static int flecsEngineEnsureViewTargets(
         }
     }
 
-    flecsEngineReleaseViewTargets(impl);
+    flecsEngine_renderView_releaseTargets(impl);
 
-    if (flecsEngineCreateViewTargets(
+    if (flecsEngine_renderView_createTargets(
         engine, impl, effect_count, desired_format))
     {
-        goto error;
+        return 0;
     }
 
     if (desired_format != surface_format &&
-        flecsEngineCreateViewTargets(engine, impl, effect_count, surface_format))
+        flecsEngine_renderView_createTargets(
+            engine, impl, effect_count, surface_format))
     {
         engine->hdr_color_format = surface_format;
         ecs_warn("falling back to LDR targets: HDR format unavailable");
@@ -174,7 +175,7 @@ error:
     return -1;
 }
 
-static void flecsEngineRenderView(
+static void flecsEngine_renderView_render(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
     ecs_entity_t view_entity,
@@ -185,19 +186,21 @@ static void flecsEngineRenderView(
 {
     engine->last_pipeline = NULL;
 
-    if (flecsEngineEnsureViewTargets(engine, impl, ecs_vec_count(&view->effects))) {
+    if (flecsEngine_renderView_ensureTargets(
+        engine, impl, ecs_vec_count(&view->effects))) 
+    {
         ecs_err("failed to allocate effect render targets");
         return;
     }
 
-    flecsEngineRenderView_renderBatches(
+    flecsEngine_renderView_renderBatches(
         world, view_entity, engine, view, impl, view_texture, encoder);
 
-    flecsEngineRenderView_renderEffects(
+    flecsEngine_renderView_renderEffects(
         world, view_entity, engine, view, impl, view_texture, encoder);
 }
 
-void flecsEngineRenderViews(
+void flecsEngine_renderView_renderAll(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
     WGPUTextureView view_texture,
@@ -208,7 +211,7 @@ void flecsEngineRenderViews(
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
         FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
         for (int32_t i = 0; i < it.count; i ++) {
-            flecsEngineRenderView(world, engine, it.entities[i], 
+            flecsEngine_renderView_render(world, engine, it.entities[i], 
                 &views[i], &viewImpls[i],
                 encoder, view_texture);
         }

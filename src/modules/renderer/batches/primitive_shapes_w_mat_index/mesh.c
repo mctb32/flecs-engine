@@ -178,7 +178,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_matIndex(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngineShader_pbrColoredMaterialIndex(world);
+    ecs_entity_t shader = flecsEngine_shader_pbrColoredMaterialIndex(world);
 
     ecs_query_t *q = ecs_query(world, {
         .entity = batch,

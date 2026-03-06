@@ -3,11 +3,11 @@
 
 #include "../renderer.h"
 
-bool flecsIblCreateRuntimeBindGroup(
+bool flecsEngine_ibl_createRuntimeBindGroup(
     const FlecsEngineImpl *engine,
     FlecHdriImpl *ibl);
 
-void flecsIblReleaseRuntimeResources(
+void flecsEngie_ibl_releaseRuntimeResources(
     FlecHdriImpl *ibl);
 
 #endif

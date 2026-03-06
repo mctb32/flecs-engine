@@ -13,7 +13,7 @@ static flecs_engine_quads_ctx_t* flecsEngine_quads_createCtx(
 {
     flecs_engine_quads_ctx_t *result =
         ecs_os_calloc_t(flecs_engine_quads_ctx_t);
-    flecsEngine_batch_init(&result->batch, flecsGeometry3_getQuadAsset(world));
+    flecsEngine_batch_init(&result->batch, flecsEngine_quad_getAsset(world));
     return result;
 }
 
@@ -88,7 +88,7 @@ ecs_entity_t flecsEngine_createBatch_quads_matIndex(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngineShader_pbrColoredMaterialIndex(world);
+    ecs_entity_t shader = flecsEngine_shader_pbrColoredMaterialIndex(world);
 
     ecs_query_t *q = ecs_query(world, {
         .entity = batch,

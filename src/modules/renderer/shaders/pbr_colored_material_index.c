@@ -84,7 +84,7 @@ static const char *kShaderSource =
     "  return vec4<f32>(lit_color, color.a);\n"
     "}\n";
 
-ecs_entity_t flecsEngineShader_pbrColoredMaterialIndex(
+ecs_entity_t flecsEngine_shader_pbrColoredMaterialIndex(
     ecs_world_t *world)
 {
     return flecsEngine_shader_ensure(world, "PbrColoredMaterialIndexShader",

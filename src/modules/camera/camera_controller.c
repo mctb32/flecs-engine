@@ -1,6 +1,6 @@
 #include <math.h>
 
-#include "../../types.h"
+#include "../../private.h"
 
 #define CAMERA_DECELERATION 100.0
 #define CAMERA_ANGULAR_DECELERATION 5.0

@@ -18,7 +18,7 @@ ECS_MOVE(FlecsRenderEffect, dst, src, {
     ecs_os_zeromem(src);
 })
 
-static void flecsRenderEffectImplRelease(
+static void flecsEngine_renderEffect_release(
     FlecsRenderEffectImpl *ptr)
 {
     if (ptr->input_sampler) {
@@ -43,16 +43,16 @@ static void flecsRenderEffectImplRelease(
 }
 
 ECS_DTOR(FlecsRenderEffectImpl, ptr, {
-    flecsRenderEffectImplRelease(ptr);
+    flecsEngine_renderEffect_release(ptr);
 })
 
 ECS_MOVE(FlecsRenderEffectImpl, dst, src, {
-    flecsRenderEffectImplRelease(dst);
+    flecsEngine_renderEffect_release(dst);
     *dst = *src;
     ecs_os_zeromem(src);
 })
 
-static bool flecsRenderEffectCreateInputSampler(
+static bool flecsRender_renderEffect_createInputSampler(
     const FlecsEngineImpl *engine,
     FlecsRenderEffectImpl *impl)
 {
@@ -72,13 +72,13 @@ static bool flecsRenderEffectCreateInputSampler(
     return impl->input_sampler != NULL;
 }
 
-static WGPURenderPassEncoder flecsEngineBeginEffectPass(
+static WGPURenderPassEncoder flecsEngine_renderEffect_beginPass(
     const FlecsEngineImpl *impl,
     WGPUCommandEncoder encoder,
     WGPUTextureView color_view,
     WGPULoadOp color_load_op)
 {
-    WGPUColor clear_color = flecsEngineGetClearColor(impl);
+    WGPUColor clear_color = flecsEngine_getClearColor(impl);
 
     WGPURenderPassColorAttachment color_attachment = {
         .view = color_view,
@@ -96,7 +96,7 @@ static WGPURenderPassEncoder flecsEngineBeginEffectPass(
     return wgpuCommandEncoderBeginRenderPass(encoder, &pass_desc);
 }
 
-void flecsEngineRenderEffect(
+void flecsEngine_renderEffect_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
@@ -152,7 +152,7 @@ void flecsEngineRenderEffect(
     wgpuBindGroupRelease(bind_group);
 }
 
-void flecsEngineRenderView_renderEffects(
+void flecsEngine_renderView_renderEffects(
     ecs_world_t *world,
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
@@ -211,13 +211,13 @@ void flecsEngineRenderView_renderEffects(
             continue;
         }
 
-        WGPURenderPassEncoder effect_pass = flecsEngineBeginEffectPass(
+        WGPURenderPassEncoder effect_pass = flecsEngine_renderEffect_beginPass(
             engine,
             encoder,
             output_view,
             load_op);
 
-        flecsEngineRenderEffect(
+        flecsEngine_renderEffect_render(
             world,
             engine,
             effect_pass,
@@ -232,7 +232,7 @@ void flecsEngineRenderView_renderEffects(
     }
 }
 
-static WGPURenderPipeline flecsCreateRenderEffectPipeline(
+static WGPURenderPipeline flecsEngine_renderEffect_createPipeline(
     const FlecsEngineImpl *engine,
     const FlecsShader *shader,
     const FlecsShaderImpl *shader_impl,
@@ -337,8 +337,8 @@ static void FlecsRenderEffect_on_set(
             continue;
         }
 
-        if (!flecsRenderEffectCreateInputSampler(engine, &impl)) {
-            flecsRenderEffectImplRelease(&impl);
+        if (!flecsRender_renderEffect_createInputSampler(engine, &impl)) {
+            flecsEngine_renderEffect_release(&impl);
             continue;
         }
 
@@ -373,7 +373,7 @@ static void FlecsRenderEffect_on_set(
                 layout_entries,
                 &layout_entry_count))
             {
-                flecsRenderEffectImplRelease(&impl);
+                flecsEngine_renderEffect_release(&impl);
                 continue;
             }
         }
@@ -384,7 +384,7 @@ static void FlecsRenderEffect_on_set(
                 "render effect %s has custom setup bindings but no bind callback",
                 effect_name);
             ecs_os_free(effect_name);
-            flecsRenderEffectImplRelease(&impl);
+            flecsEngine_renderEffect_release(&impl);
             continue;
         }
 
@@ -399,18 +399,18 @@ static void FlecsRenderEffect_on_set(
         impl.bind_layout = wgpuDeviceCreateBindGroupLayout(
             engine->device, &bind_layout_desc);
         if (!impl.bind_layout) {
-            flecsRenderEffectImplRelease(&impl);
+            flecsEngine_renderEffect_release(&impl);
             continue;
         }
 
-        impl.pipeline_surface = flecsCreateRenderEffectPipeline(
+        impl.pipeline_surface = flecsEngine_renderEffect_createPipeline(
             engine,
             shader,
             shader_impl,
             impl.bind_layout,
             engine->surface_config.format);
         if (!impl.pipeline_surface) {
-            flecsRenderEffectImplRelease(&impl);
+            flecsEngine_renderEffect_release(&impl);
             continue;
         }
 
@@ -419,14 +419,14 @@ static void FlecsRenderEffect_on_set(
             hdr_format = engine->surface_config.format;
         }
 
-        impl.pipeline_hdr = flecsCreateRenderEffectPipeline(
+        impl.pipeline_hdr = flecsEngine_renderEffect_createPipeline(
             engine,
             shader,
             shader_impl,
             impl.bind_layout,
             hdr_format);
         if (!impl.pipeline_hdr) {
-            flecsRenderEffectImplRelease(&impl);
+            flecsEngine_renderEffect_release(&impl);
             continue;
         }
 

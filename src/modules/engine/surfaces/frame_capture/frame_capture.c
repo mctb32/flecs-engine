@@ -7,19 +7,12 @@ ECS_COMPONENT_DECLARE(FlecsFrameOutput);
 
 static const uint32_t kFrameOutputRowPitchAlignment = 256;
 
-static uint32_t flecsEngineAlignTo(
-    uint32_t value,
-    uint32_t alignment)
-{
-    return (value + alignment - 1u) & ~(alignment - 1u);
-}
-
 typedef struct {
     bool done;
     WGPUMapAsyncStatus status;
 } FlecsEngineBufferMapState;
 
-static void flecsEngineProcessEventsUntilDone(
+static void flecsEngine_frameCapture_processEventsUntilDone(
     WGPUInstance instance,
     bool *done)
 {
@@ -28,7 +21,7 @@ static void flecsEngineProcessEventsUntilDone(
     }
 }
 
-static void flecsEngineOnBufferMap(
+static void flecsEngine_frameCapture_onBufferMap(
     WGPUMapAsyncStatus status,
     WGPUStringView message,
     void *userdata1,
@@ -50,7 +43,7 @@ static void flecsEngineOnBufferMap(
     }
 }
 
-static int flecsEngineWriteFramePpm(
+static int flecsEngine_frameCapture_writeFrame(
     const FlecsEngineImpl *impl,
     const uint8_t *rgba,
     uint32_t bytes_per_row)
@@ -85,7 +78,7 @@ static int flecsEngineWriteFramePpm(
     return 0;
 }
 
-static void flecsEngineFrameCaptureDestroyResources(
+static void flecsEngine_frameCapture_destroyResources(
     FlecsEngineImpl *impl)
 {
     if (impl->frame_output_texture_view) {
@@ -99,12 +92,12 @@ static void flecsEngineFrameCaptureDestroyResources(
     }
 }
 
-static int flecsEngineFrameCaptureCreateResources(
+static int flecsEngine_frameCapture_createResources(
     FlecsEngineImpl *impl,
     uint32_t width,
     uint32_t height)
 {
-    flecsEngineFrameCaptureDestroyResources(impl);
+    flecsEngine_frameCapture_destroyResources(impl);
 
     WGPUTextureDescriptor color_desc = {
         .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
@@ -138,7 +131,7 @@ static int flecsEngineFrameCaptureCreateResources(
     return 0;
 }
 
-static int flecsEngineFrameCaptureWriteImage(
+static int flecsEngine_frameCapture_writeImage(
     FlecsEngineImpl *impl,
     const FlecsEngineSurface *target)
 {
@@ -149,7 +142,7 @@ static int flecsEngineFrameCaptureWriteImage(
 
     WGPUBufferMapCallbackInfo callback = {
         .mode = WGPUCallbackMode_AllowProcessEvents,
-        .callback = flecsEngineOnBufferMap,
+        .callback = flecsEngine_frameCapture_onBufferMap,
         .userdata1 = &map_state,
         .userdata2 = NULL
     };
@@ -161,7 +154,7 @@ static int flecsEngineFrameCaptureWriteImage(
         (size_t)target->readback_buffer_size,
         callback);
 
-    flecsEngineProcessEventsUntilDone(impl->instance, &map_state.done);
+    flecsEngine_frameCapture_processEventsUntilDone(impl->instance, &map_state.done);
     if (map_state.status != WGPUMapAsyncStatus_Success) {
         return -1;
     }
@@ -174,7 +167,7 @@ static int flecsEngineFrameCaptureWriteImage(
         return -1;
     }
 
-    int result = flecsEngineWriteFramePpm(
+    int result = flecsEngine_frameCapture_writeFrame(
         impl,
         mapped,
         target->readback_bytes_per_row);
@@ -183,7 +176,7 @@ static int flecsEngineFrameCaptureWriteImage(
     return result;
 }
 
-static int flecsEngineFrameCaptureInitInstance(
+static int flecsEngine_frameCapture_initInstance(
     FlecsEngineImpl *impl,
     const void *config)
 {
@@ -203,7 +196,7 @@ static int flecsEngineFrameCaptureInitInstance(
     return 0;
 }
 
-static int flecsEngineFrameCaptureConfigureTarget(
+static int flecsEngine_frameCapture_configureTarget(
     FlecsEngineImpl *impl)
 {
     impl->surface_config = (WGPUSurfaceConfiguration){
@@ -214,7 +207,7 @@ static int flecsEngineFrameCaptureConfigureTarget(
         .height = (uint32_t)impl->height
     };
 
-    if (flecsEngineFrameCaptureCreateResources(
+    if (flecsEngine_frameCapture_createResources(
         impl,
         (uint32_t)impl->width,
         (uint32_t)impl->height))
@@ -225,7 +218,7 @@ static int flecsEngineFrameCaptureConfigureTarget(
     return 0;
 }
 
-static int flecsEngineFrameCapturePrepareFrame(
+static int flecsEngine_frameCapture_prepareFrame(
     ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
@@ -237,7 +230,7 @@ static int flecsEngineFrameCapturePrepareFrame(
     return 0;
 }
 
-static int flecsEngineFrameCaptureAcquireFrame(
+static int flecsEngine_frameCapture_acquireFrame(
     FlecsEngineImpl *impl,
     FlecsEngineSurface *target)
 {
@@ -257,12 +250,12 @@ static int flecsEngineFrameCaptureAcquireFrame(
     return 0;
 }
 
-static int flecsEngineFrameCaptureEncodeFrame(
+static int flecsEngine_frameCapture_encodeFrame(
     FlecsEngineImpl *impl,
     WGPUCommandEncoder encoder,
     FlecsEngineSurface *target)
 {
-    uint32_t bytes_per_row = flecsEngineAlignTo(
+    uint32_t bytes_per_row = ECS_ALIGN(
         (uint32_t)impl->width * 4u,
         kFrameOutputRowPitchAlignment);
     uint64_t buffer_size = (uint64_t)bytes_per_row * (uint64_t)impl->height;
@@ -313,18 +306,18 @@ static int flecsEngineFrameCaptureEncodeFrame(
     return 0;
 }
 
-static int flecsEngineFrameCaptureSubmitFrame(
+static int flecsEngine_frameCapture_submitFrame(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
     const FlecsEngineSurface *target)
 {
-    int result = flecsEngineFrameCaptureWriteImage(impl, target);
+    int result = flecsEngine_frameCapture_writeImage(impl, target);
     impl->output_done = true;
     ecs_quit(world);
     return result;
 }
 
-static void flecsEngineFrameCaptureOnFrameFailed(
+static void flecsEngine_frameCapture_onFrameFailed(
     ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
@@ -332,23 +325,23 @@ static void flecsEngineFrameCaptureOnFrameFailed(
     ecs_quit(world);
 }
 
-static void flecsEngineFrameCaptureCleanup(
+static void flecsEngine_frameCapture_cleanup(
     FlecsEngineImpl *impl,
     bool terminate_runtime)
 {
     (void)terminate_runtime;
-    flecsEngineFrameCaptureDestroyResources(impl);
+    flecsEngine_frameCapture_destroyResources(impl);
 }
 
 const FlecsEngineSurfaceInterface flecsEngineFrameCaptureOutputOps = {
-    .init_instance = flecsEngineFrameCaptureInitInstance,
-    .configure_target = flecsEngineFrameCaptureConfigureTarget,
-    .prepare_frame = flecsEngineFrameCapturePrepareFrame,
-    .acquire_frame = flecsEngineFrameCaptureAcquireFrame,
-    .encode_frame = flecsEngineFrameCaptureEncodeFrame,
-    .submit_frame = flecsEngineFrameCaptureSubmitFrame,
-    .on_frame_failed = flecsEngineFrameCaptureOnFrameFailed,
-    .cleanup = flecsEngineFrameCaptureCleanup
+    .init_instance = flecsEngine_frameCapture_initInstance,
+    .configure_target = flecsEngine_frameCapture_configureTarget,
+    .prepare_frame = flecsEngine_frameCapture_prepareFrame,
+    .acquire_frame = flecsEngine_frameCapture_acquireFrame,
+    .encode_frame = flecsEngine_frameCapture_encodeFrame,
+    .submit_frame = flecsEngine_frameCapture_submitFrame,
+    .on_frame_failed = flecsEngine_frameCapture_onFrameFailed,
+    .cleanup = flecsEngine_frameCapture_cleanup
 };
 
 static void FlecsFrameOutputOnSet(
@@ -372,7 +365,7 @@ static void FlecsFrameOutputOnSet(
             .clear_color = outputs[i].clear_color
         };
 
-        if (flecsEngineInit(it->world, &output_desc)) {
+        if (flecsEngine_init(it->world, &output_desc)) {
             ecs_err("Failed to initialize engine frame-output mode\n");
             ecs_quit(it->world);
         }

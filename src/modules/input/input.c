@@ -4,7 +4,7 @@
 ECS_COMPONENT_DECLARE(FlecsInput);
 ECS_COMPONENT_DECLARE(FlecsEngineImpl);
 
-static int flecsEngineInputKeyCode(
+static int flecsEngine_input_keyCode(
     int glfw_key)
 {
     switch (glfw_key) {
@@ -81,7 +81,7 @@ static int flecsEngineInputKeyCode(
     }
 }
 
-static flecs_engine_key_state_t* flecsEngineInputKeyGet(
+static flecs_engine_key_state_t* flecsEngine_input_keyGet(
     FlecsInput *input,
     int key_code)
 {
@@ -92,7 +92,7 @@ static flecs_engine_key_state_t* flecsEngineInputKeyGet(
     return &input->keys[key_code];
 }
 
-static void flecsEngineInputKeyDown(
+static void flecsEngine_input_keyDown(
     flecs_engine_key_state_t *key)
 {
     if (!key) {
@@ -109,7 +109,7 @@ static void flecsEngineInputKeyDown(
     key->current = true;
 }
 
-static void flecsEngineInputKeyUp(
+static void flecsEngine_input_keyUp(
     flecs_engine_key_state_t *key)
 {
     if (!key) {
@@ -119,7 +119,7 @@ static void flecsEngineInputKeyUp(
     key->current = false;
 }
 
-static void flecsEngineInputKeyReset(
+static void flecsEngine_input_keyReset(
     flecs_engine_key_state_t *state)
 {
     if (!state->current) {
@@ -130,31 +130,31 @@ static void flecsEngineInputKeyReset(
     }
 }
 
-static void flecsEngineInputKeysReset(
+static void flecsEngine_input_keysReset(
     FlecsInput *input)
 {
     int32_t key_count = (int32_t)(sizeof(input->keys) / sizeof(input->keys[0]));
     for (int32_t k = 0; k < key_count; k ++) {
-        flecsEngineInputKeyReset(&input->keys[k]);
+        flecsEngine_input_keyReset(&input->keys[k]);
     }
 }
 
-static void flecsEngineInputMouseButtonReset(
+static void flecsEngine_input_mouseButtonReset(
     flecs_engine_key_state_t *mouse)
 {
-    flecsEngineInputKeyReset(mouse);
+    flecsEngine_input_keyReset(mouse);
 }
 
-static void flecsEngineInputMouseReset(
+static void flecsEngine_input_mouseReset(
     FlecsInput *input)
 {
-    flecsEngineInputMouseButtonReset(&input->mouse.left);
-    flecsEngineInputMouseButtonReset(&input->mouse.right);
+    flecsEngine_input_mouseButtonReset(&input->mouse.left);
+    flecsEngine_input_mouseButtonReset(&input->mouse.right);
     input->mouse.rel = (flecs_engine_mouse_coord_t){0};
     input->mouse.scroll = (flecs_engine_mouse_coord_t){0};
 }
 
-static void flecsEngineInputOnKey(
+static void flecsEngine_input_onKey(
     GLFWwindow *window,
     int key,
     int scancode,
@@ -174,17 +174,17 @@ static void flecsEngineInputOnKey(
         return;
     }
 
-    flecs_engine_key_state_t *state = flecsEngineInputKeyGet(
-        input, flecsEngineInputKeyCode(key));
+    flecs_engine_key_state_t *state = flecsEngine_input_keyGet(
+        input, flecsEngine_input_keyCode(key));
 
     if (action == GLFW_RELEASE) {
-        flecsEngineInputKeyUp(state);
+        flecsEngine_input_keyUp(state);
     } else if (action == GLFW_PRESS || action == GLFW_REPEAT) {
-        flecsEngineInputKeyDown(state);
+        flecsEngine_input_keyDown(state);
     }
 }
 
-static void flecsEngineInputOnMouseButton(
+static void flecsEngine_input_onMouseButton(
     GLFWwindow *window,
     int button,
     int action,
@@ -214,13 +214,13 @@ static void flecsEngineInputOnMouseButton(
     }
 
     if (action == GLFW_RELEASE) {
-        flecsEngineInputKeyUp(state);
+        flecsEngine_input_keyUp(state);
     } else if (action == GLFW_PRESS) {
-        flecsEngineInputKeyDown(state);
+        flecsEngine_input_keyDown(state);
     }
 }
 
-static void flecsEngineInputOnScroll(
+static void flecsEngine_input_onScroll(
     GLFWwindow *window,
     double xoffset,
     double yoffset)
@@ -239,7 +239,7 @@ static void flecsEngineInputOnScroll(
     input->mouse.scroll.y += (float)yoffset;
 }
 
-static void flecsEngineInputBindWindow(
+static void flecsEngine_input_bindWindow(
     ecs_world_t *world,
     GLFWwindow *window)
 {
@@ -248,9 +248,9 @@ static void flecsEngineInputBindWindow(
     }
 
     glfwSetWindowUserPointer(window, world);
-    glfwSetKeyCallback(window, flecsEngineInputOnKey);
-    glfwSetMouseButtonCallback(window, flecsEngineInputOnMouseButton);
-    glfwSetScrollCallback(window, flecsEngineInputOnScroll);
+    glfwSetKeyCallback(window, flecsEngine_input_onKey);
+    glfwSetMouseButtonCallback(window, flecsEngine_input_onMouseButton);
+    glfwSetScrollCallback(window, flecsEngine_input_onScroll);
 }
 
 static void FlecsReadInputs(
@@ -261,15 +261,15 @@ static void FlecsReadInputs(
         return;
     }
 
-    flecsEngineInputBindWindow(it->world, engine->window);
+    flecsEngine_input_bindWindow(it->world, engine->window);
 
     FlecsInput *input = ecs_singleton_ensure(it->world, FlecsInput);
 
     float prev_x = input->mouse.wnd.x;
     float prev_y = input->mouse.wnd.y;
 
-    flecsEngineInputKeysReset(input);
-    flecsEngineInputMouseReset(input);
+    flecsEngine_input_keysReset(input);
+    flecsEngine_input_mouseReset(input);
 
     glfwPollEvents();
 

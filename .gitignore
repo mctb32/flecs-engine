@@ -1,5 +1,5 @@
 .DS_Store
 build
-build-asan
-build-release
+build-*
+.vscode
 _deps

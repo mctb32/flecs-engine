@@ -15,7 +15,7 @@ static flecs_engine_skybox_ctx_t* flecsEngine_skybox_createCtx(
 {
     flecs_engine_skybox_ctx_t *result =
         ecs_os_calloc_t(flecs_engine_skybox_ctx_t);
-    flecsEngine_batch_init(&result->batch, flecsGeometry3_getQuadAsset(world));
+    flecsEngine_batch_init(&result->batch, flecsEngine_quad_getAsset(world));
     glm_mat4_identity(result->transform.m);
     result->color = (FlecsRgba){255, 255, 255, 255};
     return result;
@@ -80,7 +80,7 @@ ecs_entity_t flecsEngine_createBatch_skybox(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngineShader_skybox(world);
+    ecs_entity_t shader = flecsEngine_shader_skybox(world);
 
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,

@@ -857,7 +857,7 @@ static bool flecsRenderEffect_bloom_renderPassthrough(
         return false;
     }
 
-    flecsEngineRenderEffect(
+    flecsEngine_renderEffect_render(
         world,
         engine,
         pass,

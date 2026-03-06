@@ -19,7 +19,7 @@ ECS_COMPONENT_DECLARE(flecs_rgba_t);
 
 ECS_COMPONENT_DECLARE(FlecsEngineImpl);
 
-static void flecsEngineWaitForFuture(
+static void flecsEngine_waitForFuture(
     WGPUInstance instance,
     WGPUFuture future,
     bool *done)
@@ -31,7 +31,7 @@ static void flecsEngineWaitForFuture(
     }
 }
 
-static void flecsEngineOnRequestAdapter(
+static void flecsEngine_onRequestAdapter(
     WGPURequestAdapterStatus status,
     WGPUAdapter adapter,
     WGPUStringView message,
@@ -55,7 +55,7 @@ static void flecsEngineOnRequestAdapter(
     *future_cond = true;
 }
 
-static void flecsEngineOnRequestDevice(
+static void flecsEngine_onRequestDevice(
     WGPURequestDeviceStatus status,
     WGPUDevice device,
     WGPUStringView message,
@@ -79,19 +79,7 @@ static void flecsEngineOnRequestDevice(
     *future_cond = true;
 }
 
-static bool FlecsEngineSurfaceInterfaceValid(
-    const FlecsEngineSurfaceInterface *ops)
-{
-    return ops != NULL &&
-        ops->prepare_frame != NULL &&
-        ops->acquire_frame != NULL &&
-        ops->encode_frame != NULL &&
-        ops->submit_frame != NULL &&
-        ops->on_frame_failed != NULL &&
-        ops->cleanup != NULL;
-}
-
-static void flecsEngineCleanup(
+static void flecsEngine_cleanup(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
     bool terminate_runtime)
@@ -103,11 +91,10 @@ static void flecsEngineCleanup(
 
     impl->fallback_hdri = 0;
 
-    flecsEngineReleaseMaterialBuffer(impl);
+    flecsEngine_material_releaseBuffer(impl);
 
-    if (impl->surface_impl) {
-        impl->surface_impl->cleanup(impl, terminate_runtime);
-    }
+    flecsEngine_surfaceInterface_cleanup(
+        impl->surface_impl, impl, terminate_runtime);
 
     ecs_delete_with(world, ecs_id(FlecsRenderView));
     ecs_delete_with(world, ecs_id(FlecsRenderBatch));
@@ -153,11 +140,11 @@ static void flecsEngineCleanup(
     flecsEngine_defaultAttrCache_free(impl->default_attr_cache);
 }
 
-int flecsEngineInit(
+int flecsEngine_init(
     ecs_world_t *world,
     const FlecsEngineOutputDesc *output)
 {
-    if (!output || !FlecsEngineSurfaceInterfaceValid(output->ops)) {
+    if (!output || !flecsEngine_surfaceInterface_isValid(output->ops)) {
         ecs_err("Invalid engine output backend\n");
         return -1;
     }
@@ -191,8 +178,8 @@ int flecsEngineInit(
         goto error;
     }
 
-    if (impl.surface_impl->init_instance &&
-        impl.surface_impl->init_instance(&impl, output->config))
+    if (flecsEngine_surfaceInterface_initInstance(
+        impl.surface_impl, &impl, output->config))
     {
         goto error;
     }
@@ -205,7 +192,7 @@ int flecsEngineInit(
 
     WGPURequestAdapterCallbackInfo adapter_callback = {
         .mode = WGPUCallbackMode_WaitAnyOnly,
-        .callback = flecsEngineOnRequestAdapter,
+        .callback = flecsEngine_onRequestAdapter,
         .userdata1 = &impl.adapter,
         .userdata2 = &future_cond
     };
@@ -213,7 +200,7 @@ int flecsEngineInit(
     WGPUFuture adapter_future = wgpuInstanceRequestAdapter(
         impl.instance, &adapter_options, adapter_callback);
 
-    flecsEngineWaitForFuture(impl.instance, adapter_future, &future_cond);
+    flecsEngine_waitForFuture(impl.instance, adapter_future, &future_cond);
     if (!impl.adapter) {
         goto error;
     }
@@ -224,7 +211,7 @@ int flecsEngineInit(
 
     WGPURequestDeviceCallbackInfo device_callback = {
         .mode = WGPUCallbackMode_WaitAnyOnly,
-        .callback = flecsEngineOnRequestDevice,
+        .callback = flecsEngine_onRequestDevice,
         .userdata1 = &impl.device,
         .userdata2 = &future_cond
     };
@@ -232,15 +219,15 @@ int flecsEngineInit(
     WGPUFuture device_future = wgpuAdapterRequestDevice(
         impl.adapter, &device_desc, device_callback);
 
-    flecsEngineWaitForFuture(impl.instance, device_future, &future_cond);
+    flecsEngine_waitForFuture(impl.instance, device_future, &future_cond);
     if (!impl.device) {
         goto error;
     }
 
     impl.queue = wgpuDeviceGetQueue(impl.device);
 
-    if (impl.surface_impl->configure_target &&
-        impl.surface_impl->configure_target(&impl))
+    if (flecsEngine_surfaceInterface_configureTarget(
+        impl.surface_impl, &impl))
     {
         goto error;
     }
@@ -254,15 +241,15 @@ int flecsEngineInit(
     return 0;
 
 error:
-    flecsEngineCleanup(world, &impl, false);
+    flecsEngine_cleanup(world, &impl, false);
     return -1;
 }
 
-static void FlecsEngineDestroy(
+static void flecsEngine_destroy(
     ecs_iter_t *it)
 {
     FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
-    flecsEngineCleanup(it->world, impl, true);
+    flecsEngine_cleanup(it->world, impl, true);
 }
 
 void FlecsEngineImport(
@@ -312,7 +299,7 @@ void FlecsEngineImport(
     ECS_COMPONENT_DEFINE(world, FlecsEngineImpl);
 
     ecs_set_hooks(world, FlecsEngineImpl, {
-        .on_remove = FlecsEngineDestroy
+        .on_remove = flecsEngine_destroy
     });
 
     ECS_IMPORT(world, FlecsEngineWindow);

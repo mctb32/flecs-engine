@@ -5,7 +5,7 @@ ECS_COMPONENT_DECLARE(FlecsWindow);
 
 static bool flecs_engine_glfw_initialized = false;
 
-static int flecsEngineWindowInitInstance(
+static int flecsEngine_window_initInstance(
     FlecsEngineImpl *impl,
     const void *config)
 {
@@ -40,7 +40,7 @@ static int flecsEngineWindowInitInstance(
     return 0;
 }
 
-static int flecsEngineWindowConfigureTarget(
+static int flecsEngine_window_configureTarget(
     FlecsEngineImpl *impl)
 {
     WGPUSurfaceCapabilities surface_caps = {0};
@@ -76,7 +76,7 @@ static int flecsEngineWindowConfigureTarget(
     return 0;
 }
 
-static int flecsEngineWindowPrepareFrame(
+static int flecsEngine_window_prepareFrame(
     ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
@@ -100,7 +100,7 @@ static int flecsEngineWindowPrepareFrame(
     return 0;
 }
 
-static int flecsEngineWindowAcquireFrame(
+static int flecsEngine_window_acquireFrame(
     FlecsEngineImpl *impl,
     FlecsEngineSurface *target)
 {
@@ -142,7 +142,7 @@ static int flecsEngineWindowAcquireFrame(
     return 0;
 }
 
-static int flecsEngineWindowEncodeFrame(
+static int flecsEngine_window_encodeFrame(
     FlecsEngineImpl *impl,
     WGPUCommandEncoder encoder,
     FlecsEngineSurface *target)
@@ -153,7 +153,7 @@ static int flecsEngineWindowEncodeFrame(
     return 0;
 }
 
-static int flecsEngineWindowSubmitFrame(
+static int flecsEngine_window_submitFrame(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
     const FlecsEngineSurface *target)
@@ -165,7 +165,7 @@ static int flecsEngineWindowSubmitFrame(
     return 0;
 }
 
-static void flecsEngineWindowOnFrameFailed(
+static void flecsEngine_window_onFrameFailed(
     ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
@@ -173,7 +173,7 @@ static void flecsEngineWindowOnFrameFailed(
     (void)impl;
 }
 
-static void flecsEngineWindowCleanup(
+static void flecsEngine_window_cleanup(
     FlecsEngineImpl *impl,
     bool terminate_runtime)
 {
@@ -194,14 +194,14 @@ static void flecsEngineWindowCleanup(
 }
 
 const FlecsEngineSurfaceInterface flecsEngineWindowOutputOps = {
-    .init_instance = flecsEngineWindowInitInstance,
-    .configure_target = flecsEngineWindowConfigureTarget,
-    .prepare_frame = flecsEngineWindowPrepareFrame,
-    .acquire_frame = flecsEngineWindowAcquireFrame,
-    .encode_frame = flecsEngineWindowEncodeFrame,
-    .submit_frame = flecsEngineWindowSubmitFrame,
-    .on_frame_failed = flecsEngineWindowOnFrameFailed,
-    .cleanup = flecsEngineWindowCleanup
+    .init_instance = flecsEngine_window_initInstance,
+    .configure_target = flecsEngine_window_configureTarget,
+    .prepare_frame = flecsEngine_window_prepareFrame,
+    .acquire_frame = flecsEngine_window_acquireFrame,
+    .encode_frame = flecsEngine_window_encodeFrame,
+    .submit_frame = flecsEngine_window_submitFrame,
+    .on_frame_failed = flecsEngine_window_onFrameFailed,
+    .cleanup = flecsEngine_window_cleanup
 };
 
 static void FlecsOnWindowCreate(
@@ -252,7 +252,7 @@ static void FlecsOnWindowCreate(
         .clear_color = wnd->clear_color
     };
 
-    if (flecsEngineInit(it->world, &output_desc)) {
+    if (flecsEngine_init(it->world, &output_desc)) {
         goto error;
     }
 

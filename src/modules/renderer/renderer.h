@@ -1,4 +1,5 @@
-#include "../../types.h"
+#include "../../private.h"
+#include "shaders/shaders.h"
 
 #ifndef FLECS_ENGINE_RENDERER_IMPL
 #define FLECS_ENGINE_RENDERER_IMPL
@@ -111,53 +112,40 @@ ecs_entity_t flecsEngine_shader_ensure(
     const char *name,
     const FlecsShader *shader);
 
-void flecsEngineRenderViews(
+void flecsEngine_renderView_renderAll(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
     WGPUTextureView view_texture,
     WGPUCommandEncoder encoder);
 
-void flecsEngineUploadMaterialBuffer(
+void flecsEngine_material_uploadBuffer(
     const ecs_world_t *world,
     FlecsEngineImpl *impl);
 
-void flecsEngineReleaseMaterialBuffer(
+void flecsEngine_material_releaseBuffer(
     FlecsEngineImpl *impl);
 
-bool flecsEngineInitIblResources(
+bool flecsEngine_ibl_initResources(
     FlecsEngineImpl *engine,
     FlecHdriImpl *ibl,
     const char *hdri_path,
     uint32_t filter_sample_count,
     uint32_t lut_sample_count);
 
-WGPUBindGroupLayout flecsEngineEnsureIblBindLayout(
+WGPUBindGroupLayout flecsEngine_ibl_ensureBindLayout(
     FlecsEngineImpl *impl);
 
-void flecsEngineReleaseIblResources(
+void flecsEngine_ibl_releaseResources(
     FlecsEngineImpl *impl);
 
-void flecsEngineReleaseAllIblRuntimeResources(
-    ecs_world_t *world);
-
-void flecsEngineReleaseEffectTargets(
-    FlecsEngineImpl *impl);
-
-WGPUColor flecsEngineGetClearColor(
-    const FlecsEngineImpl *impl);
-
-void flecsEngineGetClearColorVec4(
-    const FlecsEngineImpl *impl,
-    float out[4]);
-
-void flecsEngineRenderBatch(
+void flecsEngine_renderBatch_render(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
     ecs_entity_t batch_entity);
 
-void flecsEngineRenderView_renderBatches(
+void flecsEngine_renderView_renderBatches(
     ecs_world_t *world,
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
@@ -166,7 +154,7 @@ void flecsEngineRenderView_renderBatches(
     WGPUTextureView view_texture,
     WGPUCommandEncoder encoder);
 
-void flecsEngineRenderEffect(
+void flecsEngine_renderEffect_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *impl,
     const WGPURenderPassEncoder pass,
@@ -176,7 +164,7 @@ void flecsEngineRenderEffect(
     WGPUTextureView input_view,
     WGPUTextureFormat output_format);
 
-void flecsEngineRenderView_renderEffects(
+void flecsEngine_renderView_renderEffects(
     ecs_world_t *world,
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
@@ -191,7 +179,6 @@ const FlecsShaderImpl* flecsEngine_shader_ensureImpl(
 
 FlecsDefaultAttrCache* flecsEngine_defaultAttrCache_create(void);
 
-// Instance attr cache for default values (if entity doesn't have component)
 void flecsEngine_defaultAttrCache_free(
     FlecsDefaultAttrCache *ptr);
 

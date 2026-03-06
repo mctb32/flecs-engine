@@ -8,17 +8,17 @@ typedef struct {
     flecsEngine_batch_t batch;
 } flecs_engine_right_triangle_prisms_ctx_t;
 
-static flecs_engine_right_triangle_prisms_ctx_t* flecsEngine_right_triangle_prisms_createCtx(
+static flecs_engine_right_triangle_prisms_ctx_t* flecsEngine_rightTriangle_prisms_createCtx(
     ecs_world_t *world)
 {
     flecs_engine_right_triangle_prisms_ctx_t *result =
         ecs_os_calloc_t(flecs_engine_right_triangle_prisms_ctx_t);
     flecsEngine_batch_init(
-        &result->batch, flecsGeometry3_getRightTrianglePrismAsset(world));
+        &result->batch, flecsEngine_rightTrianglePrism_getAsset(world));
     return result;
 }
 
-static void flecsEngine_right_triangle_prisms_deleteCtx(
+static void flecsEngine_rightTriangle_prisms_deleteCtx(
     void *arg)
 {
     flecs_engine_right_triangle_prisms_ctx_t *ctx = arg;
@@ -26,7 +26,7 @@ static void flecsEngine_right_triangle_prisms_deleteCtx(
     ecs_os_free(ctx);
 }
 
-static void flecsEngine_right_triangle_prisms_prepareInstances(
+static void flecsEngine_rightTriangle_prisms_prepareInstances(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch,
@@ -73,14 +73,14 @@ redo: {
     }
 }
 
-static void flecsEngine_right_triangle_prisms_callback(
+static void flecsEngine_rightTriangle_prisms_callback(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
     flecs_engine_right_triangle_prisms_ctx_t *ctx = batch->ctx;
-    flecsEngine_right_triangle_prisms_prepareInstances(world, engine, batch, ctx);
+    flecsEngine_rightTriangle_prisms_prepareInstances(world, engine, batch, ctx);
     flecsEngine_batch_drawMaterialIndex(pass, &ctx->batch);
 }
 
@@ -90,7 +90,7 @@ ecs_entity_t flecsEngine_createBatch_right_triangle_prisms_matIndex(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngineShader_pbrColoredMaterialIndex(world);
+    ecs_entity_t shader = flecsEngine_shader_pbrColoredMaterialIndex(world);
 
     ecs_query_t *q = ecs_query(world, {
         .entity = batch,
@@ -113,9 +113,9 @@ ecs_entity_t flecsEngine_createBatch_right_triangle_prisms_matIndex(
         .uniforms = {
             ecs_id(FlecsUniform)
         },
-        .callback = flecsEngine_right_triangle_prisms_callback,
-        .ctx = flecsEngine_right_triangle_prisms_createCtx((ecs_world_t*)world),
-        .free_ctx = flecsEngine_right_triangle_prisms_deleteCtx
+        .callback = flecsEngine_rightTriangle_prisms_callback,
+        .ctx = flecsEngine_rightTriangle_prisms_createCtx((ecs_world_t*)world),
+        .free_ctx = flecsEngine_rightTriangle_prisms_deleteCtx
     });
 
     return batch;

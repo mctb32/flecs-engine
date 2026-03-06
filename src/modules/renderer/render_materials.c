@@ -4,7 +4,7 @@
 #include "renderer.h"
 #include "flecs_engine.h"
 
-static void flecsEngineEnsureMaterialBufferCapacity(
+static void flecsEngine_material_ensureBufferCapacity(
     FlecsEngineImpl *impl,
     uint32_t required_count)
 {
@@ -54,7 +54,7 @@ static void flecsEngineEnsureMaterialBufferCapacity(
     impl->material_buffer_capacity = new_capacity;
 }
 
-void flecsEngineReleaseMaterialBuffer(
+void flecsEngine_material_releaseBuffer(
     FlecsEngineImpl *impl)
 {
     if (impl->material_buffer) {
@@ -69,7 +69,7 @@ void flecsEngineReleaseMaterialBuffer(
     impl->material_count = 0;
 }
 
-void flecsEngineUploadMaterialBuffer(
+void flecsEngine_material_uploadBuffer(
     const ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
@@ -122,7 +122,7 @@ redo: {
         }
 
         if (required_count > capacity) {
-            flecsEngineEnsureMaterialBufferCapacity(impl, required_count);
+            flecsEngine_material_ensureBufferCapacity(impl, required_count);
             goto redo;
         }
 

@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "../engine/engine.h"
 
 #define FLECS_ENGINE_RENDERER_IMPL
 #define FLECS_ENGINE_RENDERER_IMPL_IMPL
@@ -14,7 +15,7 @@ ECS_COMPONENT_DECLARE(FlecsEmissive);
 ECS_COMPONENT_DECLARE(FlecsMaterialId);
 ECS_COMPONENT_DECLARE(FlecsUniform);
 
-static void flecsEngineReleaseFrameTarget(
+static void flecsEngine_releaseFrameTarget(
     FlecsEngineSurface *target)
 {
     if (target->owns_view_texture && target->view_texture) {
@@ -38,7 +39,7 @@ static void flecsEngineReleaseFrameTarget(
     target->readback_buffer_size = 0;
 }
 
-static void flecsEngineCreateDepthResources(
+static void flecsEngine_createDepthResources(
     WGPUDevice device,
     uint32_t width,
     uint32_t height,
@@ -82,7 +83,7 @@ static void flecsEngineCreateDepthResources(
     }
 }
 
-static int flecsEngineEnsureDepthResources(
+static int flecsEngine_ensureDepthResources(
     FlecsEngineImpl *impl)
 {
     if (impl->width <= 0 || impl->height <= 0) {
@@ -100,7 +101,7 @@ static int flecsEngineEnsureDepthResources(
         return 0;
     }
 
-    flecsEngineCreateDepthResources(
+    flecsEngine_createDepthResources(
         impl->device,
         width,
         height,
@@ -123,7 +124,7 @@ int flecsEngine_initRenderer(
 {
     impl->hdr_color_format = WGPUTextureFormat_RGBA16Float;
 
-    if (flecsEngineEnsureDepthResources(impl)) {
+    if (flecsEngine_ensureDepthResources(impl)) {
         goto error;
     }
 
@@ -161,12 +162,16 @@ static void FlecsEngineRender(
 {
     FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
 
-    int prep_result = impl->surface_impl->prepare_frame(it->world, impl);
+    const FlecsEngineSurfaceInterface *surface_impl = impl->surface_impl;
+
+    int prep_result = flecsEngine_surfaceInterface_prepareFrame(
+        surface_impl, it->world, impl);
     if (prep_result > 0) {
         return;
     }
     if (prep_result < 0) {
-        impl->surface_impl->on_frame_failed(it->world, impl);
+        flecsEngine_surfaceInterface_onFrameFailed(
+            surface_impl, it->world, impl);
         return;
     }
 
@@ -174,8 +179,9 @@ static void FlecsEngineRender(
         return;
     }
 
-    if (flecsEngineEnsureDepthResources(impl)) {
-        impl->surface_impl->on_frame_failed(it->world, impl);
+    if (flecsEngine_ensureDepthResources(impl)) {
+        flecsEngine_surfaceInterface_onFrameFailed(
+            surface_impl, it->world, impl);
         return;
     }
 
@@ -184,7 +190,8 @@ static void FlecsEngineRender(
     WGPUCommandEncoder encoder = NULL;
     WGPUCommandBuffer cmd = NULL;
 
-    int target_result = impl->surface_impl->acquire_frame(impl, &frame_target);
+    int target_result = flecsEngine_surfaceInterface_acquireFrame(
+        surface_impl, impl, &frame_target);
     if (target_result > 0) {
         return;
     }
@@ -204,12 +211,14 @@ static void FlecsEngineRender(
 
     // Make sure materials are up to date with GPU materials buffer
     //   TODO: don't upload each frame
-    flecsEngineUploadMaterialBuffer(it->world, impl);
+    flecsEngine_material_uploadBuffer(it->world, impl);
 
     // Render all views
-    flecsEngineRenderViews(it->world, impl, frame_target.view_texture, encoder);
+    flecsEngine_renderView_renderAll(it->world, impl, frame_target.view_texture, encoder);
 
-    if (impl->surface_impl->encode_frame(impl, encoder, &frame_target)) {
+    if (flecsEngine_surfaceInterface_encodeFrame(
+        surface_impl, impl, encoder, &frame_target))
+    {
         failed = true;
         goto cleanup;
     }
@@ -224,7 +233,9 @@ static void FlecsEngineRender(
 
     wgpuQueueSubmit(impl->queue, 1, &cmd);
 
-    if (impl->surface_impl->submit_frame(it->world, impl, &frame_target)) {
+    if (flecsEngine_surfaceInterface_submitFrame(
+        surface_impl, it->world, impl, &frame_target))
+    {
         failed = true;
     }
 
@@ -236,10 +247,11 @@ cleanup:
         wgpuCommandEncoderRelease(encoder);
     }
 
-    flecsEngineReleaseFrameTarget(&frame_target);
+    flecsEngine_releaseFrameTarget(&frame_target);
 
     if (failed) {
-        impl->surface_impl->on_frame_failed(it->world, impl);
+        flecsEngine_surfaceInterface_onFrameFailed(
+            surface_impl, it->world, impl);
     }
 }
 

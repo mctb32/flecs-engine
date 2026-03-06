@@ -932,16 +932,16 @@ cleanup:
     return result;
 }
 
-bool flecsEngineInitIblResources(
+bool flecsEngine_ibl_initResources(
     FlecsEngineImpl *engine,
     FlecHdriImpl *ibl,
     const char *hdri_path,
     uint32_t filter_sample_count,
     uint32_t lut_sample_count)
 {
-    flecsIblReleaseRuntimeResources(ibl);
+    flecsEngie_ibl_releaseRuntimeResources(ibl);
 
-    if (!flecsEngineEnsureIblBindLayout(engine)) {
+    if (!flecsEngine_ibl_ensureBindLayout(engine)) {
         return false;
     }
 
@@ -1006,7 +1006,7 @@ bool flecsEngineInitIblResources(
         goto done;
     }
 
-    if (!flecsIblCreateRuntimeBindGroup(engine, ibl)) {
+    if (!flecsEngine_ibl_createRuntimeBindGroup(engine, ibl)) {
         goto done;
     }
 
@@ -1015,7 +1015,7 @@ bool flecsEngineInitIblResources(
 done:
     flecsHdriImageFree(&image);
     if (!ok) {
-        flecsIblReleaseRuntimeResources(ibl);
+        flecsEngie_ibl_releaseRuntimeResources(ibl);
     }
     return ok;
 }

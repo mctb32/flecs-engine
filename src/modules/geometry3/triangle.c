@@ -1,6 +1,6 @@
 #include "geometry3.h"
 
-static void flecsGeometry3_generateTriangleMesh(
+static void flecsEngine_triangle_generateMesh(
     FlecsMesh3 *mesh)
 {
     const float half_width = 0.5773503f; /* 1 / sqrt(3), height is 1 */
@@ -23,7 +23,7 @@ static void flecsGeometry3_generateTriangleMesh(
     idx[2] = 1;
 }
 
-const FlecsMesh3Impl* flecsGeometry3_getTriangleAsset(
+const FlecsMesh3Impl* flecsEngine_triangle_getAsset(
     ecs_world_t *world)
 {
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
@@ -31,10 +31,10 @@ const FlecsMesh3Impl* flecsGeometry3_getTriangleAsset(
         goto done;
     }
 
-    ctx->unit_triangle_asset = flecsGeometry3_createAsset(world, ctx, "Triangle");
+    ctx->unit_triangle_asset = flecsEngine_geometry3_createAsset(world, ctx, "Triangle");
 
     FlecsMesh3 *mesh = ecs_ensure(world, ctx->unit_triangle_asset, FlecsMesh3);
-    flecsGeometry3_generateTriangleMesh(mesh);
+    flecsEngine_triangle_generateMesh(mesh);
     ecs_modified(world, ctx->unit_triangle_asset, FlecsMesh3);
 
 done:

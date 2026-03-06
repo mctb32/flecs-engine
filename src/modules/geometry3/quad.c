@@ -1,6 +1,6 @@
 #include "geometry3.h"
 
-static void flecsGeometry3_generateQuadMesh(
+static void flecsEngine_quad_generateMesh(
     FlecsMesh3 *mesh)
 {
     const float half = 0.5f;
@@ -27,7 +27,7 @@ static void flecsGeometry3_generateQuadMesh(
     idx[5] = 3;
 }
 
-const FlecsMesh3Impl* flecsGeometry3_getQuadAsset(
+const FlecsMesh3Impl* flecsEngine_quad_getAsset(
     ecs_world_t *world)
 {
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
@@ -35,10 +35,10 @@ const FlecsMesh3Impl* flecsGeometry3_getQuadAsset(
         goto done;
     }
 
-    ctx->unit_quad_asset = flecsGeometry3_createAsset(world, ctx, "Quad");
+    ctx->unit_quad_asset = flecsEngine_geometry3_createAsset(world, ctx, "Quad");
 
     FlecsMesh3 *mesh = ecs_ensure(world, ctx->unit_quad_asset, FlecsMesh3);
-    flecsGeometry3_generateQuadMesh(mesh);
+    flecsEngine_quad_generateMesh(mesh);
     ecs_modified(world, ctx->unit_quad_asset, FlecsMesh3);
 
 done:

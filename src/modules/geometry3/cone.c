@@ -12,7 +12,7 @@
 #define FLECS_GEOMETRY3_CONE_CACHE_SIDES_MASK (0x7fffffffULL)
 #define FLECS_GEOMETRY3_CONE_CACHE_SMOOTH_MASK (1ULL << 63)
 
-static int32_t flecsGeometry3_coneSidesNormalize(
+static int32_t flecsEngine_cone_sidesNormalize(
     int32_t sides,
     bool smooth)
 {
@@ -30,7 +30,7 @@ static int32_t flecsGeometry3_coneSidesNormalize(
     return sides;
 }
 
-static uint32_t flecsGeometry3_coneLengthBits(
+static uint32_t flecsEngine_cone_lengthBits(
     float length)
 {
     union {
@@ -41,14 +41,14 @@ static uint32_t flecsGeometry3_coneLengthBits(
     return length_bits.u;
 }
 
-static uint64_t flecsGeometry3_coneCacheKey(
+static uint64_t flecsEngine_cone_cacheKey(
     int32_t sides,
     bool smooth,
     float length)
 {
     uint64_t key =
         (((uint64_t)sides & FLECS_GEOMETRY3_CONE_CACHE_SIDES_MASK) << 32) |
-        (uint64_t)flecsGeometry3_coneLengthBits(length);
+        (uint64_t)flecsEngine_cone_lengthBits(length);
 
     if (smooth) {
         key |= FLECS_GEOMETRY3_CONE_CACHE_SMOOTH_MASK;
@@ -57,7 +57,7 @@ static uint64_t flecsGeometry3_coneCacheKey(
     return key;
 }
 
-static ecs_entity_t flecsGeometry3_findConeAsset(
+static ecs_entity_t flecsEngine_cone_findAsset(
     const FlecsGeometry3Cache *ctx,
     uint64_t key)
 {
@@ -70,7 +70,7 @@ static ecs_entity_t flecsGeometry3_findConeAsset(
     return (ecs_entity_t)entry[0];
 }
 
-static void flecsGeometry3_generateFlatConeMesh(
+static void flecsEngine_cone_generateFlatMesh(
     FlecsMesh3 *mesh,
     int32_t sides,
     float length)
@@ -172,7 +172,7 @@ static void flecsGeometry3_generateFlatConeMesh(
     }
 }
 
-static void flecsGeometry3_generateSmoothConeMesh(
+static void flecsEngine_cone_generateSmoothMesh(
     FlecsMesh3 *mesh,
     int32_t sides,
     float length)
@@ -313,32 +313,32 @@ static void flecsGeometry3_generateSmoothConeMesh(
     }
 }
 
-static void flecsGeometry3_generateConeMesh(
+static void flecsEngine_cone_generateMesh(
     FlecsMesh3 *mesh,
     int32_t sides,
     bool smooth,
     float length)
 {
     if (smooth) {
-        flecsGeometry3_generateSmoothConeMesh(mesh, sides, length);
+        flecsEngine_cone_generateSmoothMesh(mesh, sides, length);
     } else {
-        flecsGeometry3_generateFlatConeMesh(mesh, sides, length);
+        flecsEngine_cone_generateFlatMesh(mesh, sides, length);
     }
 }
 
-static ecs_entity_t flecsGeometry3_getConeEntity(
+static ecs_entity_t flecsEngine_cone_getEntity(
     ecs_world_t *world,
     int32_t sides,
     bool smooth,
     float length)
 {
-    int32_t normalized_sides = flecsGeometry3_coneSidesNormalize(
+    int32_t normalized_sides = flecsEngine_cone_sidesNormalize(
         sides, smooth);
-    uint64_t key = flecsGeometry3_coneCacheKey(
+    uint64_t key = flecsEngine_cone_cacheKey(
         normalized_sides, smooth, length);
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
 
-    ecs_entity_t asset = flecsGeometry3_findConeAsset(ctx, key);
+    ecs_entity_t asset = flecsEngine_cone_findAsset(ctx, key);
     if (asset) {
         return asset;
     }
@@ -349,10 +349,10 @@ static ecs_entity_t flecsGeometry3_getConeEntity(
         sizeof(asset_name),
         "Cone.cone%llu", key);
 
-    asset = flecsGeometry3_createAsset(world, ctx, asset_name);
+    asset = flecsEngine_geometry3_createAsset(world, ctx, asset_name);
 
     FlecsMesh3 *mesh = ecs_ensure(world, asset, FlecsMesh3);
-    flecsGeometry3_generateConeMesh(
+    flecsEngine_cone_generateMesh(
         mesh, normalized_sides, smooth, length);
     ecs_modified(world, asset, FlecsMesh3);
 
@@ -364,10 +364,10 @@ static ecs_entity_t flecsGeometry3_getConeEntity(
     return asset;
 }
 
-const FlecsMesh3Impl* flecsGeometry3_getConeAsset(
+const FlecsMesh3Impl* flecsEngine_cone_getAsset(
     ecs_world_t *world)
 {
-    ecs_entity_t asset = flecsGeometry3_getConeEntity(world, 4, false, 1.0f);
+    ecs_entity_t asset = flecsEngine_cone_getEntity(world, 4, false, 1.0f);
     return ecs_get(world, asset, FlecsMesh3Impl);
 }
 
@@ -381,23 +381,23 @@ void FlecsCone_on_replace(
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        int32_t old_sides = flecsGeometry3_coneSidesNormalize(
+        int32_t old_sides = flecsEngine_cone_sidesNormalize(
             old[i].segments, old[i].smooth);
-        int32_t new_sides = flecsGeometry3_coneSidesNormalize(
+        int32_t new_sides = flecsEngine_cone_sidesNormalize(
             new[i].segments, new[i].smooth);
-        uint64_t old_key = flecsGeometry3_coneCacheKey(
+        uint64_t old_key = flecsEngine_cone_cacheKey(
             old_sides, old[i].smooth, old[i].length);
-        uint64_t new_key = flecsGeometry3_coneCacheKey(
+        uint64_t new_key = flecsEngine_cone_cacheKey(
             new_sides, new[i].smooth, new[i].length);
 
         if (old_key != new_key) {
-            ecs_entity_t old_asset = flecsGeometry3_findConeAsset(ctx, old_key);
+            ecs_entity_t old_asset = flecsEngine_cone_findAsset(ctx, old_key);
             if (old_asset) {
                 ecs_remove_pair(world, it->entities[i], EcsIsA, old_asset);
             }
         }
 
-        ecs_entity_t asset = flecsGeometry3_getConeEntity(
+        ecs_entity_t asset = flecsEngine_cone_getEntity(
             world, new[i].segments, new[i].smooth, new[i].length);
         ecs_add_pair(world, it->entities[i], EcsIsA, asset);
     }

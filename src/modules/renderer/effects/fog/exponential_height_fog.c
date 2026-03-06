@@ -282,11 +282,11 @@ static bool flecsRenderEffect_exponentialHeightFog_bind(
 FlecsExponentialHeightFog flecsEngine_exponentialHeightFogSettingsDefault(void)
 {
     return (FlecsExponentialHeightFog){
-        .density = 0.1f,
-        .falloff = 0.3f,
+        .density = 0.0001f,
+        .falloff = 0.001f,
         .base_height = 0.0f,
         .max_opacity = 1.0f,
-        .color = {191, 158, 140, 255}
+        .color = {150, 150, 200, 255}
     };
 }
 
