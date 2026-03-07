@@ -213,9 +213,9 @@ int main(
 
   ecs_entity_t s = ecs_script(world, {
     // .filename = "museum.flecs"
-    // .filename = "city.flecs"
+    .filename = "city.flecs"
     // .filename = "cube.flecs"
-    .filename = "bevels.flecs"
+    // .filename = "bevels.flecs"
   });
   if (!s) {
     printf("failed to load museum script\n");
