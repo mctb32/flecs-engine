@@ -407,6 +407,174 @@ ground {
     }
 }
 
+// Point lights
+{
+    const PLItems: 3
+    const PLSpacing: 4.5
+
+    Position3: {150}
+
+    // Red
+    Display(items: PLItems) {
+        Position3: {0, 0, -10}
+    }
+    {
+        Position3: {-PLSpacing, 2, -10}
+        PointLight: {intensity: 2, range: 12}
+        Rgba: {255, 0, 0}
+    }
+    {
+        Position3: {0, 2, -10}
+        PointLight: {intensity: 5, range: 12}
+        Rgba: {255, 0, 0}
+    }
+    {
+        Position3: {PLSpacing, 2, -10}
+        PointLight: {intensity: 10, range: 12}
+        Rgba: {255, 0, 0}
+    }
+
+    // Orange
+    Display(items: PLItems) {
+        Position3: {0, 0, -20}
+    }
+    {
+        Position3: {-PLSpacing, 2, -20}
+        PointLight: {intensity: 2, range: 12}
+        Rgba: {255, 128, 0}
+    }
+    {
+        Position3: {0, 2, -20}
+        PointLight: {intensity: 5, range: 12}
+        Rgba: {255, 128, 0}
+    }
+    {
+        Position3: {PLSpacing, 2, -20}
+        PointLight: {intensity: 10, range: 12}
+        Rgba: {255, 128, 0}
+    }
+
+    // Yellow
+    Display(items: PLItems) {
+        Position3: {0, 0, -30}
+    }
+    {
+        Position3: {-PLSpacing, 2, -30}
+        PointLight: {intensity: 2, range: 12}
+        Rgba: {255, 255, 0}
+    }
+    {
+        Position3: {0, 2, -30}
+        PointLight: {intensity: 5, range: 12}
+        Rgba: {255, 255, 0}
+    }
+    {
+        Position3: {PLSpacing, 2, -30}
+        PointLight: {intensity: 10, range: 12}
+        Rgba: {255, 255, 0}
+    }
+
+    // Green
+    Display(items: PLItems) {
+        Position3: {0, 0, -40}
+    }
+    {
+        Position3: {-PLSpacing, 2, -40}
+        PointLight: {intensity: 2, range: 12}
+        Rgba: {0, 255, 0}
+    }
+    {
+        Position3: {0, 2, -40}
+        PointLight: {intensity: 5, range: 12}
+        Rgba: {0, 255, 0}
+    }
+    {
+        Position3: {PLSpacing, 2, -40}
+        PointLight: {intensity: 10, range: 12}
+        Rgba: {0, 255, 0}
+    }
+
+    // Cyan
+    Display(items: PLItems) {
+        Position3: {0, 0, -50}
+    }
+    {
+        Position3: {-PLSpacing, 2, -50}
+        PointLight: {intensity: 2, range: 12}
+        Rgba: {0, 255, 255}
+    }
+    {
+        Position3: {0, 2, -50}
+        PointLight: {intensity: 5, range: 12}
+        Rgba: {0, 255, 255}
+    }
+    {
+        Position3: {PLSpacing, 2, -50}
+        PointLight: {intensity: 10, range: 12}
+        Rgba: {0, 255, 255}
+    }
+
+    // Blue
+    Display(items: PLItems) {
+        Position3: {0, 0, -60}
+    }
+    {
+        Position3: {-PLSpacing, 2, -60}
+        PointLight: {intensity: 2, range: 12}
+        Rgba: {0, 0, 255}
+    }
+    {
+        Position3: {0, 2, -60}
+        PointLight: {intensity: 5, range: 12}
+        Rgba: {0, 0, 255}
+    }
+    {
+        Position3: {PLSpacing, 2, -60}
+        PointLight: {intensity: 10, range: 12}
+        Rgba: {0, 0, 255}
+    }
+
+    // Indigo
+    Display(items: PLItems) {
+        Position3: {0, 0, -70}
+    }
+    {
+        Position3: {-PLSpacing, 2, -70}
+        PointLight: {intensity: 2, range: 12}
+        Rgba: {75, 0, 130}
+    }
+    {
+        Position3: {0, 2, -70}
+        PointLight: {intensity: 5, range: 12}
+        Rgba: {75, 0, 130}
+    }
+    {
+        Position3: {PLSpacing, 2, -70}
+        PointLight: {intensity: 10, range: 12}
+        Rgba: {75, 0, 130}
+    }
+
+    // White
+    Display(items: PLItems) {
+        Position3: {0, 0, -80}
+    }
+    {
+        Position3: {-PLSpacing, 2, -80}
+        PointLight: {intensity: 2, range: 12}
+        Rgba: {255, 255, 255}
+    }
+    {
+        Position3: {0, 2, -80}
+        PointLight: {intensity: 5, range: 12}
+        Rgba: {255, 255, 255}
+    }
+    {
+        Position3: {PLSpacing, 2, -80}
+        PointLight: {intensity: 10, range: 12}
+        Rgba: {255, 255, 255}
+    }
+}
+
 materials {
     prefab dielectricRoughWhite {
         PbrMaterial: {metallic: 0, roughness: 1}

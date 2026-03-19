@@ -156,6 +156,18 @@ int flecsEngine_initRenderer(
         .cache_kind = EcsQueryCacheAuto
     });
 
+    impl->point_light_query = ecs_query(world, {
+        .entity = ecs_entity(world, {
+            .parent = engine_parent
+        }),
+        .terms = {
+            { .id = ecs_id(FlecsPointLight), .src.id = EcsSelf },
+            { .id = ecs_id(FlecsWorldTransform3), .src.id = EcsSelf },
+            { .id = ecs_id(FlecsRgba), .src.id = EcsSelf, .oper = EcsOptional },
+        },
+        .cache_kind = EcsQueryCacheAuto
+    });
+
     return 0;
 error:
     return -1;
@@ -318,6 +330,8 @@ void FlecsEngineRendererImport(
             { .name = "light_ray_dir", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "light_color", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "camera_pos", .type = ecs_id(ecs_f32_t), .count = 4 },
+            { .name = "point_light_info", .type = ecs_id(ecs_f32_t), .count = 4 },
+            { .name = "point_lights", .type = ecs_id(ecs_f32_t), .count = FLECS_ENGINE_POINT_LIGHTS_MAX * 8 },
         }
     });
 

@@ -9,6 +9,8 @@ void FlecsEngineLightImport(
     ecs_set_name_prefix(world, "Flecs");
 
     ECS_META_COMPONENT(world, FlecsDirectionalLight);
+    ECS_META_COMPONENT(world, FlecsPointLight);
 
     ecs_add_pair(world, ecs_id(FlecsDirectionalLight), EcsOnInstantiate, EcsInherit);
+    ecs_add_pair(world, ecs_id(FlecsPointLight), EcsOnInstantiate, EcsInherit);
 }

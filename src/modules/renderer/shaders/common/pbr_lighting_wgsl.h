@@ -32,8 +32,10 @@
     "  let prefiltered_color = textureSampleLevel(ibl_prefiltered_env, ibl_sampler, r, lod).rgb;\n" \
     "  let brdf = textureSample(ibl_brdf_lut, ibl_sampler, vec2<f32>(ndotv, roughness)).rg;\n" \
     "  let specular_ibl = prefiltered_color * computeSplitSumSpecularTerm(f0, brdf);\n" \
+    "  let point = computePointLighting(\n" \
+    "    n, v, world_pos, albedo, metallic, direct_roughness);\n" \
     "  let emissive = albedo * max(emissive_strength, 0.0);\n" \
-    "  return ambient + direct + specular_ibl + emissive;\n" \
+    "  return ambient + direct + point + specular_ibl + emissive;\n" \
     "}\n"
 
 #endif

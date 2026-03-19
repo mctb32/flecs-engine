@@ -89,6 +89,11 @@ static void flecsEngine_cleanup(
         impl->view_query = NULL;
     }
 
+    if (impl->point_light_query) {
+        ecs_query_fini(impl->point_light_query);
+        impl->point_light_query = NULL;
+    }
+
     impl->fallback_hdri = 0;
 
     flecsEngine_shadow_cleanup(impl);

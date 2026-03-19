@@ -10,4 +10,9 @@ ECS_STRUCT(FlecsDirectionalLight, {
     float intensity;
 });
 
+ECS_STRUCT(FlecsPointLight, {
+    float intensity;
+    float range;
+});
+
 #endif

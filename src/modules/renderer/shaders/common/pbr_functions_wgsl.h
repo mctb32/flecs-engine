@@ -102,6 +102,39 @@
     "}\n" \
     "fn computeAmbientLighting(albedo : vec3<f32>, metallic : f32) -> vec3<f32> {\n" \
     "  return albedo * 0.03 * (1.0 - metallic);\n" \
+    "}\n" \
+    "fn computePointLighting(\n" \
+    "  n : vec3<f32>,\n" \
+    "  v : vec3<f32>,\n" \
+    "  world_pos : vec3<f32>,\n" \
+    "  albedo : vec3<f32>,\n" \
+    "  metallic : f32,\n" \
+    "  roughness : f32) -> vec3<f32> {\n" \
+    "  var result = vec3<f32>(0.0);\n" \
+    "  let count = i32(uniforms.point_light_info.x);\n" \
+    "  for (var i = 0; i < count; i++) {\n" \
+    "    let light_pos = uniforms.point_lights[i].position.xyz;\n" \
+    "    let light_range = uniforms.point_lights[i].position.w;\n" \
+    "    let light_color = uniforms.point_lights[i].color.rgb;\n" \
+    "    let to_light = light_pos - world_pos;\n" \
+    "    let dist = length(to_light);\n" \
+    "    if (dist > light_range || dist < 0.001) {\n" \
+    "      continue;\n" \
+    "    }\n" \
+    "    let l = to_light / dist;\n" \
+    "    let h = getHalfVector(v, l);\n" \
+    "    let ndotl = max(dot(n, l), 0.0);\n" \
+    "    if (ndotl <= 0.0) {\n" \
+    "      continue;\n" \
+    "    }\n" \
+    "    let attenuation = clamp(1.0 - pow(dist / light_range, 4.0), 0.0, 1.0) / (dist * dist + 1.0);\n" \
+    "    let f0 = computeF0(albedo, metallic);\n" \
+    "    let f = fresnelSchlick(max(dot(h, v), 0.0), f0);\n" \
+    "    let diffuse = computeDiffuse(albedo, metallic, f);\n" \
+    "    let specular = computeSpecular(n, v, l, h, roughness, f);\n" \
+    "    result += (diffuse + specular) * light_color * ndotl * attenuation;\n" \
+    "  }\n" \
+    "  return result;\n" \
     "}\n"
 
 #endif
