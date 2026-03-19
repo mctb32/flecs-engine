@@ -53,6 +53,11 @@ static void flecsEngine_renderBatch_releaseImpl(
         wgpuRenderPipelineRelease(ptr->pipeline_hdr);
         ptr->pipeline_hdr = NULL;
     }
+
+    if (ptr->pipeline_shadow) {
+        wgpuRenderPipelineRelease(ptr->pipeline_shadow);
+        ptr->pipeline_shadow = NULL;
+    }
 }
 
 ECS_DTOR(FlecsRenderBatchImpl, ptr, {
@@ -234,6 +239,66 @@ static bool flecsEngine_renderBatch_setupBindings(
     return true;
 }
 
+static WGPURenderPipeline flecsEngine_renderBatch_createShadowPipeline(
+    const FlecsEngineImpl *engine,
+    const WGPUVertexBufferLayout *vertex_buffers,
+    uint32_t vertex_buffer_count)
+{
+    if (!engine->shadow_shader_module || !engine->shadow_pass_bind_layout) {
+        return NULL;
+    }
+
+    WGPUPipelineLayoutDescriptor layout_desc = {
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts = &engine->shadow_pass_bind_layout
+    };
+
+    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+        engine->device, &layout_desc);
+    if (!pipeline_layout) {
+        return NULL;
+    }
+
+    WGPUDepthStencilState depth_state = {
+        .format = WGPUTextureFormat_Depth32Float,
+        .depthWriteEnabled = WGPUOptionalBool_True,
+        .depthCompare = WGPUCompareFunction_Less,
+        .stencilReadMask = 0xFFFFFFFF,
+        .stencilWriteMask = 0xFFFFFFFF
+    };
+
+    WGPUVertexState vertex_state = {
+        .module = engine->shadow_shader_module,
+        .entryPoint = (WGPUStringView){
+            .data = "vs_main",
+            .length = WGPU_STRLEN
+        },
+        .bufferCount = vertex_buffer_count,
+        .buffers = vertex_buffers
+    };
+
+    WGPURenderPipelineDescriptor pipeline_desc = {
+        .layout = pipeline_layout,
+        .vertex = vertex_state,
+        .fragment = NULL,
+        .depthStencil = &depth_state,
+        .primitive = {
+            .topology = WGPUPrimitiveTopology_TriangleList,
+            .cullMode = WGPUCullMode_None,
+            .frontFace = WGPUFrontFace_CW
+        },
+        .multisample = {
+            .count = 1
+        }
+    };
+
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
+        engine->device, &pipeline_desc);
+    wgpuPipelineLayoutRelease(pipeline_layout);
+
+    return pipeline;
+}
+
 static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     const FlecsEngineImpl *engine,
     const FlecsShader *shader,
@@ -241,13 +306,17 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     WGPUBindGroupLayout bind_layout,
     WGPUBindGroupLayout ibl_bind_layout,
     bool use_ibl,
+    bool use_shadow,
     bool is_skybox,
     const WGPUVertexBufferLayout *vertex_buffers,
     uint32_t vertex_buffer_count,
     WGPUTextureFormat color_format)
 {
-    WGPUBindGroupLayout bind_layouts[2] = { bind_layout, ibl_bind_layout };
+    WGPUBindGroupLayout bind_layouts[3] = { bind_layout, ibl_bind_layout };
     uint32_t bind_layout_count = use_ibl ? 2u : 1u;
+    if (use_shadow && engine->shadow_sample_bind_layout) {
+        bind_layouts[bind_layout_count++] = engine->shadow_sample_bind_layout;
+    }
 
     WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
         .bindGroupLayoutCount = bind_layout_count,
@@ -405,6 +474,7 @@ static void FlecsRenderBatch_on_set(
         bool use_material_buffer = flecsEngine_renderBatch_usesMaterialId(&rb[i]);
         impl.uses_material = use_material_buffer;
         impl.uses_ibl = flecsEngine_shader_usesIbl(shader);
+        impl.uses_shadow = flecsEngine_shader_usesShadow(shader);
         bool is_skybox = ecs_has(world, e, FlecsSkyboxBatch);
 
         if (impl.uses_ibl && !flecsEngine_ibl_ensureBindLayout(engine)) {
@@ -439,6 +509,7 @@ static void FlecsRenderBatch_on_set(
             impl.bind_layout,
             engine->ibl_bind_layout,
             impl.uses_ibl,
+            impl.uses_shadow,
             is_skybox,
             vertex_buffers,
             (uint32_t)vertex_buffer_count,
@@ -446,6 +517,13 @@ static void FlecsRenderBatch_on_set(
         if (!impl.pipeline_hdr) {
             flecsEngine_renderBatch_releaseImpl(&impl);
             continue;
+        }
+
+        if (impl.uses_shadow && engine->shadow_pass_bind_layout) {
+            impl.pipeline_shadow = flecsEngine_renderBatch_createShadowPipeline(
+                engine,
+                vertex_buffers,
+                (uint32_t)vertex_buffer_count);
         }
 
         ecs_set_ptr(world, e, FlecsRenderBatchImpl, &impl);
@@ -622,6 +700,8 @@ static void flecsEngine_renderBatch_updateUniforms(
         flecsEngine_renderBatch_setupLight(world, &uniforms, view->light);
     }
 
+    glm_mat4_copy((vec4*)engine->current_light_vp, uniforms.light_vp);
+
     flecsEngine_getClearColorVec4(engine, uniforms.clear_color);
 
     wgpuQueueWriteBuffer(
@@ -684,6 +764,11 @@ void flecsEngine_renderBatch_render(
         wgpuRenderPassEncoderSetBindGroup(pass, 1, ibl->ibl_bind_group, 0, NULL);
     }
 
+    if (impl->uses_shadow && engine->shadow_sample_bind_group) {
+        wgpuRenderPassEncoderSetBindGroup(
+            pass, 2, engine->shadow_sample_bind_group, 0, NULL);
+    }
+
     batch->callback(world, engine, pass, batch);
 }
 
@@ -699,6 +784,33 @@ void flecsEngine_renderBatch_extract(
     }
 
     batch->extract_callback(world, engine, batch);
+}
+
+void flecsEngine_renderBatch_renderShadow(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    ecs_entity_t batch_entity)
+{
+    const FlecsRenderBatch *batch = ecs_get(
+        world, batch_entity, FlecsRenderBatch);
+    const FlecsRenderBatchImpl *impl = ecs_get(
+        world, batch_entity, FlecsRenderBatchImpl);
+    if (!batch || !impl || !impl->pipeline_shadow || !impl->uses_shadow) {
+        return;
+    }
+
+    WGPURenderPipeline pipeline = impl->pipeline_shadow;
+
+    if (pipeline != engine->last_pipeline) {
+        wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+        engine->last_pipeline = pipeline;
+    }
+
+    wgpuRenderPassEncoderSetBindGroup(
+        pass, 0, engine->shadow_pass_bind_group, 0, NULL);
+
+    batch->callback(world, engine, pass, batch);
 }
 
 void flecsEngine_renderBatch_register(

@@ -138,6 +138,10 @@ int flecsEngine_initRenderer(
         .cache_kind = EcsQueryCacheAuto
     });
 
+    if (flecsEngine_shadow_init(world, impl)) {
+        goto error;
+    }
+
     impl->material_query = ecs_query(world, {
         .entity = ecs_entity(world, {
             .parent = engine_parent
@@ -308,6 +312,7 @@ void FlecsEngineRendererImport(
         .members = {
             { .name = "mvp", .type = ecs_id(flecs_mat4_t) },
             { .name = "inv_vp", .type = ecs_id(flecs_mat4_t) },
+            { .name = "light_vp", .type = ecs_id(flecs_mat4_t) },
             { .name = "clear_color", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "light_ray_dir", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "light_color", .type = ecs_id(ecs_f32_t), .count = 4 },

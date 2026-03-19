@@ -215,6 +215,31 @@ FlecsRgba* flecsEngine_defaultAttrCache_getColor(
     const FlecsEngineImpl *engine,
     int32_t count);
 
+int flecsEngine_shadow_init(
+    ecs_world_t *world,
+    FlecsEngineImpl *impl);
+
+void flecsEngine_shadow_cleanup(
+    FlecsEngineImpl *impl);
+
+void flecsEngine_shadow_computeLightVP(
+    const ecs_world_t *world,
+    const FlecsRenderView *view,
+    mat4 out_light_vp);
+
+void flecsEngine_renderBatch_renderShadow(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    ecs_entity_t batch_entity);
+
+void flecsEngine_renderView_renderShadow(
+    ecs_world_t *world,
+    ecs_entity_t view_entity,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view,
+    WGPUCommandEncoder encoder);
+
 // Import renderer module
 void FlecsEngineRendererImport(
     ecs_world_t *world);

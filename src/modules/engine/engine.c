@@ -91,6 +91,7 @@ static void flecsEngine_cleanup(
 
     impl->fallback_hdri = 0;
 
+    flecsEngine_shadow_cleanup(impl);
     flecsEngine_material_releaseBuffer(impl);
 
     flecsEngine_surfaceInterface_cleanup(

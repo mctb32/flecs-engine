@@ -6,6 +6,9 @@
 bool flecsEngine_shader_usesIbl(
     const FlecsShader *shader);
 
+bool flecsEngine_shader_usesShadow(
+    const FlecsShader *shader);
+
 ecs_entity_t flecsEngine_shader_pbrColored(
     ecs_world_t *world);
 

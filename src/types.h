@@ -63,7 +63,19 @@ typedef struct {
     ecs_query_t *material_query;
     uint32_t last_material_id;
     WGPURenderPipeline last_pipeline;
-    
+
+    WGPUTexture shadow_texture;
+    WGPUTextureView shadow_texture_view;
+    uint32_t shadow_map_size;
+    WGPUShaderModule shadow_shader_module;
+    WGPUBuffer shadow_vp_buffer;
+    WGPUBindGroupLayout shadow_pass_bind_layout;
+    WGPUBindGroup shadow_pass_bind_group;
+    WGPUSampler shadow_sampler;
+    WGPUBindGroupLayout shadow_sample_bind_layout;
+    WGPUBindGroup shadow_sample_bind_group;
+    mat4 current_light_vp;
+
     FlecsDefaultAttrCache *default_attr_cache;
 } FlecsEngineImpl;
 
@@ -114,11 +126,13 @@ typedef struct {
     WGPUBindGroup bind_group;
     WGPUBindGroup bind_group_materials;
     WGPURenderPipeline pipeline_hdr;
+    WGPURenderPipeline pipeline_shadow;
     WGPUBuffer uniform_buffers[FLECS_ENGINE_UNIFORMS_MAX];
     uint64_t material_buffer_size;
     uint8_t uniform_count;
     bool uses_material;
     bool uses_ibl;
+    bool uses_shadow;
 } FlecsRenderBatchImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);

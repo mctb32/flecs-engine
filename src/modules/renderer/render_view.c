@@ -193,6 +193,9 @@ static void flecsEngine_renderView_render(
         return;
     }
 
+    flecsEngine_renderView_renderShadow(
+        world, view_entity, engine, view, encoder);
+
     flecsEngine_renderView_renderBatches(
         world, view_entity, engine, view, impl, view_texture, encoder);
 

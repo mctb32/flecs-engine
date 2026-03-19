@@ -113,6 +113,94 @@ void flecsEngine_renderView_extractBatches(
     flecsEngine_renderBatch_extractSet(world, engine, batch_set);
 }
 
+static void flecsEngine_renderBatch_renderSetShadow(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const FlecsRenderBatchSet *batch_set)
+{
+    int32_t i, count = ecs_vec_count(&batch_set->batches);
+    ecs_entity_t *batches = ecs_vec_first(&batch_set->batches);
+
+    for (i = 0; i < count; i ++) {
+        ecs_entity_t batch_entity = batches[i];
+        if (!batch_entity) {
+            continue;
+        }
+
+        const FlecsRenderBatchSet *nested_batch_set = ecs_get(
+            world, batch_entity, FlecsRenderBatchSet);
+        if (nested_batch_set) {
+            flecsEngine_renderBatch_renderSetShadow(
+                world,
+                engine,
+                pass,
+                nested_batch_set);
+            continue;
+        }
+
+        flecsEngine_renderBatch_renderShadow(
+            world, engine, pass, batch_entity);
+    }
+}
+
+void flecsEngine_renderView_renderShadow(
+    ecs_world_t *world,
+    ecs_entity_t view_entity,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view,
+    WGPUCommandEncoder encoder)
+{
+    if (!engine->shadow_texture_view || !view->light) {
+        return;
+    }
+
+    const FlecsRenderBatchSet *batch_set = ecs_get(
+        world, view_entity, FlecsRenderBatchSet);
+    if (!batch_set) {
+        return;
+    }
+
+    /* Compute light VP and upload to shadow VP buffer */
+    flecsEngine_shadow_computeLightVP(world, view, engine->current_light_vp);
+    wgpuQueueWriteBuffer(
+        engine->queue,
+        engine->shadow_vp_buffer,
+        0,
+        engine->current_light_vp,
+        sizeof(mat4));
+
+    /* Begin shadow depth-only render pass */
+    WGPURenderPassDepthStencilAttachment depth_attachment = {
+        .view = engine->shadow_texture_view,
+        .depthLoadOp = WGPULoadOp_Clear,
+        .depthStoreOp = WGPUStoreOp_Store,
+        .depthClearValue = 1.0f,
+        .depthReadOnly = false,
+        .stencilLoadOp = WGPULoadOp_Undefined,
+        .stencilStoreOp = WGPUStoreOp_Undefined,
+        .stencilClearValue = 0,
+        .stencilReadOnly = true
+    };
+
+    WGPURenderPassDescriptor pass_desc = {
+        .colorAttachmentCount = 0,
+        .colorAttachments = NULL,
+        .depthStencilAttachment = &depth_attachment
+    };
+
+    WGPURenderPassEncoder shadow_pass = wgpuCommandEncoderBeginRenderPass(
+        encoder, &pass_desc);
+
+    engine->last_pipeline = NULL;
+
+    flecsEngine_renderBatch_renderSetShadow(
+        world, engine, shadow_pass, batch_set);
+
+    wgpuRenderPassEncoderEnd(shadow_pass);
+    wgpuRenderPassEncoderRelease(shadow_pass);
+}
+
 void flecsEngine_renderView_renderBatches(
     ecs_world_t *world,
     ecs_entity_t view_entity,
@@ -141,7 +229,7 @@ void flecsEngine_renderView_renderBatches(
         batch_pass,
         view,
         batch_set);
-        
+
     wgpuRenderPassEncoderEnd(batch_pass);
     wgpuRenderPassEncoderRelease(batch_pass);
 }

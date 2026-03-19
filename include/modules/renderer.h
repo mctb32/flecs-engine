@@ -31,6 +31,7 @@ extern ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
 typedef struct {
     flecs_mat4_t mvp;
     flecs_mat4_t inv_vp;
+    flecs_mat4_t light_vp;
     float clear_color[4];
     float light_ray_dir[4];
     float light_color[4];

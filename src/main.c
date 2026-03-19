@@ -173,6 +173,7 @@ void initEngine(
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
   FlecsExponentialHeightFog fog_settings =
     flecsEngine_exponentialHeightFogSettingsDefault();
+  fog_settings.density = 0;
 
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
     flecsEngine_createEffect_bloom(world, view_entity, 
