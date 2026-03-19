@@ -3,7 +3,6 @@
 #include <cglm/clipspace/ortho_rh_zo.h>
 #include <math.h>
 
-#define FLECS_ENGINE_SHADOW_MAP_SIZE 4096
 #define FLECS_ENGINE_SHADOW_MAP_FORMAT WGPUTextureFormat_Depth32Float
 
 static const char *kShadowDepthShaderSource =
@@ -31,10 +30,11 @@ static const char *kShadowDepthShaderSource =
 
 int flecsEngine_shadow_init(
     ecs_world_t *world,
-    FlecsEngineImpl *impl)
+    FlecsEngineImpl *impl,
+    uint32_t shadow_map_size)
 {
     (void)world;
-    impl->shadow_map_size = FLECS_ENGINE_SHADOW_MAP_SIZE;
+    impl->shadow_map_size = shadow_map_size;
 
     /* Compile shadow depth shader directly (bypasses ECS shader system
      * to avoid deferred context issues during batch setup) */
@@ -488,4 +488,21 @@ void flecsEngine_shadow_computeCascades(
 
         glm_mat4_mul(light_proj, light_view, out_light_vp[c]);
     }
+}
+
+int flecsEngine_shadow_ensureSize(
+    ecs_world_t *world,
+    FlecsEngineImpl *impl,
+    uint32_t shadow_map_size)
+{
+    if (shadow_map_size == 0) {
+        shadow_map_size = FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT;
+    }
+
+    if (impl->shadow_map_size == shadow_map_size) {
+        return 0;
+    }
+
+    flecsEngine_shadow_cleanup(impl);
+    return flecsEngine_shadow_init(world, impl, shadow_map_size);
 }

@@ -9,6 +9,8 @@
 #define ECS_META_IMPL EXTERN
 #endif
 
+#define FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT 4096
+
 struct FlecsRenderBatch;
 struct FlecsRenderEffect;
 ECS_TAG_DECLARE(FlecsSkyboxBatch);
@@ -217,10 +219,16 @@ FlecsRgba* flecsEngine_defaultAttrCache_getColor(
 
 int flecsEngine_shadow_init(
     ecs_world_t *world,
-    FlecsEngineImpl *impl);
+    FlecsEngineImpl *impl,
+    uint32_t shadow_map_size);
 
 void flecsEngine_shadow_cleanup(
     FlecsEngineImpl *impl);
+
+int flecsEngine_shadow_ensureSize(
+    ecs_world_t *world,
+    FlecsEngineImpl *impl,
+    uint32_t shadow_map_size);
 
 void flecsEngine_shadow_computeCascades(
     const ecs_world_t *world,

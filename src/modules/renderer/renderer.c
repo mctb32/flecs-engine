@@ -138,7 +138,7 @@ int flecsEngine_initRenderer(
         .cache_kind = EcsQueryCacheAuto
     });
 
-    if (flecsEngine_shadow_init(world, impl)) {
+    if (flecsEngine_shadow_init(world, impl, FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT)) {
         goto error;
     }
 

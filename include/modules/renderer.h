@@ -67,6 +67,8 @@ ECS_STRUCT(FlecsRenderView, {
     ecs_entity_t camera;
     ecs_entity_t light;
     ecs_entity_t hdri;
+    ecs_bool_t shadows;
+    int32_t shadow_map_size;
     ecs_vec_t effects;
 });
 

@@ -9,6 +9,8 @@ ECS_CTOR(FlecsRenderView, ptr, {
     ptr->camera = 0;
     ptr->light = 0;
     ptr->hdri = 0;
+    ptr->shadows = true;
+    ptr->shadow_map_size = FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT;
 })
 
 ECS_MOVE(FlecsRenderView, dst, src, {
@@ -22,6 +24,8 @@ ECS_COPY(FlecsRenderView, dst, src, {
     dst->camera = src->camera;
     dst->light = src->light;
     dst->hdri = src->hdri;
+    dst->shadows = src->shadows;
+    dst->shadow_map_size = src->shadow_map_size;
     dst->effects = ecs_vec_copy_t(NULL, &src->effects, ecs_entity_t);
 })
 
@@ -188,8 +192,21 @@ static void flecsEngine_renderView_render(
         return;
     }
 
-    flecsEngine_renderView_renderShadow(
-        world, view_entity, engine, view, encoder);
+    if (view->shadows) {
+        if (flecsEngine_shadow_ensureSize(
+            world, engine, (uint32_t)view->shadow_map_size))
+        {
+            ecs_err("failed to resize shadow maps");
+        }
+
+        flecsEngine_renderView_renderShadow(
+            world, view_entity, engine, view, encoder);
+    } else {
+        for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
+            memset(engine->current_light_vp[i], 0, sizeof(mat4));
+            engine->cascade_splits[i] = 0.0f;
+        }
+    }
 
     flecsEngine_renderView_renderBatches(
         world, view_entity, engine, view, impl, view_texture, encoder);
@@ -274,6 +291,8 @@ void flecsEngine_renderView_register(
             { .name = "camera", .type = ecs_id(ecs_entity_t) },
             { .name = "light", .type = ecs_id(ecs_entity_t) },
             { .name = "hdri", .type = ecs_id(ecs_entity_t) },
+            { .name = "shadows", .type = ecs_id(ecs_bool_t) },
+            { .name = "shadow_map_size", .type = ecs_id(ecs_i32_t) },
             { .name = "effects", .type = flecsEngine_vecEntity(world) }
         }
     });

@@ -120,7 +120,9 @@ void initEngine(
   FlecsAppOptions options) 
 {
   ecs_entity_t view_entity =  ecs_entity(world, { .name = "view" });
-  FlecsRenderView view = {};
+  FlecsRenderView view = {
+    .shadows = true
+  };
   FlecsRenderBatchSet batch_set = {};
 
   if (options.frame_output_mode) {
@@ -213,8 +215,8 @@ int main(
   initEngine(world, options);
 
   ecs_entity_t s = ecs_script(world, {
-    // .filename = "museum.flecs"
-    .filename = "city.flecs"
+    .filename = "museum.flecs"
+    // .filename = "city.flecs"
     // .filename = "cube.flecs"
     // .filename = "bevels.flecs"
   });
