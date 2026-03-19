@@ -161,44 +161,61 @@ void flecsEngine_renderView_renderShadow(
         return;
     }
 
-    /* Compute light VP and upload to shadow VP buffer */
-    flecsEngine_shadow_computeLightVP(world, view, engine->current_light_vp);
-    wgpuQueueWriteBuffer(
-        engine->queue,
-        engine->shadow_vp_buffer,
-        0,
-        engine->current_light_vp,
-        sizeof(mat4));
+    /* Compute all cascade light VP matrices and split distances */
+    flecsEngine_shadow_computeCascades(
+        world, view, engine->shadow_map_size,
+        engine->current_light_vp, engine->cascade_splits);
 
-    /* Begin shadow depth-only render pass */
-    WGPURenderPassDepthStencilAttachment depth_attachment = {
-        .view = engine->shadow_texture_view,
-        .depthLoadOp = WGPULoadOp_Clear,
-        .depthStoreOp = WGPUStoreOp_Store,
-        .depthClearValue = 1.0f,
-        .depthReadOnly = false,
-        .stencilLoadOp = WGPULoadOp_Undefined,
-        .stencilStoreOp = WGPUStoreOp_Undefined,
-        .stencilClearValue = 0,
-        .stencilReadOnly = true
-    };
+    /* Upload all cascade VP matrices to their own buffers upfront.
+     * This must happen before encoding any render passes because
+     * wgpuQueueWriteBuffer calls resolve before command buffer execution. */
+    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+        wgpuQueueWriteBuffer(
+            engine->queue,
+            engine->shadow_vp_buffers[c],
+            0,
+            engine->current_light_vp[c],
+            sizeof(mat4));
+    }
 
-    WGPURenderPassDescriptor pass_desc = {
-        .colorAttachmentCount = 0,
-        .colorAttachments = NULL,
-        .depthStencilAttachment = &depth_attachment
-    };
+    /* Render each cascade into its own texture array layer */
+    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+        if (!engine->shadow_layer_views[c]) {
+            continue;
+        }
 
-    WGPURenderPassEncoder shadow_pass = wgpuCommandEncoderBeginRenderPass(
-        encoder, &pass_desc);
+        engine->current_shadow_cascade = c;
 
-    engine->last_pipeline = NULL;
+        /* Begin shadow depth-only render pass for this cascade layer */
+        WGPURenderPassDepthStencilAttachment depth_attachment = {
+            .view = engine->shadow_layer_views[c],
+            .depthLoadOp = WGPULoadOp_Clear,
+            .depthStoreOp = WGPUStoreOp_Store,
+            .depthClearValue = 1.0f,
+            .depthReadOnly = false,
+            .stencilLoadOp = WGPULoadOp_Undefined,
+            .stencilStoreOp = WGPUStoreOp_Undefined,
+            .stencilClearValue = 0,
+            .stencilReadOnly = true
+        };
 
-    flecsEngine_renderBatch_renderSetShadow(
-        world, engine, shadow_pass, batch_set);
+        WGPURenderPassDescriptor pass_desc = {
+            .colorAttachmentCount = 0,
+            .colorAttachments = NULL,
+            .depthStencilAttachment = &depth_attachment
+        };
 
-    wgpuRenderPassEncoderEnd(shadow_pass);
-    wgpuRenderPassEncoderRelease(shadow_pass);
+        WGPURenderPassEncoder shadow_pass = wgpuCommandEncoderBeginRenderPass(
+            encoder, &pass_desc);
+
+        engine->last_pipeline = NULL;
+
+        flecsEngine_renderBatch_renderSetShadow(
+            world, engine, shadow_pass, batch_set);
+
+        wgpuRenderPassEncoderEnd(shadow_pass);
+        wgpuRenderPassEncoderRelease(shadow_pass);
+    }
 }
 
 void flecsEngine_renderView_renderBatches(

@@ -700,7 +700,12 @@ static void flecsEngine_renderBatch_updateUniforms(
         flecsEngine_renderBatch_setupLight(world, &uniforms, view->light);
     }
 
-    glm_mat4_copy((vec4*)engine->current_light_vp, uniforms.light_vp);
+    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
+        glm_mat4_copy((vec4*)engine->current_light_vp[i], uniforms.light_vp[i]);
+    }
+
+    memcpy(uniforms.cascade_splits, engine->cascade_splits,
+        sizeof(float) * FLECS_ENGINE_SHADOW_CASCADE_COUNT);
 
     flecsEngine_getClearColorVec4(engine, uniforms.clear_color);
 
@@ -808,7 +813,8 @@ void flecsEngine_renderBatch_renderShadow(
     }
 
     wgpuRenderPassEncoderSetBindGroup(
-        pass, 0, engine->shadow_pass_bind_group, 0, NULL);
+        pass, 0, engine->shadow_pass_bind_groups[engine->current_shadow_cascade],
+        0, NULL);
 
     batch->callback(world, engine, pass, batch);
 }

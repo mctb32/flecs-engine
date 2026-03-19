@@ -66,15 +66,18 @@ typedef struct {
 
     WGPUTexture shadow_texture;
     WGPUTextureView shadow_texture_view;
+    WGPUTextureView shadow_layer_views[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     uint32_t shadow_map_size;
     WGPUShaderModule shadow_shader_module;
-    WGPUBuffer shadow_vp_buffer;
+    WGPUBuffer shadow_vp_buffers[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     WGPUBindGroupLayout shadow_pass_bind_layout;
-    WGPUBindGroup shadow_pass_bind_group;
+    WGPUBindGroup shadow_pass_bind_groups[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    int current_shadow_cascade;
     WGPUSampler shadow_sampler;
     WGPUBindGroupLayout shadow_sample_bind_layout;
     WGPUBindGroup shadow_sample_bind_group;
-    mat4 current_light_vp;
+    mat4 current_light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    float cascade_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
 
     FlecsDefaultAttrCache *default_attr_cache;
 } FlecsEngineImpl;

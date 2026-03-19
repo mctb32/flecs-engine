@@ -1,17 +1,9 @@
 #include "shaders.h"
 #include "../renderer.h"
+#include "common/uniforms_wgsl.h"
 
 static const char *kShaderSource =
-    "struct Uniforms {\n"
-    "  vp : mat4x4<f32>,\n"
-    "  inv_vp : mat4x4<f32>,\n"
-    "  light_vp : mat4x4<f32>,\n"
-    "  clear_color : vec4<f32>,\n"
-    "  light_ray_dir : vec4<f32>,\n"
-    "  light_color : vec4<f32>,\n"
-    "  camera_pos : vec4<f32>\n"
-    "}\n"
-    "@group(0) @binding(0) var<uniform> uniforms : Uniforms;\n"
+    FLECS_ENGINE_SHADER_COMMON_UNIFORMS_WGSL
     "@group(1) @binding(0) var ibl_prefiltered_env : texture_cube<f32>;\n"
     "@group(1) @binding(1) var ibl_sampler : sampler;\n"
     "@group(1) @binding(2) var ibl_brdf_lut : texture_2d<f32>;\n"

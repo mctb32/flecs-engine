@@ -1,9 +1,9 @@
 #include "shaders.h"
 #include "../renderer.h"
+#include "common/uniforms_wgsl.h"
 
 static const char *kShaderSource =
-    "struct Uniforms { vp : mat4x4<f32>, inv_vp : mat4x4<f32>, light_vp : mat4x4<f32>, clear_color : vec4<f32> }\n"
-    "@group(0) @binding(0) var<uniform> uniforms : Uniforms;\n"
+    FLECS_ENGINE_SHADER_COMMON_UNIFORMS_WGSL
     "struct VertexInput {\n"
     "  @location(0) pos : vec3<f32>,\n"
     "  @location(1) nrm : vec3<f32>,\n"

@@ -222,10 +222,12 @@ int flecsEngine_shadow_init(
 void flecsEngine_shadow_cleanup(
     FlecsEngineImpl *impl);
 
-void flecsEngine_shadow_computeLightVP(
+void flecsEngine_shadow_computeCascades(
     const ecs_world_t *world,
     const FlecsRenderView *view,
-    mat4 out_light_vp);
+    uint32_t shadow_map_size,
+    mat4 out_light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT],
+    float out_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT]);
 
 void flecsEngine_renderBatch_renderShadow(
     ecs_world_t *world,

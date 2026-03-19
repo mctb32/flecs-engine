@@ -153,7 +153,7 @@ void initEngine(
 
   // Light
   view.light = ecs_entity(world, { .name = "light" });
-  ecs_set(world, view.light, FlecsPosition3, {8, 0, 5});
+  ecs_set(world, view.light, FlecsPosition3, {8, 5, 5});
   ecs_set(world, view.light, FlecsDirectionalLight, { .intensity = 1.0f });
   ecs_set(world, view.light, FlecsLookAt, { 0, 0, 0 });
   ecs_set(world, view.light, FlecsRgba, {255, 255, 255, 255});

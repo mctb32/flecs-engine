@@ -60,7 +60,7 @@ template Building {
     Position3: {0, floors, 0}
     Box: {width - 0.2, floors * 2, width - 0.2}
     Rgba: {2.55, 5.1, 12.75}
-    PbrMaterial: {roughness: 0}
+    PbrMaterial: {roughness: 0.05}
   }
 
   const pillars = windows + 2
@@ -101,7 +101,7 @@ template Building {
 // City template
 template City {
   prop gridSize: 15
-  prop blockWidth: 15
+  prop blockWidth: 17
   prop pavementWidth: 12
   prop buildingWidth: 8
   prop maxFloors: 26

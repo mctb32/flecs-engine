@@ -7,9 +7,12 @@ using flecs.script
     Rotation3: {-math.PI / 2}
 }
 
-{
-    Position3: {0, 2, -10}
-    Box: {3, 3, 3}
-    Rgba: {255, 0, 0}
-    Rotation3: {0, 1}
+
+for i in 0..100 {
+    {
+        Position3: {i * 3, 4, -10}
+        Box: {3, i * 4, 3}
+        Rgba: {255, 0, 0}
+        Rotation3: {0, 1}
+    }
 }
