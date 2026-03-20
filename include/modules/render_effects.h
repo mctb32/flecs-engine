@@ -29,6 +29,15 @@ ECS_STRUCT(FlecsExponentialHeightFog, {
 
 extern ECS_COMPONENT_DECLARE(FlecsExponentialHeightFog);
 
+ECS_STRUCT(FlecsSSAO, {
+    float radius;
+    float bias;
+    float intensity;
+    int32_t blur;
+});
+
+extern ECS_COMPONENT_DECLARE(FlecsSSAO);
+
 ecs_entity_t flecsEngine_createEffect_tonyMcMapFace(
     ecs_world_t *world,
     ecs_entity_t parent,
@@ -58,5 +67,14 @@ ecs_entity_t flecsEngine_createEffect_exponentialHeightFog(
     const char *name,
     int32_t input,
     const FlecsExponentialHeightFog *settings);
+
+FlecsSSAO flecsEngine_ssaoSettingsDefault(void);
+
+ecs_entity_t flecsEngine_createEffect_ssao(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name,
+    int32_t input,
+    const FlecsSSAO *settings);
 
 #endif

@@ -172,20 +172,26 @@ void initEngine(
     flecsEngine_createBatchSet_geometry(world, view_entity, "geometry");
 
   // Post process effects
+  FlecsSSAO ssao_settings = flecsEngine_ssaoSettingsDefault();
+  ssao_settings.radius = 1.0;
+  ssao_settings.blur = 0;
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
   FlecsExponentialHeightFog fog_settings =
     flecsEngine_exponentialHeightFogSettingsDefault();
   fog_settings.density = 0;
 
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
-    flecsEngine_createEffect_bloom(world, view_entity, 
-      "bloomEffect", 0, &bloom_settings);
+    flecsEngine_createEffect_ssao(world, view_entity,
+      "ssaoEffect", 0, &ssao_settings);
+  ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
+    flecsEngine_createEffect_bloom(world, view_entity,
+      "bloomEffect", 1, &bloom_settings);
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
     flecsEngine_createEffect_exponentialHeightFog(
-      world, view_entity, "heightFogEffect", 1, &fog_settings);
+      world, view_entity, "heightFogEffect", 2, &fog_settings);
   ecs_vec_append_t(NULL, &view.effects, ecs_entity_t)[0] =
-    flecsEngine_createEffect_tonyMcMapFace(world, view_entity, 
-      "tonyMcMapFaceEffect", 2);
+    flecsEngine_createEffect_tonyMcMapFace(world, view_entity,
+      "tonyMcMapFaceEffect", 3);
 
   ecs_set_ptr(world, view_entity, FlecsRenderView, &view);
   ecs_set_ptr(world, view_entity, FlecsRenderBatchSet, &batch_set);

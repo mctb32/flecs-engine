@@ -366,6 +366,7 @@ void FlecsEngineRendererImport(
     flecsEngine_tonyMcMapFace_register(world);
     flecsEngine_bloom_register(world);
     flecsEngine_exponentialHeightFog_register(world);
+    flecsEngine_ssao_register(world);
 
     ecs_set_name_prefix(world, "FlecsEngine");
 

@@ -178,6 +178,19 @@ typedef struct {
 extern ECS_COMPONENT_DECLARE(FlecsExponentialHeightFogImpl);
 
 typedef struct {
+    WGPUBuffer uniform_buffer;
+    WGPUTexture blur_intermediate_texture;
+    WGPUTextureView blur_intermediate_view;
+    uint32_t blur_texture_width;
+    uint32_t blur_texture_height;
+    WGPUBindGroupLayout blur_bind_layout;
+    WGPURenderPipeline blur_pipeline_surface;
+    WGPURenderPipeline blur_pipeline_hdr;
+} FlecsSSAOImpl;
+
+extern ECS_COMPONENT_DECLARE(FlecsSSAOImpl);
+
+typedef struct {
     WGPUTexture tony_lut_texture;
     WGPUTextureView tony_lut_texture_view;
     WGPUSampler tony_lut_sampler;
