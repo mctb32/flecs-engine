@@ -297,6 +297,7 @@ ground {
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 Rgba: {255, 255, 255}
                 Emissive: {10 * i / (ItemCount - 1)}
+                PointLight: {intensity: 20 * i / (ItemCount - 1), range: 15}
             }}
         }
     }
@@ -312,6 +313,7 @@ ground {
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 Rgba: {1, 1, 1}
                 Emissive: {10 * i / (ItemCount - 1)}
+                PointLight: {intensity: 20 * i / (ItemCount - 1), range: 15}
             }}
         }
     }
@@ -327,6 +329,7 @@ ground {
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 Rgba: {255, 0, 0}
                 Emissive: {10 * i / (ItemCount - 1)}
+                PointLight: {intensity: 20 * i / (ItemCount - 1), range: 15}
             }}
         }
     }
@@ -342,6 +345,7 @@ ground {
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 Rgba: {255, 128, 0}
                 Emissive: {10 * i / (ItemCount - 1)}
+                PointLight: {intensity: 20 * i / (ItemCount - 1), range: 15}
             }}
         }
     }
@@ -357,6 +361,7 @@ ground {
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 Rgba: {0, 255, 0}
                 Emissive: {10 * i / (ItemCount - 1)}
+                PointLight: {intensity: 20 * i / (ItemCount - 1), range: 15}
             }}
         }
     }
@@ -372,6 +377,7 @@ ground {
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 Rgba: {0, 128, 255}
                 Emissive: {10 * i / (ItemCount - 1)}
+                PointLight: {intensity: 20 * i / (ItemCount - 1), range: 15}
             }}
         }
     }
@@ -387,6 +393,7 @@ ground {
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 Rgba: {0, 0, 255}
                 Emissive: {10 * i / (ItemCount - 1)}
+                PointLight: {intensity: 20 * i / (ItemCount - 1), range: 15}
             }}
         }
     }
@@ -402,6 +409,7 @@ ground {
                 IcoSphere: {segments: 3, radius: ItemSize / 2, smooth: true}
                 Rgba: {128, 0, 255}
                 Emissive: {10 * i / (ItemCount - 1)}
+                PointLight: {intensity: 20 * i / (ItemCount - 1), range: 15}
             }}
         }
     }
