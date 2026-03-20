@@ -5,17 +5,18 @@
 #include "flecs_engine.h"
 
 ecs_entity_t flecsEngine_createBatch_primitive(
-    ecs_world_t *world, 
-    ecs_entity_t parent, 
-    const char *name, 
-    const FlecsMesh3Impl *mesh, 
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name,
+    const FlecsMesh3Impl *mesh,
     ecs_entity_t component,
-    flecsEngine_primitive_scale_t scale_callback)
+    flecsEngine_primitive_scale_t scale_callback,
+    ecs_entity_t exclude)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
     ecs_entity_t shader = flecsEngine_shader_pbrColored(world);
 
-    ecs_query_t *q = ecs_query(world, {
+    ecs_query_desc_t desc = {
         .entity = batch,
         .terms = {
             { .id = component, .src.id = EcsSelf },
@@ -26,7 +27,13 @@ ecs_entity_t flecsEngine_createBatch_primitive(
             { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA, .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto
-    });
+    };
+
+    if (exclude) {
+        desc.terms[6] = (ecs_term_t){ .id = exclude, .oper = EcsNot };
+    }
+
+    ecs_query_t *q = ecs_query_init(world, &desc);
 
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
@@ -55,9 +62,9 @@ ecs_entity_t flecsEngine_createBatch_boxes(
     ecs_entity_t parent,
     const char *name)
 {
-    return flecsEngine_createBatch_primitive(world, parent, name, 
+    return flecsEngine_createBatch_primitive(world, parent, name,
         flecsEngine_box_getAsset(world), ecs_id(FlecsBox),
-        flecsEngine_box_scale);
+        flecsEngine_box_scale, ecs_id(FlecsBevel));
 }
 
 ecs_entity_t flecsEngine_createBatch_quads(
@@ -65,9 +72,9 @@ ecs_entity_t flecsEngine_createBatch_quads(
     ecs_entity_t parent,
     const char *name)
 {
-    return flecsEngine_createBatch_primitive(world, parent, name, 
+    return flecsEngine_createBatch_primitive(world, parent, name,
         flecsEngine_quad_getAsset(world), ecs_id(FlecsQuad),
-        flecsEngine_quad_scale);
+        flecsEngine_quad_scale, 0);
 }
 
 ecs_entity_t flecsEngine_createBatch_triangles(
@@ -75,9 +82,9 @@ ecs_entity_t flecsEngine_createBatch_triangles(
     ecs_entity_t parent,
     const char *name)
 {
-    return flecsEngine_createBatch_primitive(world, parent, name, 
+    return flecsEngine_createBatch_primitive(world, parent, name,
         flecsEngine_triangle_getAsset(world), ecs_id(FlecsTriangle),
-        flecsEngine_triangle_scale);
+        flecsEngine_triangle_scale, 0);
 }
 
 ecs_entity_t flecsEngine_createBatch_right_triangles(
@@ -85,9 +92,9 @@ ecs_entity_t flecsEngine_createBatch_right_triangles(
     ecs_entity_t parent,
     const char *name)
 {
-    return flecsEngine_createBatch_primitive(world, parent, name, 
+    return flecsEngine_createBatch_primitive(world, parent, name,
         flecsEngine_rightTriangle_getAsset(world), ecs_id(FlecsRightTriangle),
-        flecsEngine_right_triangle_scale);
+        flecsEngine_right_triangle_scale, 0);
 }
 
 ecs_entity_t flecsEngine_createBatch_triangle_prisms(
@@ -95,9 +102,9 @@ ecs_entity_t flecsEngine_createBatch_triangle_prisms(
     ecs_entity_t parent,
     const char *name)
 {
-    return flecsEngine_createBatch_primitive(world, parent, name, 
+    return flecsEngine_createBatch_primitive(world, parent, name,
         flecsEngine_trianglePrism_getAsset(world), ecs_id(FlecsTrianglePrism),
-        flecsEngine_triangle_prism_scale);
+        flecsEngine_triangle_prism_scale, 0);
 }
 
 ecs_entity_t flecsEngine_createBatch_right_triangle_prisms(
@@ -105,7 +112,7 @@ ecs_entity_t flecsEngine_createBatch_right_triangle_prisms(
     ecs_entity_t parent,
     const char *name)
 {
-    return flecsEngine_createBatch_primitive(world, parent, name, 
+    return flecsEngine_createBatch_primitive(world, parent, name,
         flecsEngine_rightTrianglePrism_getAsset(world), ecs_id(FlecsRightTrianglePrism),
-        flecsEngine_right_triangle_prism_scale);
+        flecsEngine_right_triangle_prism_scale, 0);
 }

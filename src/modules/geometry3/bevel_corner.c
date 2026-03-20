@@ -323,6 +323,15 @@ static ecs_entity_t flecsEngine_bevelCorner_getAsset(
     return asset;
 }
 
+const FlecsMesh3Impl* flecsEngine_bevelCorner_getAssetImpl(
+    ecs_world_t *world,
+    int32_t segments,
+    bool smooth)
+{
+    ecs_entity_t asset = flecsEngine_bevelCorner_getAsset(world, segments, smooth);
+    return ecs_get(world, asset, FlecsMesh3Impl);
+}
+
 void FlecsBevelCorner_on_replace(
     ecs_iter_t *it)
 {

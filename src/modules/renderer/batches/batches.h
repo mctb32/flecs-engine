@@ -119,6 +119,10 @@ void flecsEngine_batch_extractSingleInstance(
     float scale_y,
     float scale_z);
 
+void flecsEngine_batch_upload(
+    const FlecsEngineImpl *engine,
+    const flecsEngine_batch_t *ctx);
+
 ecs_entity_t flecsEngine_createBatch_mesh_materialData(
     ecs_world_t *world,
     ecs_entity_t parent,
@@ -190,6 +194,16 @@ ecs_entity_t flecsEngine_createBatch_triangle_prisms_materialIndex(
     const char *name);
 
 ecs_entity_t flecsEngine_createBatch_right_triangle_prisms_materialIndex(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name);
+
+ecs_entity_t flecsEngine_createBatch_bevel_boxes(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name);
+
+ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name);

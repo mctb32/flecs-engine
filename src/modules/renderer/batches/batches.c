@@ -247,7 +247,7 @@ static void flecsEngine_batch_copyMaterialIds(
     }
 }
 
-static void flecsEngine_batch_upload(
+void flecsEngine_batch_upload(
     const FlecsEngineImpl *engine,
     const flecsEngine_batch_t *ctx)
 {

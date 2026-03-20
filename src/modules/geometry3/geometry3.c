@@ -336,7 +336,8 @@ void FlecsEngineGeometry3Import(
         .entity = ecs_id(FlecsBevel),
         .members = {
             { .name = "segments", .type = ecs_id(ecs_i32_t) },
-            { .name = "smooth", .type = ecs_id(ecs_bool_t) }
+            { .name = "smooth", .type = ecs_id(ecs_bool_t) },
+            { .name = "radius", .type = ecs_id(ecs_f32_t) }
         }
     });
 

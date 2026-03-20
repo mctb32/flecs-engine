@@ -220,6 +220,15 @@ static ecs_entity_t flecsEngine_bevel_getAsset(
     return asset;
 }
 
+const FlecsMesh3Impl* flecsEngine_bevel_getAssetImpl(
+    ecs_world_t *world,
+    int32_t segments,
+    bool smooth)
+{
+    ecs_entity_t asset = flecsEngine_bevel_getAsset(world, segments, smooth);
+    return ecs_get(world, asset, FlecsMesh3Impl);
+}
+
 void FlecsBevel_on_replace(
     ecs_iter_t *it)
 {
@@ -248,6 +257,12 @@ void FlecsBevel_on_replace(
 
         ecs_entity_t asset = flecsEngine_bevel_getAsset(
             world, new[i].segments, new[i].smooth);
+
+        /* Don't add bevel mesh for entities that also have Box (beveled box) */
+        if (ecs_has(world, it->entities[i], FlecsBox)) {
+            continue;
+        }
+
         ecs_add_pair(world, it->entities[i], EcsIsA, asset);
     }
 }

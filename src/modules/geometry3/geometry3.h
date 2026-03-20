@@ -75,6 +75,16 @@ void FlecsBevel_on_replace(
 void FlecsBevelCorner_on_replace(
     ecs_iter_t *it);
 
+const FlecsMesh3Impl* flecsEngine_bevel_getAssetImpl(
+    ecs_world_t *world,
+    int32_t segments,
+    bool smooth);
+
+const FlecsMesh3Impl* flecsEngine_bevelCorner_getAssetImpl(
+    ecs_world_t *world,
+    int32_t segments,
+    bool smooth);
+
 void FlecsEngineGeometry3Import(
     ecs_world_t *world);
 

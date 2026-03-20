@@ -415,363 +415,380 @@ ground {
     }
 }
 
-// Point lights
+// Lights
 {
-    const PLItems: 3
-    const PLSpacing: 4.5
+    const LightItems: 3
+    const LightSpacing: 4.5
 
     Position3: {150}
 
-    // Red
-    Display(items: PLItems) {
-        Position3: {0, 0, -10}
-    }
     {
-        Position3: {-PLSpacing, 2, -10}
-        PointLight: {intensity: 2, range: 12}
-        Rgba: {255, 0, 0}
-    }
-    {
-        Position3: {0, 2, -10}
-        PointLight: {intensity: 5, range: 12}
-        Rgba: {255, 0, 0}
-    }
-    {
-        Position3: {PLSpacing, 2, -10}
-        PointLight: {intensity: 10, range: 12}
-        Rgba: {255, 0, 0}
+        Position3: {-10}
+
+        // Red
+        Display(items: LightItems) {
+            Position3: {0, 0, -10}
+
+            {
+                Position3: {-LightSpacing, 2}
+                PointLight: {intensity: 2, range: 12}
+                Rgba: {255, 0, 0}
+            }
+            {
+                Position3: {0, 2}
+                PointLight: {intensity: 5, range: 12}
+                Rgba: {255, 0, 0}
+            }
+            {
+                Position3: {LightSpacing, 2}
+                PointLight: {intensity: 10, range: 12}
+                Rgba: {255, 0, 0}
+            }
+        }
+
+        // Orange
+        Display(items: LightItems) {
+            Position3: {0, 0, -20}
+
+            {
+                Position3: {-LightSpacing, 2}
+                PointLight: {intensity: 2, range: 12}
+                Rgba: {255, 128, 0}
+            }
+            {
+                Position3: {0, 2}
+                PointLight: {intensity: 5, range: 12}
+                Rgba: {255, 128, 0}
+            }
+            {
+                Position3: {LightSpacing, 2}
+                PointLight: {intensity: 10, range: 12}
+                Rgba: {255, 128, 0}
+            }
+        }
+
+        // Yellow
+        Display(items: LightItems) {
+            Position3: {0, 0, -30}
+
+            {
+                Position3: {-LightSpacing, 2}
+                PointLight: {intensity: 2, range: 12}
+                Rgba: {255, 255, 0}
+            }
+            {
+                Position3: {0, 2}
+                PointLight: {intensity: 5, range: 12}
+                Rgba: {255, 255, 0}
+            }
+            {
+                Position3: {LightSpacing, 2}
+                PointLight: {intensity: 10, range: 12}
+                Rgba: {255, 255, 0}
+            }
+        }
+
+        // Green
+        Display(items: LightItems) {
+            Position3: {0, 0, -40}
+
+            {
+                Position3: {-LightSpacing, 2}
+                PointLight: {intensity: 2, range: 12}
+                Rgba: {0, 255, 0}
+            }
+            {
+                Position3: {0, 2}
+                PointLight: {intensity: 5, range: 12}
+                Rgba: {0, 255, 0}
+            }
+            {
+                Position3: {LightSpacing, 2}
+                PointLight: {intensity: 10, range: 12}
+                Rgba: {0, 255, 0}
+            }
+        }
+
+        // Cyan
+        Display(items: LightItems) {
+            Position3: {0, 0, -50}
+
+            {
+                Position3: {-LightSpacing, 2}
+                PointLight: {intensity: 2, range: 12}
+                Rgba: {0, 255, 255}
+            }
+            {
+                Position3: {0, 2}
+                PointLight: {intensity: 5, range: 12}
+                Rgba: {0, 255, 255}
+            }
+            {
+                Position3: {LightSpacing, 2}
+                PointLight: {intensity: 10, range: 12}
+                Rgba: {0, 255, 255}
+            }
+        }
+
+        // Blue
+        Display(items: LightItems) {
+            Position3: {0, 0, -60}
+
+            {
+                Position3: {-LightSpacing, 2}
+                PointLight: {intensity: 2, range: 12}
+                Rgba: {0, 0, 255}
+            }
+            {
+                Position3: {0, 2}
+                PointLight: {intensity: 5, range: 12}
+                Rgba: {0, 0, 255}
+            }
+            {
+                Position3: {LightSpacing, 2}
+                PointLight: {intensity: 10, range: 12}
+                Rgba: {0, 0, 255}
+            }
+        }
+
+        // Indigo
+        Display(items: LightItems) {
+            Position3: {0, 0, -70}
+
+            {
+                Position3: {-LightSpacing, 2}
+                PointLight: {intensity: 2, range: 12}
+                Rgba: {75, 0, 130}
+            }
+            {
+                Position3: {0, 2}
+                PointLight: {intensity: 5, range: 12}
+                Rgba: {75, 0, 130}
+            }
+            {
+                Position3: {LightSpacing, 2}
+                PointLight: {intensity: 10, range: 12}
+                Rgba: {75, 0, 130}
+            }
+        }
+
+        // White
+        Display(items: LightItems) {
+            Position3: {0, 0, -80}
+
+            {
+                Position3: {-LightSpacing, 2}
+                PointLight: {intensity: 2, range: 12}
+                Rgba: {255, 255, 255}
+            }
+            {
+                Position3: {0, 2}
+                PointLight: {intensity: 5, range: 12}
+                Rgba: {255, 255, 255}
+            }
+            {
+                Position3: {LightSpacing, 2}
+                PointLight: {intensity: 10, range: 12}
+                Rgba: {255, 255, 255}
+            }
+        }
     }
 
-    // Orange
-    Display(items: PLItems) {
-        Position3: {0, 0, -20}
-    }
+    // Spot lights
     {
-        Position3: {-PLSpacing, 2, -20}
-        PointLight: {intensity: 2, range: 12}
-        Rgba: {255, 128, 0}
-    }
-    {
-        Position3: {0, 2, -20}
-        PointLight: {intensity: 5, range: 12}
-        Rgba: {255, 128, 0}
-    }
-    {
-        Position3: {PLSpacing, 2, -20}
-        PointLight: {intensity: 10, range: 12}
-        Rgba: {255, 128, 0}
-    }
+        Position3: {10}
 
-    // Yellow
-    Display(items: PLItems) {
-        Position3: {0, 0, -30}
-    }
-    {
-        Position3: {-PLSpacing, 2, -30}
-        PointLight: {intensity: 2, range: 12}
-        Rgba: {255, 255, 0}
-    }
-    {
-        Position3: {0, 2, -30}
-        PointLight: {intensity: 5, range: 12}
-        Rgba: {255, 255, 0}
-    }
-    {
-        Position3: {PLSpacing, 2, -30}
-        PointLight: {intensity: 10, range: 12}
-        Rgba: {255, 255, 0}
-    }
+        // 0 degree tilt - Red (circle)
+        Display(items: LightItems) {
+            Position3: {0, 0, -10}
 
-    // Green
-    Display(items: PLItems) {
-        Position3: {0, 0, -40}
-    }
-    {
-        Position3: {-PLSpacing, 2, -40}
-        PointLight: {intensity: 2, range: 12}
-        Rgba: {0, 255, 0}
-    }
-    {
-        Position3: {0, 2, -40}
-        PointLight: {intensity: 5, range: 12}
-        Rgba: {0, 255, 0}
-    }
-    {
-        Position3: {PLSpacing, 2, -40}
-        PointLight: {intensity: 10, range: 12}
-        Rgba: {0, 255, 0}
-    }
+            {
+                Position3: {-LightSpacing, 3}
+                Rotation3: {-math.PI / 2, 0, 0}
+                SpotLight: {intensity: 20, range: 8, inner_angle: 15, outer_angle: 25}
+                Rgba: {255, 0, 0}
+            }
+            {
+                Position3: {0, 3}
+                Rotation3: {-math.PI / 2, 0, 0}
+                SpotLight: {intensity: 50, range: 8, inner_angle: 15, outer_angle: 25}
+                Rgba: {255, 0, 0}
+            }
+            {
+                Position3: {LightSpacing, 3}
+                Rotation3: {-math.PI / 2, 0, 0}
+                SpotLight: {intensity: 100, range: 8, inner_angle: 15, outer_angle: 25}
+                Rgba: {255, 0, 0}
+            }
+        }
 
-    // Cyan
-    Display(items: PLItems) {
-        Position3: {0, 0, -50}
-    }
-    {
-        Position3: {-PLSpacing, 2, -50}
-        PointLight: {intensity: 2, range: 12}
-        Rgba: {0, 255, 255}
-    }
-    {
-        Position3: {0, 2, -50}
-        PointLight: {intensity: 5, range: 12}
-        Rgba: {0, 255, 255}
-    }
-    {
-        Position3: {PLSpacing, 2, -50}
-        PointLight: {intensity: 10, range: 12}
-        Rgba: {0, 255, 255}
-    }
+        // 10 degree tilt - Orange
+        Display(items: LightItems) {
+            Position3: {0, 0, -20}
 
-    // Blue
-    Display(items: PLItems) {
-        Position3: {0, 0, -60}
-    }
-    {
-        Position3: {-PLSpacing, 2, -60}
-        PointLight: {intensity: 2, range: 12}
-        Rgba: {0, 0, 255}
-    }
-    {
-        Position3: {0, 2, -60}
-        PointLight: {intensity: 5, range: 12}
-        Rgba: {0, 0, 255}
-    }
-    {
-        Position3: {PLSpacing, 2, -60}
-        PointLight: {intensity: 10, range: 12}
-        Rgba: {0, 0, 255}
-    }
+            {
+                Position3: {-LightSpacing, 3, 0.35}
+                Rotation3: {-math.PI / 2 + math.PI / 18, 0, 0}
+                SpotLight: {intensity: 20, range: 8, inner_angle: 15, outer_angle: 25}
+                Rgba: {255, 128, 0}
+            }
+            {
+                Position3: {0, 3, 0.35}
+                Rotation3: {-math.PI / 2 + math.PI / 18, 0, 0}
+                SpotLight: {intensity: 50, range: 8, inner_angle: 15, outer_angle: 25}
+                Rgba: {255, 128, 0}
+            }
+            {
+                Position3: {LightSpacing, 3, 0.35}
+                Rotation3: {-math.PI / 2 + math.PI / 18, 0, 0}
+                SpotLight: {intensity: 100, range: 8, inner_angle: 15, outer_angle: 25}
+                Rgba: {255, 128, 0}
+            }
+        }
 
-    // Indigo
-    Display(items: PLItems) {
-        Position3: {0, 0, -70}
-    }
-    {
-        Position3: {-PLSpacing, 2, -70}
-        PointLight: {intensity: 2, range: 12}
-        Rgba: {75, 0, 130}
-    }
-    {
-        Position3: {0, 2, -70}
-        PointLight: {intensity: 5, range: 12}
-        Rgba: {75, 0, 130}
-    }
-    {
-        Position3: {PLSpacing, 2, -70}
-        PointLight: {intensity: 10, range: 12}
-        Rgba: {75, 0, 130}
-    }
+        // 20 degree tilt - Yellow
+        Display(items: LightItems) {
+            Position3: {0, 0, -30}
 
-    // White
-    Display(items: PLItems) {
-        Position3: {0, 0, -80}
-    }
-    {
-        Position3: {-PLSpacing, 2, -80}
-        PointLight: {intensity: 2, range: 12}
-        Rgba: {255, 255, 255}
-    }
-    {
-        Position3: {0, 2, -80}
-        PointLight: {intensity: 5, range: 12}
-        Rgba: {255, 255, 255}
-    }
-    {
-        Position3: {PLSpacing, 2, -80}
-        PointLight: {intensity: 10, range: 12}
-        Rgba: {255, 255, 255}
-    }
-}
+            {
+                Position3: {-LightSpacing, 3, 0.73}
+                Rotation3: {-math.PI / 2 + math.PI / 9, 0, 0}
+                SpotLight: {intensity: 20, range: 8, inner_angle: 14, outer_angle: 24}
+                Rgba: {255, 255, 0}
+            }
+            {
+                Position3: {0, 3, 0.73}
+                Rotation3: {-math.PI / 2 + math.PI / 9, 0, 0}
+                SpotLight: {intensity: 50, range: 8, inner_angle: 14, outer_angle: 24}
+                Rgba: {255, 255, 0}
+            }
+            {
+                Position3: {LightSpacing, 3, 0.73}
+                Rotation3: {-math.PI / 2 + math.PI / 9, 0, 0}
+                SpotLight: {intensity: 100, range: 8, inner_angle: 14, outer_angle: 24}
+                Rgba: {255, 255, 0}
+            }
+        }
 
-// Spot lights
-{
-    const SLItems: 3
-    const SLSpacing: 4.5
+        // 30 degree tilt - Green
+        Display(items: LightItems) {
+            Position3: {0, 0, -40}
 
-    Position3: {175}
+            {
+                Position3: {-LightSpacing, 3, 1.15}
+                Rotation3: {-math.PI / 2 + math.PI / 6, 0, 0}
+                SpotLight: {intensity: 25, range: 8, inner_angle: 13, outer_angle: 22}
+                Rgba: {0, 255, 0}
+            }
+            {
+                Position3: {0, 3, 1.15}
+                Rotation3: {-math.PI / 2 + math.PI / 6, 0, 0}
+                SpotLight: {intensity: 60, range: 8, inner_angle: 13, outer_angle: 22}
+                Rgba: {0, 255, 0}
+            }
+            {
+                Position3: {LightSpacing, 3, 1.15}
+                Rotation3: {-math.PI / 2 + math.PI / 6, 0, 0}
+                SpotLight: {intensity: 125, range: 8, inner_angle: 13, outer_angle: 22}
+                Rgba: {0, 255, 0}
+            }
+        }
 
-    // 0 degree tilt - Red (circle)
-    Display(items: SLItems) {
-        Position3: {0, 0, -10}
-    }
-    {
-        Position3: {-SLSpacing, 3, -10}
-        Rotation3: {-math.PI / 2, 0, 0}
-        SpotLight: {intensity: 20, range: 8, inner_angle: 15, outer_angle: 25}
-        Rgba: {255, 0, 0}
-    }
-    {
-        Position3: {0, 3, -10}
-        Rotation3: {-math.PI / 2, 0, 0}
-        SpotLight: {intensity: 50, range: 8, inner_angle: 15, outer_angle: 25}
-        Rgba: {255, 0, 0}
-    }
-    {
-        Position3: {SLSpacing, 3, -10}
-        Rotation3: {-math.PI / 2, 0, 0}
-        SpotLight: {intensity: 100, range: 8, inner_angle: 15, outer_angle: 25}
-        Rgba: {255, 0, 0}
-    }
+        // 40 degree tilt - Cyan
+        Display(items: LightItems) {
+            Position3: {0, 0, -50}
 
-    // 10 degree tilt - Orange
-    Display(items: SLItems) {
-        Position3: {0, 0, -20}
-    }
-    {
-        Position3: {-SLSpacing, 3, -19.65}
-        Rotation3: {-math.PI / 2 + math.PI / 18, 0, 0}
-        SpotLight: {intensity: 20, range: 8, inner_angle: 15, outer_angle: 25}
-        Rgba: {255, 128, 0}
-    }
-    {
-        Position3: {0, 3, -19.65}
-        Rotation3: {-math.PI / 2 + math.PI / 18, 0, 0}
-        SpotLight: {intensity: 50, range: 8, inner_angle: 15, outer_angle: 25}
-        Rgba: {255, 128, 0}
-    }
-    {
-        Position3: {SLSpacing, 3, -19.65}
-        Rotation3: {-math.PI / 2 + math.PI / 18, 0, 0}
-        SpotLight: {intensity: 100, range: 8, inner_angle: 15, outer_angle: 25}
-        Rgba: {255, 128, 0}
-    }
+            {
+                Position3: {-LightSpacing, 3, 1.68}
+                Rotation3: {-math.PI / 2 + 2 * math.PI / 9, 0, 0}
+                SpotLight: {intensity: 30, range: 8, inner_angle: 12, outer_angle: 20}
+                Rgba: {0, 255, 255}
+            }
+            {
+                Position3: {0, 3, 1.68}
+                Rotation3: {-math.PI / 2 + 2 * math.PI / 9, 0, 0}
+                SpotLight: {intensity: 75, range: 8, inner_angle: 12, outer_angle: 20}
+                Rgba: {0, 255, 255}
+            }
+            {
+                Position3: {LightSpacing, 3, 1.68}
+                Rotation3: {-math.PI / 2 + 2 * math.PI / 9, 0, 0}
+                SpotLight: {intensity: 150, range: 8, inner_angle: 12, outer_angle: 20}
+                Rgba: {0, 255, 255}
+            }
+        }
 
-    // 20 degree tilt - Yellow
-    Display(items: SLItems) {
-        Position3: {0, 0, -30}
-    }
-    {
-        Position3: {-SLSpacing, 3, -29.27}
-        Rotation3: {-math.PI / 2 + math.PI / 9, 0, 0}
-        SpotLight: {intensity: 20, range: 8, inner_angle: 14, outer_angle: 24}
-        Rgba: {255, 255, 0}
-    }
-    {
-        Position3: {0, 3, -29.27}
-        Rotation3: {-math.PI / 2 + math.PI / 9, 0, 0}
-        SpotLight: {intensity: 50, range: 8, inner_angle: 14, outer_angle: 24}
-        Rgba: {255, 255, 0}
-    }
-    {
-        Position3: {SLSpacing, 3, -29.27}
-        Rotation3: {-math.PI / 2 + math.PI / 9, 0, 0}
-        SpotLight: {intensity: 100, range: 8, inner_angle: 14, outer_angle: 24}
-        Rgba: {255, 255, 0}
-    }
+        // 50 degree tilt - Blue
+        Display(items: LightItems) {
+            Position3: {0, 0, -60}
 
-    // 30 degree tilt - Green
-    Display(items: SLItems) {
-        Position3: {0, 0, -40}
-    }
-    {
-        Position3: {-SLSpacing, 3, -38.85}
-        Rotation3: {-math.PI / 2 + math.PI / 6, 0, 0}
-        SpotLight: {intensity: 25, range: 8, inner_angle: 13, outer_angle: 22}
-        Rgba: {0, 255, 0}
-    }
-    {
-        Position3: {0, 3, -38.85}
-        Rotation3: {-math.PI / 2 + math.PI / 6, 0, 0}
-        SpotLight: {intensity: 60, range: 8, inner_angle: 13, outer_angle: 22}
-        Rgba: {0, 255, 0}
-    }
-    {
-        Position3: {SLSpacing, 3, -38.85}
-        Rotation3: {-math.PI / 2 + math.PI / 6, 0, 0}
-        SpotLight: {intensity: 125, range: 8, inner_angle: 13, outer_angle: 22}
-        Rgba: {0, 255, 0}
-    }
+            {
+                Position3: {-LightSpacing, 3, 2.38}
+                Rotation3: {-math.PI / 2 + 5 * math.PI / 18, 0, 0}
+                SpotLight: {intensity: 45, range: 10, inner_angle: 10, outer_angle: 17}
+                Rgba: {0, 0, 255}
+            }
+            {
+                Position3: {0, 3, 2.38}
+                Rotation3: {-math.PI / 2 + 5 * math.PI / 18, 0, 0}
+                SpotLight: {intensity: 110, range: 10, inner_angle: 10, outer_angle: 17}
+                Rgba: {0, 0, 255}
+            }
+            {
+                Position3: {LightSpacing, 3, 2.38}
+                Rotation3: {-math.PI / 2 + 5 * math.PI / 18, 0, 0}
+                SpotLight: {intensity: 220, range: 10, inner_angle: 10, outer_angle: 17}
+                Rgba: {0, 0, 255}
+            }
+        }
 
-    // 40 degree tilt - Cyan
-    Display(items: SLItems) {
-        Position3: {0, 0, -50}
-    }
-    {
-        Position3: {-SLSpacing, 3, -48.32}
-        Rotation3: {-math.PI / 2 + 2 * math.PI / 9, 0, 0}
-        SpotLight: {intensity: 30, range: 8, inner_angle: 12, outer_angle: 20}
-        Rgba: {0, 255, 255}
-    }
-    {
-        Position3: {0, 3, -48.32}
-        Rotation3: {-math.PI / 2 + 2 * math.PI / 9, 0, 0}
-        SpotLight: {intensity: 75, range: 8, inner_angle: 12, outer_angle: 20}
-        Rgba: {0, 255, 255}
-    }
-    {
-        Position3: {SLSpacing, 3, -48.32}
-        Rotation3: {-math.PI / 2 + 2 * math.PI / 9, 0, 0}
-        SpotLight: {intensity: 150, range: 8, inner_angle: 12, outer_angle: 20}
-        Rgba: {0, 255, 255}
-    }
+        // 60 degree tilt - Indigo
+        Display(items: LightItems) {
+            Position3: {0, 0, -70}
 
-    // 50 degree tilt - Blue
-    Display(items: SLItems) {
-        Position3: {0, 0, -60}
-    }
-    {
-        Position3: {-SLSpacing, 3, -57.62}
-        Rotation3: {-math.PI / 2 + 5 * math.PI / 18, 0, 0}
-        SpotLight: {intensity: 45, range: 10, inner_angle: 10, outer_angle: 17}
-        Rgba: {0, 0, 255}
-    }
-    {
-        Position3: {0, 3, -57.62}
-        Rotation3: {-math.PI / 2 + 5 * math.PI / 18, 0, 0}
-        SpotLight: {intensity: 110, range: 10, inner_angle: 10, outer_angle: 17}
-        Rgba: {0, 0, 255}
-    }
-    {
-        Position3: {SLSpacing, 3, -57.62}
-        Rotation3: {-math.PI / 2 + 5 * math.PI / 18, 0, 0}
-        SpotLight: {intensity: 220, range: 10, inner_angle: 10, outer_angle: 17}
-        Rgba: {0, 0, 255}
-    }
+            {
+                Position3: {-LightSpacing, 3, 3.46}
+                Rotation3: {-math.PI / 2 + math.PI / 3, 0, 0}
+                SpotLight: {intensity: 70, range: 10, inner_angle: 8, outer_angle: 13}
+                Rgba: {75, 0, 130}
+            }
+            {
+                Position3: {0, 3, 3.46}
+                Rotation3: {-math.PI / 2 + math.PI / 3, 0, 0}
+                SpotLight: {intensity: 175, range: 10, inner_angle: 8, outer_angle: 13}
+                Rgba: {75, 0, 130}
+            }
+            {
+                Position3: {LightSpacing, 3, 3.46}
+                Rotation3: {-math.PI / 2 + math.PI / 3, 0, 0}
+                SpotLight: {intensity: 350, range: 10, inner_angle: 8, outer_angle: 13}
+                Rgba: {75, 0, 130}
+            }
+        }
 
-    // 60 degree tilt - Indigo
-    Display(items: SLItems) {
-        Position3: {0, 0, -70}
-    }
-    {
-        Position3: {-SLSpacing, 3, -66.54}
-        Rotation3: {-math.PI / 2 + math.PI / 3, 0, 0}
-        SpotLight: {intensity: 70, range: 10, inner_angle: 8, outer_angle: 13}
-        Rgba: {75, 0, 130}
-    }
-    {
-        Position3: {0, 3, -66.54}
-        Rotation3: {-math.PI / 2 + math.PI / 3, 0, 0}
-        SpotLight: {intensity: 175, range: 10, inner_angle: 8, outer_angle: 13}
-        Rgba: {75, 0, 130}
-    }
-    {
-        Position3: {SLSpacing, 3, -66.54}
-        Rotation3: {-math.PI / 2 + math.PI / 3, 0, 0}
-        SpotLight: {intensity: 350, range: 10, inner_angle: 8, outer_angle: 13}
-        Rgba: {75, 0, 130}
-    }
+        // 70 degree tilt - White
+        Display(items: LightItems) {
+            Position3: {0, 0, -80}
 
-    // 70 degree tilt - White
-    Display(items: SLItems) {
-        Position3: {0, 0, -80}
-    }
-    {
-        Position3: {-SLSpacing, 3, -74.51}
-        Rotation3: {-math.PI / 2 + 7 * math.PI / 18, 0, 0}
-        SpotLight: {intensity: 150, range: 12, inner_angle: 5, outer_angle: 9}
-        Rgba: {255, 255, 255}
-    }
-    {
-        Position3: {0, 3, -74.51}
-        Rotation3: {-math.PI / 2 + 7 * math.PI / 18, 0, 0}
-        SpotLight: {intensity: 375, range: 12, inner_angle: 5, outer_angle: 9}
-        Rgba: {255, 255, 255}
-    }
-    {
-        Position3: {SLSpacing, 3, -74.51}
-        Rotation3: {-math.PI / 2 + 7 * math.PI / 18, 0, 0}
-        SpotLight: {intensity: 750, range: 12, inner_angle: 5, outer_angle: 9}
-        Rgba: {255, 255, 255}
+            {
+                Position3: {-LightSpacing, 3, 5.49}
+                Rotation3: {-math.PI / 2 + 7 * math.PI / 18, 0, 0}
+                SpotLight: {intensity: 150, range: 12, inner_angle: 5, outer_angle: 9}
+                Rgba: {255, 255, 255}
+            }
+            {
+                Position3: {0, 3, 5.49}
+                Rotation3: {-math.PI / 2 + 7 * math.PI / 18, 0, 0}
+                SpotLight: {intensity: 375, range: 12, inner_angle: 5, outer_angle: 9}
+                Rgba: {255, 255, 255}
+            }
+            {
+                Position3: {LightSpacing, 3, 5.49}
+                Rotation3: {-math.PI / 2 + 7 * math.PI / 18, 0, 0}
+                SpotLight: {intensity: 750, range: 12, inner_angle: 5, outer_angle: 9}
+                Rgba: {255, 255, 255}
+            }
+        }
     }
 }
 
@@ -812,7 +829,7 @@ materials {
 
 // Spheres
 {
-    Position3: {-50}
+    Position3: {0, z: -100}
 
     for i in 0..8 {
         Display(items: ItemCount) {
@@ -853,7 +870,7 @@ materials {
 
 // Icospheres
 {
-    Position3: {-100}
+    Position3: {50, z: -100}
 
     for i in 0..6 {
         Display(items: ItemCount) {
@@ -894,7 +911,7 @@ materials {
 
 // Hemispheres
 {
-    Position3: {-150}
+    Position3: {100, z: -100}
 
     for i in 0..8 {
         Display(items: ItemCount) {
@@ -936,7 +953,7 @@ materials {
 
 // Cylinders
 {
-    Position3: {-200}
+    Position3: {150, z: -100}
 
     for i in 0..8 {
         Display(items: ItemCount) {
@@ -977,7 +994,7 @@ materials {
 
 // Cones
 {
-    Position3: {-250}
+    Position3: {0, z: -200}
 
     for i in 0..8 {
         Display(items: ItemCount) {
@@ -1018,7 +1035,7 @@ materials {
 
 // Bevels
 {
-    Position3: {-300}
+    Position3: {50, z: -200}
 
     for i in 0..8 {
         Display(items: ItemCount) {
@@ -1057,9 +1074,58 @@ materials {
     }
 }
 
+// Beveled Boxes
+{
+    Position3: {100, z: -200}
+
+    for i in 0..8 {
+        Display(items: ItemCount) {
+            Position3: {0, 0, -((1 + i) * 10)}
+
+            {
+                Position3: {x: -ItemSpacing * (ItemCount / 2 - 0.5), y: ItemSize}
+
+                with Box(ItemSize, ItemSize, ItemSize) {{
+                    (IsA, materials.dielectricRoughWhite)
+                    Bevel: {segments: 1, smooth: false, radius: 0.1 + i * 0.15}
+                    Position3: {0 * ItemSpacing}
+                } {
+                    (IsA, materials.dielectricSmoothWhite)
+                    Bevel: {segments: 2, smooth: false, radius: 0.1 + i * 0.15}
+                    Position3: {1 * ItemSpacing}
+                } {
+                    (IsA, materials.metalRoughWhite)
+                    Bevel: {segments: 3, smooth: false, radius: 0.1 + i * 0.15}
+                    Position3: {2 * ItemSpacing}
+                } {
+                    (IsA, materials.metalSmoothWhite)
+                    Bevel: {segments: 4, smooth: false, radius: 0.1 + i * 0.15}
+                    Position3: {3 * ItemSpacing}
+                } {
+                    (IsA, materials.dielectricRoughBlack)
+                    Bevel: {segments: 5, smooth: true, radius: 0.1 + i * 0.15}
+                    Position3: {4 * ItemSpacing}
+                } {
+                    (IsA, materials.dielectricSmoothBlack)
+                    Bevel: {segments: 6, smooth: true, radius: 0.1 + i * 0.15}
+                    Position3: {5 * ItemSpacing}
+                } {
+                    (IsA, materials.metalRoughBlack)
+                    Bevel: {segments: 7, smooth: true, radius: 0.1 + i * 0.15}
+                    Position3: {6 * ItemSpacing}
+                } {
+                    (IsA, materials.metalSmoothBlack)
+                    Bevel: {segments: 8, smooth: true, radius: 0.1 + i * 0.15}
+                    Position3: {7 * ItemSpacing}
+                }}
+            }
+        }
+    }
+}
+
 // Shapes
 {
-    Position3: {-350}
+    Position3: {150, z: -200}
 
     Display(items: ItemCount) {
         Position3: {0, 0, -10}

@@ -76,6 +76,7 @@ ECS_STRUCT(FlecsCylinder, {
 ECS_STRUCT(FlecsBevel, {
     int32_t segments;
     bool smooth;
+    float radius;
 });
 
 ECS_STRUCT(FlecsBevelCorner, {
