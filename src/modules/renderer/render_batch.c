@@ -263,6 +263,9 @@ static WGPURenderPipeline flecsEngine_renderBatch_createShadowPipeline(
         .format = WGPUTextureFormat_Depth32Float,
         .depthWriteEnabled = WGPUOptionalBool_True,
         .depthCompare = WGPUCompareFunction_Less,
+        .depthBias = 2,
+        .depthBiasSlopeScale = 2.0f,
+        .depthBiasClamp = 0.01f,
         .stencilReadMask = 0xFFFFFFFF,
         .stencilWriteMask = 0xFFFFFFFF
     };
