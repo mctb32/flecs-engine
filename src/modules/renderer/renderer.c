@@ -347,6 +347,7 @@ void FlecsEngineRendererImport(
             { .name = "light_color", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "camera_pos", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "shadow_info", .type = ecs_id(ecs_f32_t), .count = 4 },
+            { .name = "shadow_cascade_scales", .type = ecs_id(ecs_f32_t), .count = FLECS_ENGINE_SHADOW_CASCADE_COUNT },
         }
     });
 

@@ -36,6 +36,16 @@ int flecsEngine_shadow_init(
     (void)world;
     impl->shadow_map_size = shadow_map_size;
 
+    /* Compute per-cascade effective sizes. Each successive cascade halves
+     * in resolution, with a minimum of 256. The actual texture array uses
+     * shadow_map_size for all layers; per-cascade sizes are realized via
+     * viewport restrictions during rendering. */
+    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
+        uint32_t size = shadow_map_size >> i;
+        if (size < 256) size = 256;
+        impl->shadow_cascade_sizes[i] = size;
+    }
+
     /* Compile shadow depth shader directly (bypasses ECS shader system
      * to avoid deferred context issues during batch setup) */
     impl->shadow_shader_module = flecsEngine_createShaderModule(
@@ -293,6 +303,7 @@ void flecsEngine_shadow_computeCascades(
     const ecs_world_t *world,
     const FlecsRenderView *view,
     uint32_t shadow_map_size,
+    const uint32_t cascade_sizes[FLECS_ENGINE_SHADOW_CASCADE_COUNT],
     mat4 out_light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT],
     float out_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT])
 {
@@ -440,8 +451,10 @@ void flecsEngine_shadow_computeCascades(
 
         /* Pad by one texel so the texel-snapping step below (which can
          * shift the view by up to one texel) never pushes frustum corners
-         * outside the shadow map UV [0,1] range. */
-        extent += (2.0f * extent) / (float)shadow_map_size;
+         * outside the shadow map UV [0,1] range. Use the per-cascade
+         * effective size for correct texel calculations. */
+        uint32_t cascade_size = cascade_sizes[c];
+        extent += (2.0f * extent) / (float)cascade_size;
 
         /* Re-center light view on the AABB center so the symmetric ortho
          * projection [-extent, extent] fully covers the frustum slice.
@@ -458,7 +471,7 @@ void flecsEngine_shadow_computeCascades(
         min_z -= z_range;
 
         /* Snap light-space origin to texel boundaries to prevent shimmer */
-        float texel_size = (2.0f * extent) / (float)shadow_map_size;
+        float texel_size = (2.0f * extent) / (float)cascade_size;
         vec4 origin = {0.0f, 0.0f, 0.0f, 1.0f};
         glm_mat4_mulv(light_view, origin, origin);
         origin[0] = floorf(origin[0] / texel_size) * texel_size;

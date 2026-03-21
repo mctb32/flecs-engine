@@ -7,7 +7,7 @@ ECS_COMPONENT_DECLARE(FlecsBloom);
 ECS_COMPONENT_DECLARE(FlecsBloomImpl);
 
 #define FLECS_ENGINE_BLOOM_PREFERRED_TEXTURE_FORMAT (WGPUTextureFormat_RG11B10Ufloat)
-#define FLECS_ENGINE_BLOOM_MAX_DIMENSION (8192u)
+#define FLECS_ENGINE_BLOOM_MAX_MIP_COUNT (12u)
 
 typedef struct FlecsBloomUniform {
     float threshold_precomputations[4];
@@ -173,36 +173,27 @@ FlecsBloom flecsEngine_bloomSettingsDefault(void)
             .threshold = 1.0f,
             .threshold_softness = 0.0f
         },
-        .max_mip_dimension = 512u,
+        .mip_count = 6u,
         .scale_x = 1.0f,
         .scale_y = 1.0f
     };
 }
 
-static uint32_t flecsEngine_bloom_ilog2(
-    uint32_t value)
-{
-    uint32_t result = 0;
-    while (value > 1u) {
-        value >>= 1u;
-        result ++;
-    }
-    return result;
-}
-
 static uint32_t flecsEngine_bloom_computeMipCount(
     const FlecsBloom *settings)
 {
-    uint32_t ilog = flecsEngine_bloom_ilog2(settings->max_mip_dimension);
-    if (ilog < 2u) {
-        ilog = 2u;
+    uint32_t count = settings->mip_count;
+    if (count < 2u) {
+        count = 2u;
     }
-    return ilog - 1u;
+    if (count > FLECS_ENGINE_BLOOM_MAX_MIP_COUNT) {
+        count = FLECS_ENGINE_BLOOM_MAX_MIP_COUNT;
+    }
+    return count;
 }
 
 static void flecsEngine_bloom_computeTextureSize(
     const FlecsEngineImpl *engine,
-    const FlecsBloom *settings,
     uint32_t *out_width,
     uint32_t *out_height)
 {
@@ -212,9 +203,8 @@ static void flecsEngine_bloom_computeTextureSize(
         return;
     }
 
-    float ratio = (float)settings->max_mip_dimension / (float)engine->height;
-    uint32_t width = (uint32_t)lroundf((float)engine->width * ratio);
-    uint32_t height = (uint32_t)lroundf((float)engine->height * ratio);
+    uint32_t width = (uint32_t)engine->width / 2u;
+    uint32_t height = (uint32_t)engine->height / 2u;
     if (!width) {
         width = 1u;
     }
@@ -371,8 +361,18 @@ static bool flecsEngine_bloom_ensureTexture(
 {
     uint32_t width = 0;
     uint32_t height = 0;
-    flecsEngine_bloom_computeTextureSize(engine, bloom, &width, &height);
+    flecsEngine_bloom_computeTextureSize(engine, &width, &height);
     uint32_t mip_count = flecsEngine_bloom_computeMipCount(bloom);
+
+    /* Clamp to the maximum mip count the texture dimensions support */
+    uint32_t max_dim = width > height ? width : height;
+    uint32_t max_mips = 1u;
+    while ((1u << max_mips) <= max_dim) {
+        max_mips ++;
+    }
+    if (mip_count > max_mips) {
+        mip_count = max_mips;
+    }
 
     if (impl->texture &&
         impl->mip_views &&
@@ -989,7 +989,7 @@ void flecsEngine_bloom_register(
             { .name = "low_frequency_boost_curvature", .type = ecs_id(ecs_f32_t) },
             { .name = "high_pass_frequency", .type = ecs_id(ecs_f32_t) },
             { .name = "prefilter", .type = bloom_prefilter_t },
-            { .name = "max_mip_dimension", .type = ecs_id(ecs_u32_t) },
+            { .name = "mip_count", .type = ecs_id(ecs_u32_t) },
             { .name = "scale_x", .type = ecs_id(ecs_f32_t) },
             { .name = "scale_y", .type = ecs_id(ecs_f32_t) }
         }

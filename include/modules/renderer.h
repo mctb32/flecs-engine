@@ -68,6 +68,7 @@ typedef struct {
     float light_color[4];
     float camera_pos[4];
     float shadow_info[4];
+    float shadow_cascade_scales[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
 } FlecsUniform;
 
 extern ECS_COMPONENT_DECLARE(FlecsUniform);

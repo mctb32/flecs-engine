@@ -121,7 +121,8 @@ static const char *kShaderSource =
     "      sample_view.z >= sample_pos.z + bias) * range_check;\n"
     "  }\n"
 
-    "  let ao = clamp(1.0 - (occlusion / f32(SAMPLE_COUNT)) * intensity, 0.0, 1.0);\n"
+    "  let fade = 1.0 - smoothstep(radius * 40.0, radius * 100.0, -view_pos.z);\n"
+    "  let ao = clamp(1.0 - (occlusion / f32(SAMPLE_COUNT)) * intensity * fade, 0.0, 1.0);\n"
 
     /* When blur is enabled, output AO factor only so the blur pass
      * operates on the occlusion term without smearing scene colors.
@@ -154,7 +155,9 @@ static const char *kBlurShaderSource =
     "  let clamped_uv = clamp(in.uv, vec2<f32>(0.0), vec2<f32>(0.999999));\n"
     "  let texel = vec2<i32>(clamped_uv * vec2<f32>(ao_dims));\n"
     "  let center_ao = textureLoad(ao_texture, texel, 0).r;\n"
-    "  let scene = textureLoad(scene_texture, texel, 0);\n"
+    "  let scene_dims = vec2<i32>(textureDimensions(scene_texture));\n"
+    "  let scene_texel = vec2<i32>(clamped_uv * vec2<f32>(scene_dims));\n"
+    "  let scene = textureLoad(scene_texture, scene_texel, 0);\n"
 
     "  let blur_radius = i32(uniforms.params.w);\n"
     "  if (blur_radius <= 0) {\n"
@@ -688,7 +691,9 @@ static bool flecsEngine_ssao_render(
         }
     }
 
-    if (!flecsEngine_ssao_ensureBlurTexture(engine, impl, width, height)) {
+    uint32_t half_width = width > 1 ? width / 2 : 1;
+    uint32_t half_height = height > 1 ? height / 2 : 1;
+    if (!flecsEngine_ssao_ensureBlurTexture(engine, impl, half_width, half_height)) {
         return false;
     }
 

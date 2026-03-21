@@ -26,6 +26,8 @@
     "      light_ndc.z < 0.0 || light_ndc.z > 1.0) {\n" \
     "    return -1.0;\n" \
     "  }\n" \
+    "  let scale = uniforms.shadow_cascade_scales[cascade];\n" \
+    "  let scaled_uv = shadow_uv * scale;\n" \
     "  let current_depth = light_ndc.z - uniforms.shadow_info.y;\n" \
     "  let texel_size = 1.0 / vec2<f32>(textureDimensions(shadow_map));\n" \
     "  let pcf_half = i32(uniforms.shadow_info.x);\n" \
@@ -35,7 +37,7 @@
     "      let offset = vec2<f32>(f32(x), f32(y)) * texel_size;\n" \
     "      shadow += textureSampleCompareLevel(\n" \
     "        shadow_map, shadow_sampler,\n" \
-    "        shadow_uv + offset, cascade, current_depth);\n" \
+    "        scaled_uv + offset, cascade, current_depth);\n" \
     "    }\n" \
     "  }\n" \
     "  let pcf_width = f32(2 * pcf_half + 1);\n" \

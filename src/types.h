@@ -70,6 +70,7 @@ typedef struct {
     WGPUTextureView shadow_texture_view;
     WGPUTextureView shadow_layer_views[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     uint32_t shadow_map_size;
+    uint32_t shadow_cascade_sizes[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     WGPUShaderModule shadow_shader_module;
     WGPUBuffer shadow_vp_buffers[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     WGPUBindGroupLayout shadow_pass_bind_layout;

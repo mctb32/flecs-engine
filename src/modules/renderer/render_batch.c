@@ -709,6 +709,15 @@ static void flecsEngine_renderBatch_updateUniforms(
     if (bias <= 0) { bias = 0.0005f; }
     uniforms.shadow_info[1] = bias;
 
+    /* Per-cascade scale factors: the fraction of the texture each cascade
+     * actually uses. Distant cascades render at reduced resolution. */
+    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
+        uniforms.shadow_cascade_scales[i] = engine->shadow_map_size > 0
+            ? (float)engine->shadow_cascade_sizes[i] /
+              (float)engine->shadow_map_size
+            : 1.0f;
+    }
+
     flecsEngine_getClearColorVec4(engine, uniforms.clear_color);
 
     wgpuQueueWriteBuffer(

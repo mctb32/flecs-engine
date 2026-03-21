@@ -145,6 +145,7 @@ void flecsEngine_renderView_renderShadow(
     /* Compute all cascade light VP matrices and split distances */
     flecsEngine_shadow_computeCascades(
         world, view, engine->shadow_map_size,
+        engine->shadow_cascade_sizes,
         engine->current_light_vp, engine->cascade_splits);
 
     /* Upload all cascade VP matrices to their own buffers upfront.
@@ -188,6 +189,19 @@ void flecsEngine_renderView_renderShadow(
 
         WGPURenderPassEncoder shadow_pass = wgpuCommandEncoderBeginRenderPass(
             encoder, &pass_desc);
+
+        /* Restrict rendering to the cascade's effective resolution.
+         * Distant cascades use smaller viewports to reduce rasterization
+         * cost while the full-size texture layer stores their depth in
+         * the top-left sub-region. */
+        {
+            uint32_t cs = engine->shadow_cascade_sizes[c];
+            wgpuRenderPassEncoderSetViewport(
+                shadow_pass,
+                0.0f, 0.0f,
+                (float)cs, (float)cs,
+                0.0f, 1.0f);
+        }
 
         engine->last_pipeline = NULL;
 
