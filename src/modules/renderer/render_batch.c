@@ -272,10 +272,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createShadowPipeline(
 
     WGPUVertexState vertex_state = {
         .module = engine->shadow_shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = "vs_main",
-            .length = WGPU_STRLEN
-        },
+        .entryPoint = WGPU_STR("vs_main"),
         .bufferCount = vertex_buffer_count,
         .buffers = vertex_buffers
     };
@@ -290,9 +287,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createShadowPipeline(
             .cullMode = WGPUCullMode_None,
             .frontFace = WGPUFrontFace_CW
         },
-        .multisample = {
-            .count = 1
-        }
+        .multisample = WGPU_MULTISAMPLE_DEFAULT
     };
 
     WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
@@ -356,20 +351,14 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
 
     WGPUVertexState vertex_state = {
         .module = shader_impl->shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = shader->vertex_entry ? shader->vertex_entry : "vs_main",
-            .length = WGPU_STRLEN
-        },
+        .entryPoint = WGPU_STR(shader->vertex_entry ? shader->vertex_entry : "vs_main"),
         .bufferCount = vertex_buffer_count,
         .buffers = vertex_buffers
     };
 
     WGPUFragmentState fragment_state = {
         .module = shader_impl->shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = shader->fragment_entry ? shader->fragment_entry : "fs_main",
-            .length = WGPU_STRLEN
-        },
+        .entryPoint = WGPU_STR(shader->fragment_entry ? shader->fragment_entry : "fs_main"),
         .targetCount = 1,
         .targets = &color_target
     };
@@ -384,9 +373,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
             .cullMode = WGPUCullMode_Back,
             .frontFace = WGPUFrontFace_CW
         },
-        .multisample = {
-            .count = 1
-        }
+        .multisample = WGPU_MULTISAMPLE_DEFAULT
     };
 
     if (is_skybox) {

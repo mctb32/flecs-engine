@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 typedef struct {
   bool frame_output_mode;
   const char *frame_output_path;
@@ -122,7 +126,7 @@ void initEngine(
   ecs_entity_t view_entity =  ecs_entity(world, { .name = "view" });
   FlecsRenderView view = {
     .shadow.enabled = true,
-    .shadow.pcf_samples = 3
+    .shadow.pcf_samples = 1
   };
 
   FlecsRenderBatchSet batch_set = {};
@@ -139,7 +143,7 @@ void initEngine(
       .title = "Hello World",
       .width = options.width,
       .height = options.height,
-      .clear_color = {0, 0, 0}
+      .clear_color = {40, 40, 80}
     });
   }
 
@@ -182,7 +186,7 @@ void initEngine(
   fog_settings.density = 0;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = true, .effect =
+    (flecs_render_view_effect_t){ .enabled = false, .effect =
       flecsEngine_createEffect_ssao(world, view_entity,
         "ssaoEffect", 0, &ssao_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
@@ -190,7 +194,7 @@ void initEngine(
       flecsEngine_createEffect_bloom(world, view_entity,
         "bloomEffect", 1, &bloom_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = true, .effect =
+    (flecs_render_view_effect_t){ .enabled = false, .effect =
       flecsEngine_createEffect_exponentialHeightFog(
         world, view_entity, "heightFogEffect", 2, &fog_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
@@ -201,6 +205,15 @@ void initEngine(
   ecs_set_ptr(world, view_entity, FlecsRenderView, &view);
   ecs_set_ptr(world, view_entity, FlecsRenderBatchSet, &batch_set);
 }
+
+#ifdef __EMSCRIPTEN__
+static void flecsWasmFrame(void *arg) {
+  ecs_world_t *world = arg;
+  if (!ecs_progress(world, 0)) {
+    emscripten_cancel_main_loop();
+  }
+}
+#endif
 
 int main(
   int argc,
@@ -219,15 +232,17 @@ int main(
   }
 
   ecs_world_t *world = ecs_init();
+#ifndef __EMSCRIPTEN__
   ECS_IMPORT(world, FlecsStats);
+#endif
   ECS_IMPORT(world, FlecsScriptMath);
   ECS_IMPORT(world, FlecsEngine);
 
   initEngine(world, options);
 
   ecs_entity_t s = ecs_script(world, {
-    .filename = "city.flecs"
-    // .filename = "museum.flecs"
+    // .filename = "city.flecs"
+    .filename = "museum.flecs"
     // .filename = "cube.flecs"
     // .filename = "empty.flecs"
   });
@@ -235,12 +250,19 @@ int main(
     printf("failed to load museum script\n");
   }
 
+#ifndef __EMSCRIPTEN__
   ecs_singleton_set(world, EcsRest, {0});
+#endif
 
-  double i = 0;
-  while (ecs_progress(world, 0)) {
-    i -= 0.005;
-  }
+#ifdef __EMSCRIPTEN__
+  /* Use emscripten_set_main_loop so the browser drives the frame rate
+     via requestAnimationFrame. This is required for WebGPU to present
+     rendered frames to the canvas. */
+  emscripten_set_main_loop_arg(
+      (em_arg_callback_func)flecsWasmFrame, world, 0, 1);
+#else
+  while (ecs_progress(world, 0)) { }
+#endif
 
   return ecs_fini(world);
 }

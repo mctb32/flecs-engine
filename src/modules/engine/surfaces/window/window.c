@@ -17,19 +17,7 @@ static int flecsEngine_window_initInstance(
 
     impl->window = output_cfg->window;
 
-    void *metal_layer = flecs_create_metal_layer(
-        glfwGetCocoaWindow(impl->window));
-
-    WGPUSurfaceSourceMetalLayer metal_desc = {
-        .chain = { .sType = WGPUSType_SurfaceSourceMetalLayer },
-        .layer = metal_layer
-    };
-
-    WGPUSurfaceDescriptor surface_desc = {
-        .nextInChain = (WGPUChainedStruct*)&metal_desc
-    };
-
-    impl->surface = wgpuInstanceCreateSurface(impl->instance, &surface_desc);
+    impl->surface = flecsEngine_createSurface(impl->instance, impl->window);
     if (!impl->surface) {
         ecs_err("Failed to create wgpu surface\n");
         return -1;
@@ -43,30 +31,9 @@ static int flecsEngine_window_initInstance(
 static int flecsEngine_window_configureTarget(
     FlecsEngineImpl *impl)
 {
-    WGPUSurfaceCapabilities surface_caps = {0};
-    if (wgpuSurfaceGetCapabilities(
-        impl->surface,
-        impl->adapter,
-        &surface_caps) != WGPUStatus_Success ||
-        surface_caps.formatCount == 0)
-    {
-        ecs_err("Failed to get surface capabilities\n");
-        wgpuSurfaceCapabilitiesFreeMembers(surface_caps);
+    if (flecsEngine_configureSurface(impl)) {
         return -1;
     }
-
-    impl->surface_config = (WGPUSurfaceConfiguration){
-        .device = impl->device,
-        .usage = WGPUTextureUsage_RenderAttachment,
-        .format = surface_caps.formats[0],
-        .width = (uint32_t)impl->width,
-        .height = (uint32_t)impl->height,
-        .presentMode = WGPUPresentMode_Fifo,
-        .alphaMode = surface_caps.alphaModes[0]
-    };
-
-    wgpuSurfaceConfigure(impl->surface, &impl->surface_config);
-    wgpuSurfaceCapabilitiesFreeMembers(surface_caps);
 
     ecs_dbg("[engine] surface configured %ux%u format=%d",
         impl->surface_config.width,
@@ -87,14 +54,14 @@ static int flecsEngine_window_prepareFrame(
 
     int width = 0;
     int height = 0;
-    glfwGetFramebufferSize(impl->window, &width, &height);
+    flecsEngine_getFramebufferSize(impl->window, &width, &height);
 
     if (width != impl->width || height != impl->height) {
         impl->width = width;
         impl->height = height;
         impl->surface_config.width = (uint32_t)width;
         impl->surface_config.height = (uint32_t)height;
-        wgpuSurfaceConfigure(impl->surface, &impl->surface_config);
+        flecsEngine_reconfigureSurface(impl);
     }
 
     return 0;
@@ -112,34 +79,7 @@ static int flecsEngine_window_acquireFrame(
     target->readback_bytes_per_row = 0;
     target->readback_buffer_size = 0;
 
-    WGPUSurfaceTexture surface_frame = {0};
-    wgpuSurfaceGetCurrentTexture(impl->surface, &surface_frame);
-
-    target->surface_status = surface_frame.status;
-    if (surface_frame.status !=
-            WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal &&
-        surface_frame.status !=
-            WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal)
-    {
-        if (surface_frame.texture) {
-            wgpuTextureRelease(surface_frame.texture);
-        }
-
-        wgpuSurfaceConfigure(impl->surface, &impl->surface_config);
-        return 1;
-    }
-
-    target->surface_texture = surface_frame.texture;
-    target->view_texture = wgpuTextureCreateView(target->surface_texture, NULL);
-    target->owns_view_texture = true;
-    if (!target->view_texture) {
-        ecs_err("Failed to create color texture view\n");
-        wgpuTextureRelease(target->surface_texture);
-        target->surface_texture = NULL;
-        return -1;
-    }
-
-    return 0;
+    return flecsEngine_acquireFrame(impl, target);
 }
 
 static int flecsEngine_window_encodeFrame(
@@ -159,8 +99,9 @@ static int flecsEngine_window_submitFrame(
     const FlecsEngineSurface *target)
 {
     (void)world;
+    (void)target;
 
-    wgpuSurfacePresent(impl->surface);
+    flecsEngine_presentSurface(impl->surface);
 
     return 0;
 }
@@ -177,6 +118,8 @@ static void flecsEngine_window_cleanup(
     FlecsEngineImpl *impl,
     bool terminate_runtime)
 {
+    flecsEngine_releaseSwapChain();
+
     if (impl->surface) {
         wgpuSurfaceRelease(impl->surface);
         impl->surface = NULL;

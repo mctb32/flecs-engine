@@ -12,10 +12,7 @@ WGPUShaderModule flecsEngine_createShaderModule(
         .chain = {
             .sType = WGPUSType_ShaderSourceWGSL
         },
-        .code = (WGPUStringView){
-            .data = wgsl_source,
-            .length = WGPU_STRLEN
-        }
+        .code = WGPU_SHADER_CODE(wgsl_source)
     };
 
     return wgpuDeviceCreateShaderModule(

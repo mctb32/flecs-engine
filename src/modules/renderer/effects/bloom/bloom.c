@@ -440,18 +440,12 @@ static WGPURenderPipeline flecsEngine_bloom_createPipeline(
 
     WGPUVertexState vertex_state = {
         .module = shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = "vs_main",
-            .length = WGPU_STRLEN
-        }
+        .entryPoint = WGPU_STR("vs_main")
     };
 
     WGPUFragmentState fragment_state = {
         .module = shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = fragment_entry,
-            .length = WGPU_STRLEN
-        },
+        .entryPoint = WGPU_STR(fragment_entry),
         .targetCount = 1,
         .targets = &color_target
     };
@@ -465,9 +459,7 @@ static WGPURenderPipeline flecsEngine_bloom_createPipeline(
             .cullMode = WGPUCullMode_None,
             .frontFace = WGPUFrontFace_CW
         },
-        .multisample = {
-            .count = 1
-        }
+        .multisample = WGPU_MULTISAMPLE_DEFAULT
     };
 
     WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
@@ -531,7 +523,7 @@ static bool flecsEngine_bloom_runPass(
 
     WGPURenderPassColorAttachment color_attachment = {
         .view = target_view,
-        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+        WGPU_DEPTH_SLICE
         .loadOp = load_op,
         .storeOp = WGPUStoreOp_Store,
         .clearValue = (WGPUColor){0}
@@ -781,7 +773,7 @@ static bool flecsEngine_bloom_renderPassthrough(
 {
     WGPURenderPassColorAttachment color_attachment = {
         .view = output_view,
-        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+        WGPU_DEPTH_SLICE
         .loadOp = output_load_op,
         .storeOp = WGPUStoreOp_Store,
         .clearValue = (WGPUColor){0}

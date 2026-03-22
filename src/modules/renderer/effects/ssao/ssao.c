@@ -362,18 +362,12 @@ static WGPURenderPipeline flecsEngine_ssao_createBlurPipeline(
 
     WGPUVertexState vertex_state = {
         .module = shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = "vs_main",
-            .length = WGPU_STRLEN
-        }
+        .entryPoint = WGPU_STR("vs_main")
     };
 
     WGPUFragmentState fragment_state = {
         .module = shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = "fs_main",
-            .length = WGPU_STRLEN
-        },
+        .entryPoint = WGPU_STR("fs_main"),
         .targetCount = 1,
         .targets = &color_target
     };
@@ -387,9 +381,7 @@ static WGPURenderPipeline flecsEngine_ssao_createBlurPipeline(
             .cullMode = WGPUCullMode_None,
             .frontFace = WGPUFrontFace_CW
         },
-        .multisample = {
-            .count = 1
-        }
+        .multisample = WGPU_MULTISAMPLE_DEFAULT
     };
 
     WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
@@ -651,7 +643,7 @@ static bool flecsEngine_ssao_render(
         /* No blur: render SSAO composited directly to output */
         WGPURenderPassColorAttachment color_att = {
             .view = output_view,
-            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+            WGPU_DEPTH_SLICE
             .loadOp = output_load_op,
             .storeOp = WGPUStoreOp_Store,
             .clearValue = (WGPUColor){0}
@@ -701,7 +693,7 @@ static bool flecsEngine_ssao_render(
     {
         WGPURenderPassColorAttachment color_att = {
             .view = impl->blur_intermediate_view,
-            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+            WGPU_DEPTH_SLICE
             .loadOp = WGPULoadOp_Clear,
             .storeOp = WGPUStoreOp_Store,
             .clearValue = (WGPUColor){ .r = 1, .g = 1, .b = 1, .a = 1 }
@@ -756,7 +748,7 @@ static bool flecsEngine_ssao_render(
 
         WGPURenderPassColorAttachment color_att = {
             .view = output_view,
-            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+            WGPU_DEPTH_SLICE
             .loadOp = output_load_op,
             .storeOp = WGPUStoreOp_Store,
             .clearValue = (WGPUColor){0}

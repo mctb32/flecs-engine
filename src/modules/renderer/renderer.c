@@ -5,14 +5,14 @@
 #define FLECS_ENGINE_RENDERER_IMPL_IMPL
 #include "flecs_engine.h"
 
-ECS_COMPONENT_DECLARE(FlecsRenderEffect);
+extern ECS_COMPONENT_DECLARE(FlecsRenderEffect);
 ECS_COMPONENT_DECLARE(FlecsVertex);
 ECS_COMPONENT_DECLARE(FlecsLitVertex);
 ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
-ECS_COMPONENT_DECLARE(FlecsRgba);
-ECS_COMPONENT_DECLARE(FlecsPbrMaterial);
-ECS_COMPONENT_DECLARE(FlecsEmissive);
-ECS_COMPONENT_DECLARE(FlecsMaterialId);
+extern ECS_COMPONENT_DECLARE(FlecsRgba);
+extern ECS_COMPONENT_DECLARE(FlecsPbrMaterial);
+extern ECS_COMPONENT_DECLARE(FlecsEmissive);
+extern ECS_COMPONENT_DECLARE(FlecsMaterialId);
 ECS_COMPONENT_DECLARE(FlecsUniform);
 
 static void flecsEngine_releaseFrameTarget(
@@ -259,8 +259,14 @@ static void FlecsEngineRender(
     // Sync materials
     flecsEngine_material_uploadBuffer(it->world, impl);
 
+    WGPUTextureView render_target = flecsEngine_getGammaRenderTarget(
+        impl, frame_target.view_texture);
+
     // Render all views
-    flecsEngine_renderView_renderAll(it->world, impl, frame_target.view_texture, encoder);
+    flecsEngine_renderView_renderAll(it->world, impl, render_target, encoder);
+
+    flecsEngine_gammaBlitIfNeeded(
+        impl, encoder, render_target, frame_target.view_texture);
 
     if (flecsEngine_surfaceInterface_encodeFrame(
         surface_impl, impl, encoder, &frame_target))

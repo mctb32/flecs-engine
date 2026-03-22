@@ -11,7 +11,7 @@ static WGPURenderPassEncoder flecsEngine_renderBatch_beginPass(
 
     WGPURenderPassColorAttachment color_attachment = {
         .view = color_view,
-        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+        WGPU_DEPTH_SLICE
         .loadOp = color_load_op,
         .storeOp = WGPUStoreOp_Store,
         .clearValue = clear_color

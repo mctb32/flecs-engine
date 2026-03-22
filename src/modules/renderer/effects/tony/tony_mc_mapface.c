@@ -128,7 +128,7 @@ static bool flecsEngine_tony_setup(
         .baseArrayLayer = 0,
         .arrayLayerCount = 1,
         .aspect = WGPUTextureAspect_All,
-        .usage = WGPUTextureUsage_TextureBinding
+        WGPU_TEXTURE_VIEW_USAGE(WGPUTextureUsage_TextureBinding)
     };
 
     tony.tony_lut_texture_view = wgpuTextureCreateView(

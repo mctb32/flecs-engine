@@ -12,31 +12,18 @@ typedef struct {
     WGPUMapAsyncStatus status;
 } FlecsEngineBufferMapState;
 
-static void flecsEngine_frameCapture_processEventsUntilDone(
-    WGPUInstance instance,
-    bool *done)
-{
-    while (!*done) {
-        wgpuInstanceProcessEvents(instance);
-    }
-}
-
 static void flecsEngine_frameCapture_onBufferMap(
     WGPUMapAsyncStatus status,
-    WGPUStringView message,
-    void *userdata1,
-    void *userdata2)
+    const char *message,
+    void *userdata)
 {
-    (void)userdata2;
-
-    FlecsEngineBufferMapState *state = userdata1;
+    FlecsEngineBufferMapState *state = userdata;
     state->status = status;
     state->done = true;
 
     if (status != WGPUMapAsyncStatus_Success) {
-        if (message.data) {
-            ecs_err("Readback map failed: %.*s\n",
-                (int)message.length, message.data);
+        if (message) {
+            ecs_err("Readback map failed: %s\n", message);
         } else {
             ecs_err("Readback map failed with status=%d\n", (int)status);
         }
@@ -140,21 +127,15 @@ static int flecsEngine_frameCapture_writeImage(
         .status = WGPUMapAsyncStatus_Unknown
     };
 
-    WGPUBufferMapCallbackInfo callback = {
-        .mode = WGPUCallbackMode_AllowProcessEvents,
-        .callback = flecsEngine_frameCapture_onBufferMap,
-        .userdata1 = &map_state,
-        .userdata2 = NULL
-    };
-
-    wgpuBufferMapAsync(
+    flecsEngine_bufferMapAsync(
         target->readback_buffer,
         WGPUMapMode_Read,
         0,
         (size_t)target->readback_buffer_size,
-        callback);
+        flecsEngine_frameCapture_onBufferMap,
+        &map_state);
 
-    flecsEngine_frameCapture_processEventsUntilDone(impl->instance, &map_state.done);
+    flecsEngine_processEventsUntilDone(impl->instance, &map_state.done);
     if (map_state.status != WGPUMapAsyncStatus_Success) {
         return -1;
     }

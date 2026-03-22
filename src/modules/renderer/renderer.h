@@ -13,7 +13,7 @@
 
 struct FlecsRenderBatch;
 struct FlecsRenderEffect;
-ECS_TAG_DECLARE(FlecsSkyboxBatch);
+extern ECS_TAG_DECLARE(FlecsSkyboxBatch);
 
 typedef void (*flecs_render_batch_callback)(
     const ecs_world_t *world,
@@ -306,6 +306,7 @@ WGPUShaderModule flecsEngine_createShaderModule(
 // Import renderer module
 void FlecsEngineRendererImport(
     ecs_world_t *world);
+
 
 #undef ECS_META_IMPL
 

@@ -11,13 +11,13 @@ static const float CameraAngularDeceleration = CAMERA_ANGULAR_DECELERATION;
 static const float CameraAngularAcceleration = 2.5 + CAMERA_ANGULAR_DECELERATION;
 static const float CameraMaxSpeed = 40.0;
 
-ECS_COMPONENT_DECLARE(FlecsLookAt);
-ECS_COMPONENT_DECLARE(FlecsPosition3);
-ECS_COMPONENT_DECLARE(FlecsRotation3);
-ECS_COMPONENT_DECLARE(FlecsVelocity3);
-ECS_COMPONENT_DECLARE(FlecsAngularVelocity3);
-ECS_COMPONENT_DECLARE(FlecsInput);
-ECS_TAG_DECLARE(FlecsCameraController);
+extern ECS_COMPONENT_DECLARE(FlecsLookAt);
+extern ECS_COMPONENT_DECLARE(FlecsPosition3);
+extern ECS_COMPONENT_DECLARE(FlecsRotation3);
+extern ECS_COMPONENT_DECLARE(FlecsVelocity3);
+extern ECS_COMPONENT_DECLARE(FlecsAngularVelocity3);
+extern ECS_COMPONENT_DECLARE(FlecsInput);
+extern ECS_TAG_DECLARE(FlecsCameraController);
 
 static
 void CameraControllerSyncRotation(

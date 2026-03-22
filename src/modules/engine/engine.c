@@ -19,65 +19,6 @@ ECS_COMPONENT_DECLARE(flecs_rgba_t);
 
 ECS_COMPONENT_DECLARE(FlecsEngineImpl);
 
-static void flecsEngine_waitForFuture(
-    WGPUInstance instance,
-    WGPUFuture future,
-    bool *done)
-{
-    WGPUFutureWaitInfo wait_info = { .future = future };
-    while (!*done) {
-        wait_info.completed = false;
-        wgpuInstanceWaitAny(instance, 1, &wait_info, 0);
-    }
-}
-
-static void flecsEngine_onRequestAdapter(
-    WGPURequestAdapterStatus status,
-    WGPUAdapter adapter,
-    WGPUStringView message,
-    void *userdata1,
-    void *userdata2)
-{
-    WGPUAdapter *adapter_out = userdata1;
-    bool *future_cond = userdata2;
-
-    if (status == WGPURequestAdapterStatus_Success) {
-        *adapter_out = adapter;
-    } else {
-        if (message.data) {
-            ecs_err("Adapter request failed: %.*s\n",
-                (int)message.length, message.data);
-        } else {
-            ecs_err("Adapter request failed: unknown\n");
-        }
-    }
-
-    *future_cond = true;
-}
-
-static void flecsEngine_onRequestDevice(
-    WGPURequestDeviceStatus status,
-    WGPUDevice device,
-    WGPUStringView message,
-    void *userdata1,
-    void *userdata2)
-{
-    WGPUDevice *device_out = userdata1;
-    bool *future_cond = userdata2;
-
-    if (status == WGPURequestDeviceStatus_Success) {
-        *device_out = device;
-    } else {
-        if (message.data) {
-            ecs_err("Device request failed: %.*s\n",
-                (int)message.length, message.data);
-        } else {
-            ecs_err("Device request failed: unknown\n");
-        }
-    }
-
-    *future_cond = true;
-}
 
 static void flecsEngine_cleanup(
     ecs_world_t *world,
@@ -189,51 +130,24 @@ int flecsEngine_init(
         goto error;
     }
 
+
     if (flecsEngine_surfaceInterface_initInstance(
         impl.surface_impl, &impl, output->config))
     {
         goto error;
     }
 
-    bool future_cond = false;
-
-    WGPURequestAdapterOptions adapter_options = {
-        .compatibleSurface = impl.surface
-    };
-
-    WGPURequestAdapterCallbackInfo adapter_callback = {
-        .mode = WGPUCallbackMode_WaitAnyOnly,
-        .callback = flecsEngine_onRequestAdapter,
-        .userdata1 = &impl.adapter,
-        .userdata2 = &future_cond
-    };
-
-    WGPUFuture adapter_future = wgpuInstanceRequestAdapter(
-        impl.instance, &adapter_options, adapter_callback);
-
-    flecsEngine_waitForFuture(impl.instance, adapter_future, &future_cond);
+    impl.adapter = flecsEngine_requestAdapter(impl.instance, impl.surface);
     if (!impl.adapter) {
         goto error;
     }
 
-    future_cond = false;
-
-    WGPUDeviceDescriptor device_desc = {0};
-
-    WGPURequestDeviceCallbackInfo device_callback = {
-        .mode = WGPUCallbackMode_WaitAnyOnly,
-        .callback = flecsEngine_onRequestDevice,
-        .userdata1 = &impl.device,
-        .userdata2 = &future_cond
-    };
-
-    WGPUFuture device_future = wgpuAdapterRequestDevice(
-        impl.adapter, &device_desc, device_callback);
-
-    flecsEngine_waitForFuture(impl.instance, device_future, &future_cond);
+    impl.device = flecsEngine_requestDevice(impl.adapter, impl.instance);
     if (!impl.device) {
         goto error;
     }
+
+    flecsEngine_setDeviceErrorCallback(impl.device);
 
     impl.queue = wgpuDeviceGetQueue(impl.device);
 

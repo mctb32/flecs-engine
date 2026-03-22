@@ -89,7 +89,7 @@ static WGPURenderPassEncoder flecsEngine_renderEffect_beginPass(
 
     WGPURenderPassColorAttachment color_attachment = {
         .view = color_view,
-        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+        WGPU_DEPTH_SLICE
         .loadOp = color_load_op,
         .storeOp = WGPUStoreOp_Store,
         .clearValue = clear_color
@@ -287,6 +287,7 @@ void flecsEngine_renderView_renderEffects(
         }
     }
 
+
     if (last_enabled < 0) {
         /* All effects are disabled, but batches already rendered into
          * effect_target_views[0]. Use a dedicated passthrough pipeline to
@@ -416,18 +417,12 @@ static WGPURenderPipeline flecsEngine_renderEffect_createPipeline(
 
     WGPUVertexState vertex_state = {
         .module = shader_impl->shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = shader->vertex_entry ? shader->vertex_entry : "vs_main",
-            .length = WGPU_STRLEN
-        }
+        .entryPoint = WGPU_STR(shader->vertex_entry ? shader->vertex_entry : "vs_main")
     };
 
     WGPUFragmentState fragment_state = {
         .module = shader_impl->shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = shader->fragment_entry ? shader->fragment_entry : "fs_main",
-            .length = WGPU_STRLEN
-        },
+        .entryPoint = WGPU_STR(shader->fragment_entry ? shader->fragment_entry : "fs_main"),
         .targetCount = 1,
         .targets = &color_target
     };
@@ -441,9 +436,7 @@ static WGPURenderPipeline flecsEngine_renderEffect_createPipeline(
             .cullMode = WGPUCullMode_None,
             .frontFace = WGPUFrontFace_CW
         },
-        .multisample = {
-            .count = 1
-        }
+        .multisample = WGPU_MULTISAMPLE_DEFAULT
     };
 
     WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(

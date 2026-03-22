@@ -315,10 +315,7 @@ static WGPUShaderModule flecsIblCreateShaderModule(
 {
     WGPUShaderSourceWGSL wgsl_desc = {
         .chain = { .sType = WGPUSType_ShaderSourceWGSL },
-        .code = (WGPUStringView){
-            .data = source,
-            .length = WGPU_STRLEN
-        }
+        .code = WGPU_SHADER_CODE(source)
     };
 
     WGPUShaderModuleDescriptor shader_desc = {
@@ -354,18 +351,12 @@ static WGPURenderPipeline flecsIblCreatePipeline(
 
     WGPUVertexState vertex_state = {
         .module = shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = "vs_main",
-            .length = WGPU_STRLEN
-        }
+        .entryPoint = WGPU_STR("vs_main")
     };
 
     WGPUFragmentState fragment_state = {
         .module = shader_module,
-        .entryPoint = (WGPUStringView){
-            .data = fragment_entry,
-            .length = WGPU_STRLEN
-        },
+        .entryPoint = WGPU_STR(fragment_entry),
         .targetCount = 1,
         .targets = &color_target
     };
@@ -379,9 +370,7 @@ static WGPURenderPipeline flecsIblCreatePipeline(
             .cullMode = WGPUCullMode_None,
             .frontFace = WGPUFrontFace_CW
         },
-        .multisample = {
-            .count = 1
-        }
+        .multisample = WGPU_MULTISAMPLE_DEFAULT
     };
 
     WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
@@ -610,7 +599,7 @@ static bool flecsIblDrawFullscreenPass(
 {
     WGPURenderPassColorAttachment color_attachment = {
         .view = target_view,
-        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+        WGPU_DEPTH_SLICE
         .loadOp = WGPULoadOp_Clear,
         .storeOp = WGPUStoreOp_Store,
         .clearValue = (WGPUColor){0}

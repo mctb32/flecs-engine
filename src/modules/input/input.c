@@ -2,7 +2,7 @@
 #include "input.h"
 
 ECS_COMPONENT_DECLARE(FlecsInput);
-ECS_COMPONENT_DECLARE(FlecsEngineImpl);
+extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);
 
 static int flecsEngine_input_keyCode(
     int glfw_key)

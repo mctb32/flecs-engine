@@ -8,8 +8,6 @@ typedef struct {
     GLFWwindow *window;
 } FlecsEngineWindowOutputConfig;
 
-void *flecs_create_metal_layer(void *ns_window);
-
 extern const FlecsEngineSurfaceInterface flecsEngineWindowOutputOps;
 
 void FlecsEngineWindowImport(
