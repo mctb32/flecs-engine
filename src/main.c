@@ -148,7 +148,7 @@ void initEngine(
       .width = options.width,
       .height = options.height,
       .sky_color = {50, 120, 255},
-      .ground_color = {20, 30, 40},
+      .ground_color = {80, 90, 100},
       .resolution_scale = 1,
       .msaa = true
     });

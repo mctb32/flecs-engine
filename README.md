@@ -28,13 +28,13 @@ You should probably not use this, unless:
 - Spotlights
 - Clustered light rendering
 - Cascading shadow maps
-- Image based lighting
+- Image based lighting (support for .exr and .hdr)
 - Skybox
 - Bloom
 - Height based fog
 - Tony McMapFace tone mapping
 - Infinite grid
-- Configurable engine setup
+- Data-driven engine setup
 - Rendering to image
 
 ## Dependencies

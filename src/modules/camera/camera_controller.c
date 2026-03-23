@@ -146,13 +146,13 @@ void CameraControllerDecelerate(
         flecs_camera_controller_decel(&av[i].x, CameraAngularDeceleration, dt);
         flecs_camera_controller_decel(&av[i].y, CameraAngularDeceleration, dt);
 
-        if (r[i].x > GLM_PI / 2.0) {
-            r[i].x = GLM_PI / 2.0 - 0.0001;
-            av[i].x = 0;
+        if (r[i].x > GLM_PI / 2.0 - 0.05) {
+            r[i].x = GLM_PI / 2.0 - 0.05;
+            if (av[i].x > 0) av[i].x = 0;
         }
-        if (r[i].x < -GLM_PI / 2.0) {
-            r[i].x = -(GLM_PI / 2.0) + 0.0001;
-            av[i].x = 0;
+        if (r[i].x < -(GLM_PI / 2.0 - 0.05)) {
+            r[i].x = -(GLM_PI / 2.0 - 0.05);
+            if (av[i].x < 0) av[i].x = 0;
         }
     }
 }
