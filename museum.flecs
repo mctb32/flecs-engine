@@ -31,7 +31,7 @@ ground {
     Quad: {2000, 2000}
     Position3: {0, 0}
     Rotation3: {-math.PI / 2}
-    Rgba: {0, 0, 0}
+    Rgba: {20, 30, 40}
 }
 
 // Metals

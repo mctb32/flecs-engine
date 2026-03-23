@@ -146,7 +146,7 @@ void initEngine(
       .title = "Hello World",
       .width = options.width,
       .height = options.height,
-      .sky_color = {110, 160, 235},
+      .sky_color = {50, 120, 255},
       .ground_color = {20, 30, 40},
       .resolution_scale = 2,
       .msaa = true

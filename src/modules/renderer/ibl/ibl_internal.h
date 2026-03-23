@@ -2,6 +2,11 @@
 #define FLECS_ENGINE_IBL_INTERNAL_H
 
 #include "../renderer.h"
+#include "hdri_loader.h"
+
+bool flecsIblBuildDefaultImage(
+    const FlecsEngineImpl *engine,
+    FlecsHdriImage *image);
 
 bool flecsEngine_ibl_createRuntimeBindGroup(
     const FlecsEngineImpl *engine,
