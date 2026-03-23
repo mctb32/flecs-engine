@@ -683,9 +683,14 @@ static bool flecsEngine_ssao_render(
         }
     }
 
-    uint32_t half_width = width > 1 ? width / 2 : 1;
-    uint32_t half_height = height > 1 ? height / 2 : 1;
-    if (!flecsEngine_ssao_ensureBlurTexture(engine, impl, half_width, half_height)) {
+    /* Base intermediate resolution on display size so that resolution scaling
+     * does not degrade AO quality.  Cap at depth-buffer (effect-target)
+     * resolution since there is no extra detail to sample beyond that. */
+    uint32_t ssao_width = engine->width > 1 ? (uint32_t)(engine->width / 2) : 1;
+    uint32_t ssao_height = engine->height > 1 ? (uint32_t)(engine->height / 2) : 1;
+    if (ssao_width > width) ssao_width = width;
+    if (ssao_height > height) ssao_height = height;
+    if (!flecsEngine_ssao_ensureBlurTexture(engine, impl, ssao_width, ssao_height)) {
         return false;
     }
 
