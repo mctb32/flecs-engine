@@ -10,6 +10,7 @@ static const float CameraAcceleration = 50.0 + CAMERA_DECELERATION;
 static const float CameraAngularDeceleration = CAMERA_ANGULAR_DECELERATION;
 static const float CameraAngularAcceleration = 2.5 + CAMERA_ANGULAR_DECELERATION;
 static const float CameraMaxSpeed = 40.0;
+static const float CameraMouseSensitivity = 0.003;
 
 extern ECS_COMPONENT_DECLARE(FlecsLookAt);
 extern ECS_COMPONENT_DECLARE(FlecsPosition3);
@@ -85,6 +86,14 @@ void CameraControllerAccelerate(
         }
         if (input->keys[FLECS_KEY_DOWN].state) {
             av[i].x -= angular_accel;
+        }
+
+        if ((input->mouse.left.state || input->mouse.right.state)
+            && it->delta_time > 0) {
+            av[i].y = -input->mouse.rel.x * CameraMouseSensitivity
+                / it->delta_time;
+            av[i].x = -input->mouse.rel.y * CameraMouseSensitivity
+                / it->delta_time;
         }
     }
 }
