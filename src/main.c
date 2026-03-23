@@ -257,14 +257,9 @@ int main(
     printf("failed to load museum script\n");
   }
 
-#ifndef __EMSCRIPTEN__
   ecs_singleton_set(world, EcsRest, {0});
-#endif
 
 #ifdef __EMSCRIPTEN__
-  /* Use emscripten_set_main_loop so the browser drives the frame rate
-     via requestAnimationFrame. This is required for WebGPU to present
-     rendered frames to the canvas. */
   emscripten_set_main_loop_arg(
       (em_arg_callback_func)flecsWasmFrame, world, 0, 1);
 #else

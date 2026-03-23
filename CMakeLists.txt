@@ -77,11 +77,10 @@ else()
   )
 endif()
 
-# -- stb_image + tinyexr implementation files --
+# -- tinyexr implementation + miniz --
 list(APPEND FLECS_ENGINE_SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}/deps/stb/stb_image_impl.c
   ${tinyexr_SOURCE_DIR}/deps/miniz/miniz.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/deps/tinyexr/tinyexr_impl.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/deps.cc
 )
 
 add_executable(flecs_engine ${FLECS_ENGINE_SOURCES})
