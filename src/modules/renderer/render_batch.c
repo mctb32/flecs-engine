@@ -309,7 +309,8 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     bool is_skybox,
     const WGPUVertexBufferLayout *vertex_buffers,
     uint32_t vertex_buffer_count,
-    WGPUTextureFormat color_format)
+    WGPUTextureFormat color_format,
+    uint32_t sample_count)
 {
     WGPUBindGroupLayout bind_layouts[4] = { bind_layout, ibl_bind_layout };
     uint32_t bind_layout_count = use_ibl ? 2u : 1u;
@@ -373,7 +374,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
             .cullMode = WGPUCullMode_Back,
             .frontFace = WGPUFrontFace_CW
         },
-        .multisample = WGPU_MULTISAMPLE_DEFAULT
+        .multisample = WGPU_MULTISAMPLE(sample_count)
     };
 
     if (is_skybox) {
@@ -494,6 +495,9 @@ static void FlecsRenderBatch_on_set(
 
         WGPUTextureFormat hdr_format = flecsEngine_getHdrFormat(engine);
 
+        uint32_t sample_count = engine->sample_count > 1
+            ? (uint32_t)engine->sample_count : 1;
+
         impl.pipeline_hdr = flecsEngine_renderBatch_createPipeline(
             engine,
             shader,
@@ -506,7 +510,8 @@ static void FlecsRenderBatch_on_set(
             is_skybox,
             vertex_buffers,
             (uint32_t)vertex_buffer_count,
-            hdr_format);
+            hdr_format,
+            sample_count);
         if (!impl.pipeline_hdr) {
             flecsEngine_renderBatch_releaseImpl(&impl);
             continue;

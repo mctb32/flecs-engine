@@ -118,6 +118,152 @@ static int flecsEngine_ensureDepthResources(
     return 0;
 }
 
+void flecsEngine_releaseMsaaResources(
+    FlecsEngineImpl *impl)
+{
+    if (impl->msaa_color_texture_view) {
+        wgpuTextureViewRelease(impl->msaa_color_texture_view);
+        impl->msaa_color_texture_view = NULL;
+    }
+    if (impl->msaa_color_texture) {
+        wgpuTextureRelease(impl->msaa_color_texture);
+        impl->msaa_color_texture = NULL;
+    }
+    if (impl->msaa_depth_texture_view) {
+        wgpuTextureViewRelease(impl->msaa_depth_texture_view);
+        impl->msaa_depth_texture_view = NULL;
+    }
+    if (impl->msaa_depth_texture) {
+        wgpuTextureRelease(impl->msaa_depth_texture);
+        impl->msaa_depth_texture = NULL;
+    }
+    impl->msaa_texture_width = 0;
+    impl->msaa_texture_height = 0;
+    impl->msaa_texture_sample_count = 0;
+    impl->msaa_color_format = WGPUTextureFormat_Undefined;
+}
+
+static int flecsEngine_ensureMsaaResources(
+    FlecsEngineImpl *impl)
+{
+    int32_t sc = impl->sample_count;
+    if (sc < 2) {
+        /* MSAA disabled — release any existing MSAA resources. */
+        if (impl->msaa_color_texture) {
+            flecsEngine_releaseMsaaResources(impl);
+        }
+        return 0;
+    }
+
+    if (impl->actual_width <= 0 || impl->actual_height <= 0) {
+        return 0;
+    }
+
+    uint32_t width = (uint32_t)impl->actual_width;
+    uint32_t height = (uint32_t)impl->actual_height;
+    WGPUTextureFormat color_format = flecsEngine_getHdrFormat(impl);
+
+    if (impl->msaa_color_texture &&
+        impl->msaa_depth_texture &&
+        impl->msaa_texture_width == width &&
+        impl->msaa_texture_height == height &&
+        impl->msaa_texture_sample_count == sc &&
+        impl->msaa_color_format == color_format)
+    {
+        return 0;
+    }
+
+    flecsEngine_releaseMsaaResources(impl);
+
+    /* MSAA color texture */
+    WGPUTextureDescriptor color_desc = {
+        .usage = WGPUTextureUsage_RenderAttachment,
+        .dimension = WGPUTextureDimension_2D,
+        .size = (WGPUExtent3D){
+            .width = width,
+            .height = height,
+            .depthOrArrayLayers = 1
+        },
+        .format = color_format,
+        .mipLevelCount = 1,
+        .sampleCount = (uint32_t)sc
+    };
+
+    impl->msaa_color_texture = wgpuDeviceCreateTexture(
+        impl->device, &color_desc);
+    if (!impl->msaa_color_texture) {
+        ecs_err("Failed to create MSAA color texture");
+        return -1;
+    }
+
+    impl->msaa_color_texture_view = wgpuTextureCreateView(
+        impl->msaa_color_texture, NULL);
+    if (!impl->msaa_color_texture_view) {
+        ecs_err("Failed to create MSAA color texture view");
+        flecsEngine_releaseMsaaResources(impl);
+        return -1;
+    }
+
+    /* MSAA depth texture */
+    WGPUTextureDescriptor depth_desc = {
+        .usage = WGPUTextureUsage_RenderAttachment,
+        .dimension = WGPUTextureDimension_2D,
+        .size = (WGPUExtent3D){
+            .width = width,
+            .height = height,
+            .depthOrArrayLayers = 1
+        },
+        .format = WGPUTextureFormat_Depth24Plus,
+        .mipLevelCount = 1,
+        .sampleCount = (uint32_t)sc
+    };
+
+    impl->msaa_depth_texture = wgpuDeviceCreateTexture(
+        impl->device, &depth_desc);
+    if (!impl->msaa_depth_texture) {
+        ecs_err("Failed to create MSAA depth texture");
+        flecsEngine_releaseMsaaResources(impl);
+        return -1;
+    }
+
+    impl->msaa_depth_texture_view = wgpuTextureCreateView(
+        impl->msaa_depth_texture, NULL);
+    if (!impl->msaa_depth_texture_view) {
+        ecs_err("Failed to create MSAA depth texture view");
+        flecsEngine_releaseMsaaResources(impl);
+        return -1;
+    }
+
+    impl->msaa_texture_width = width;
+    impl->msaa_texture_height = height;
+    impl->msaa_texture_sample_count = sc;
+    impl->msaa_color_format = color_format;
+    return 0;
+}
+
+static void flecsEngine_rebuildBatchPipelines(
+    ecs_world_t *world)
+{
+    ecs_query_t *q = ecs_query(world, {
+        .terms = {{ ecs_id(FlecsRenderBatch) }}
+    });
+    if (!q) {
+        return;
+    }
+
+    ecs_defer_suspend(world);
+
+    ecs_iter_t it = ecs_query_iter(world, q);
+    while (ecs_query_next(&it)) {
+        for (int32_t i = 0; i < it.count; i++) {
+            ecs_modified_id(world, it.entities[i], ecs_id(FlecsRenderBatch));
+        }
+    }
+
+    ecs_defer_resume(world);
+    ecs_query_fini(q);
+}
+
 int flecsEngine_initRenderer(
     ecs_world_t *world,
     FlecsEngineImpl *impl)
@@ -244,6 +390,23 @@ static void FlecsEngineRender(
         flecsEngine_surfaceInterface_onFrameFailed(
             surface_impl, it->world, impl);
         return;
+    }
+
+    /* Ensure MSAA resources match current sample_count / dimensions.
+     * If sample_count changed, also rebuild batch pipelines. */
+    {
+        int32_t prev_sc = impl->msaa_texture_sample_count;
+        int32_t cur_sc = impl->sample_count < 2 ? 0 : impl->sample_count;
+
+        if (flecsEngine_ensureMsaaResources(impl)) {
+            flecsEngine_surfaceInterface_onFrameFailed(
+                surface_impl, it->world, impl);
+            return;
+        }
+
+        if (prev_sc != cur_sc) {
+            flecsEngine_rebuildBatchPipelines(it->world);
+        }
     }
 
     bool failed = false;

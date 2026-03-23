@@ -87,6 +87,9 @@ ECS_PRIVATE
 int flecsEngine_initPassthrough(
     FlecsEngineImpl *impl);
 
+void flecsEngine_releaseMsaaResources(
+    FlecsEngineImpl *impl);
+
 int flecsEngine_initRenderer(
     ecs_world_t *world,
     FlecsEngineImpl *impl);

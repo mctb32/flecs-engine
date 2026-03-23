@@ -32,6 +32,7 @@ typedef struct {
     int32_t actual_width;
     int32_t actual_height;
     int32_t resolution_scale;
+    int32_t sample_count; /* 1 or 4 (derived from msaa bool) */
     const struct FlecsEngineSurfaceInterface *surface_impl;
     bool output_done;
     const char *frame_output_path;
@@ -51,6 +52,15 @@ typedef struct {
     WGPUTextureView depth_texture_view;
     uint32_t depth_texture_width;
     uint32_t depth_texture_height;
+
+    WGPUTexture msaa_color_texture;
+    WGPUTextureView msaa_color_texture_view;
+    WGPUTexture msaa_depth_texture;
+    WGPUTextureView msaa_depth_texture_view;
+    uint32_t msaa_texture_width;
+    uint32_t msaa_texture_height;
+    int32_t msaa_texture_sample_count;
+    WGPUTextureFormat msaa_color_format;
 
     WGPUSurfaceConfiguration surface_config;
     WGPUTextureFormat hdr_color_format;
@@ -281,6 +291,7 @@ typedef struct FlecsEngineOutputDesc {
     int32_t width;
     int32_t height;
     int32_t resolution_scale;
+    bool msaa;
     flecs_rgba_t sky_color;
     flecs_rgba_t ground_color;
 } FlecsEngineOutputDesc;

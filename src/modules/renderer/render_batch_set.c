@@ -9,8 +9,11 @@ static WGPURenderPassEncoder flecsEngine_renderBatch_beginPass(
 {
     WGPUColor sky_color = flecsEngine_getSkyColor(impl);
 
+    bool msaa = impl->sample_count > 1 && impl->msaa_color_texture_view;
+
     WGPURenderPassColorAttachment color_attachment = {
-        .view = color_view,
+        .view = msaa ? impl->msaa_color_texture_view : color_view,
+        .resolveTarget = msaa ? color_view : NULL,
         WGPU_DEPTH_SLICE
         .loadOp = color_load_op,
         .storeOp = WGPUStoreOp_Store,
@@ -18,7 +21,7 @@ static WGPURenderPassEncoder flecsEngine_renderBatch_beginPass(
     };
 
     WGPURenderPassDepthStencilAttachment depth_attachment = {
-        .view = impl->depth_texture_view,
+        .view = msaa ? impl->msaa_depth_texture_view : impl->depth_texture_view,
         .depthLoadOp = WGPULoadOp_Clear,
         .depthStoreOp = WGPUStoreOp_Store,
         .depthClearValue = 1.0f,

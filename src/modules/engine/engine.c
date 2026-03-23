@@ -55,6 +55,7 @@ static void flecsEngine_cleanup(
         impl->passthrough_sampler = NULL;
     }
 
+    flecsEngine_releaseMsaaResources(impl);
     flecsEngine_shadow_cleanup(impl);
     flecsEngine_material_releaseBuffer(impl);
 
@@ -128,12 +129,15 @@ int flecsEngine_init(
     int32_t resolution_scale = output->resolution_scale;
     if (resolution_scale < 1) resolution_scale = 1;
 
+    int32_t sample_count = output->msaa ? 4 : 1;
+
     FlecsEngineImpl impl = {
         .width = width,
         .height = height,
         .actual_width = width / resolution_scale,
         .actual_height = height / resolution_scale,
         .resolution_scale = resolution_scale,
+        .sample_count = sample_count,
         .surface_impl = output->ops,
         .sky_color = output->sky_color,
         .ground_color = output->ground_color,

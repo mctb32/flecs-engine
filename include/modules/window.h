@@ -10,6 +10,7 @@ ECS_STRUCT(FlecsWindow, {
     int32_t width;
     int32_t height;
     int32_t resolution_scale;
+    bool msaa;
     const char *title;
     flecs_rgba_t sky_color;
     flecs_rgba_t ground_color;

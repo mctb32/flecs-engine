@@ -65,6 +65,7 @@ typedef struct WGPUStringView {
    does not apply defaults, so mask=0 disables all sample writes.
    Provide a macro so `.multisample = WGPU_MULTISAMPLE_DEFAULT` works. */
 #define WGPU_MULTISAMPLE_DEFAULT { .count = 1, .mask = 0xFFFFFFFF }
+#define WGPU_MULTISAMPLE(n) { .count = (n), .mask = 0xFFFFFFFF }
 
 /* ---- depthSlice compat ---- */
 
@@ -109,6 +110,7 @@ typedef struct WGPUSurfaceConfiguration {
 #else /* native / wgpu-native v27 */
 
 #define WGPU_MULTISAMPLE_DEFAULT { .count = 1 }
+#define WGPU_MULTISAMPLE(n) { .count = (n) }
 
 /* On native, WGPUStringView already exists. These macros build the
    struct literal that wgpu-native expects. */
