@@ -147,7 +147,6 @@ if(EMSCRIPTEN)
     -sASYNCIFY_STACK_SIZE=65536
     -sSTACK_SIZE=1048576
     "-sASYNCIFY_IMPORTS=['emscripten_sleep']"
-    "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/industrial_sunset_puresky_4k.exr@industrial_sunset_puresky_4k.exr"
     "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/city.flecs@city.flecs"
     "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/cube.flecs@cube.flecs"
     "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/empty.flecs@empty.flecs"
