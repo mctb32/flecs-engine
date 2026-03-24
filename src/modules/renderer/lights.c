@@ -8,13 +8,13 @@ void flecsEngine_setupPointLights(
     const ecs_world_t *world,
     FlecsEngineImpl *engine)
 {
-    if (!engine->point_light_query) {
-        engine->point_light_count = 0;
+    if (!engine->lighting.point_light_query) {
+        engine->lighting.point_light_count = 0;
         return;
     }
 
     int32_t count = 0;
-    ecs_iter_t it = ecs_query_iter(world, engine->point_light_query);
+    ecs_iter_t it = ecs_query_iter(world, engine->lighting.point_light_query);
     while (ecs_query_next(&it)) {
         const FlecsPointLight *lights = ecs_field(&it, FlecsPointLight, 0);
         const FlecsWorldTransform3 *transforms = ecs_field(&it, FlecsWorldTransform3, 1);
@@ -24,7 +24,7 @@ void flecsEngine_setupPointLights(
         flecsEngine_cluster_ensurePointLights(engine, needed);
 
         for (int32_t i = 0; i < it.count; i ++) {
-            FlecsGpuPointLight *gpu_light = &engine->cpu_point_lights[count];
+            FlecsGpuPointLight *gpu_light = &engine->lighting.cpu_point_lights[count];
             gpu_light->position[0] = transforms[i].m[3][0];
             gpu_light->position[1] = transforms[i].m[3][1];
             gpu_light->position[2] = transforms[i].m[3][2];
@@ -46,20 +46,20 @@ void flecsEngine_setupPointLights(
         }
     }
 
-    engine->point_light_count = count;
+    engine->lighting.point_light_count = count;
 }
 
 void flecsEngine_setupSpotLights(
     const ecs_world_t *world,
     FlecsEngineImpl *engine)
 {
-    if (!engine->spot_light_query) {
-        engine->spot_light_count = 0;
+    if (!engine->lighting.spot_light_query) {
+        engine->lighting.spot_light_count = 0;
         return;
     }
 
     int32_t count = 0;
-    ecs_iter_t it = ecs_query_iter(world, engine->spot_light_query);
+    ecs_iter_t it = ecs_query_iter(world, engine->lighting.spot_light_query);
     while (ecs_query_next(&it)) {
         const FlecsSpotLight *lights = ecs_field(&it, FlecsSpotLight, 0);
         const FlecsWorldTransform3 *transforms = ecs_field(&it, FlecsWorldTransform3, 1);
@@ -69,7 +69,7 @@ void flecsEngine_setupSpotLights(
         flecsEngine_cluster_ensureSpotLights(engine, needed);
 
         for (int32_t i = 0; i < it.count; i ++) {
-            FlecsGpuSpotLight *gpu_light = &engine->cpu_spot_lights[count];
+            FlecsGpuSpotLight *gpu_light = &engine->lighting.cpu_spot_lights[count];
             gpu_light->position[0] = transforms[i].m[3][0];
             gpu_light->position[1] = transforms[i].m[3][1];
             gpu_light->position[2] = transforms[i].m[3][2];
@@ -111,5 +111,5 @@ void flecsEngine_setupSpotLights(
         }
     }
 
-    engine->spot_light_count = count;
+    engine->lighting.spot_light_count = count;
 }

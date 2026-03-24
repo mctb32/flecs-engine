@@ -10,7 +10,7 @@ ECS_COMPONENT_DECLARE(FlecsVertex);
 ECS_COMPONENT_DECLARE(FlecsLitVertex);
 ECS_COMPONENT_DECLARE(FlecsLitVertexUv);
 ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
-extern ECS_COMPONENT_DECLARE(FlecsTextureImpl);
+ECS_COMPONENT_DECLARE(FlecsTextureImpl);
 extern ECS_COMPONENT_DECLARE(FlecsPbrTextures);
 extern ECS_COMPONENT_DECLARE(FlecsRgba);
 extern ECS_COMPONENT_DECLARE(FlecsPbrMaterial);
@@ -96,10 +96,10 @@ static int flecsEngine_ensureDepthResources(
     uint32_t width = (uint32_t)impl->actual_width;
     uint32_t height = (uint32_t)impl->actual_height;
 
-    if (impl->depth_texture &&
-        impl->depth_texture_view &&
-        impl->depth_texture_width == width &&
-        impl->depth_texture_height == height)
+    if (impl->depth.depth_texture &&
+        impl->depth.depth_texture_view &&
+        impl->depth.depth_texture_width == width &&
+        impl->depth.depth_texture_height == height)
     {
         return 0;
     }
@@ -108,42 +108,42 @@ static int flecsEngine_ensureDepthResources(
         impl->device,
         width,
         height,
-        &impl->depth_texture,
-        &impl->depth_texture_view);
-    if (!impl->depth_texture || !impl->depth_texture_view) {
-        impl->depth_texture_width = 0;
-        impl->depth_texture_height = 0;
+        &impl->depth.depth_texture,
+        &impl->depth.depth_texture_view);
+    if (!impl->depth.depth_texture || !impl->depth.depth_texture_view) {
+        impl->depth.depth_texture_width = 0;
+        impl->depth.depth_texture_height = 0;
         return -1;
     }
 
-    impl->depth_texture_width = width;
-    impl->depth_texture_height = height;
+    impl->depth.depth_texture_width = width;
+    impl->depth.depth_texture_height = height;
     return 0;
 }
 
 void flecsEngine_releaseMsaaResources(
     FlecsEngineImpl *impl)
 {
-    if (impl->msaa_color_texture_view) {
-        wgpuTextureViewRelease(impl->msaa_color_texture_view);
-        impl->msaa_color_texture_view = NULL;
+    if (impl->depth.msaa_color_texture_view) {
+        wgpuTextureViewRelease(impl->depth.msaa_color_texture_view);
+        impl->depth.msaa_color_texture_view = NULL;
     }
-    if (impl->msaa_color_texture) {
-        wgpuTextureRelease(impl->msaa_color_texture);
-        impl->msaa_color_texture = NULL;
+    if (impl->depth.msaa_color_texture) {
+        wgpuTextureRelease(impl->depth.msaa_color_texture);
+        impl->depth.msaa_color_texture = NULL;
     }
-    if (impl->msaa_depth_texture_view) {
-        wgpuTextureViewRelease(impl->msaa_depth_texture_view);
-        impl->msaa_depth_texture_view = NULL;
+    if (impl->depth.msaa_depth_texture_view) {
+        wgpuTextureViewRelease(impl->depth.msaa_depth_texture_view);
+        impl->depth.msaa_depth_texture_view = NULL;
     }
-    if (impl->msaa_depth_texture) {
-        wgpuTextureRelease(impl->msaa_depth_texture);
-        impl->msaa_depth_texture = NULL;
+    if (impl->depth.msaa_depth_texture) {
+        wgpuTextureRelease(impl->depth.msaa_depth_texture);
+        impl->depth.msaa_depth_texture = NULL;
     }
-    impl->msaa_texture_width = 0;
-    impl->msaa_texture_height = 0;
-    impl->msaa_texture_sample_count = 0;
-    impl->msaa_color_format = WGPUTextureFormat_Undefined;
+    impl->depth.msaa_texture_width = 0;
+    impl->depth.msaa_texture_height = 0;
+    impl->depth.msaa_texture_sample_count = 0;
+    impl->depth.msaa_color_format = WGPUTextureFormat_Undefined;
 }
 
 static int flecsEngine_ensureMsaaResources(
@@ -152,7 +152,7 @@ static int flecsEngine_ensureMsaaResources(
     int32_t sc = impl->sample_count;
     if (sc < 2) {
         /* MSAA disabled — release any existing MSAA resources. */
-        if (impl->msaa_color_texture) {
+        if (impl->depth.msaa_color_texture) {
             flecsEngine_releaseMsaaResources(impl);
         }
         return 0;
@@ -166,12 +166,12 @@ static int flecsEngine_ensureMsaaResources(
     uint32_t height = (uint32_t)impl->actual_height;
     WGPUTextureFormat color_format = flecsEngine_getHdrFormat(impl);
 
-    if (impl->msaa_color_texture &&
-        impl->msaa_depth_texture &&
-        impl->msaa_texture_width == width &&
-        impl->msaa_texture_height == height &&
-        impl->msaa_texture_sample_count == sc &&
-        impl->msaa_color_format == color_format)
+    if (impl->depth.msaa_color_texture &&
+        impl->depth.msaa_depth_texture &&
+        impl->depth.msaa_texture_width == width &&
+        impl->depth.msaa_texture_height == height &&
+        impl->depth.msaa_texture_sample_count == sc &&
+        impl->depth.msaa_color_format == color_format)
     {
         return 0;
     }
@@ -192,16 +192,16 @@ static int flecsEngine_ensureMsaaResources(
         .sampleCount = (uint32_t)sc
     };
 
-    impl->msaa_color_texture = wgpuDeviceCreateTexture(
+    impl->depth.msaa_color_texture = wgpuDeviceCreateTexture(
         impl->device, &color_desc);
-    if (!impl->msaa_color_texture) {
+    if (!impl->depth.msaa_color_texture) {
         ecs_err("Failed to create MSAA color texture");
         return -1;
     }
 
-    impl->msaa_color_texture_view = wgpuTextureCreateView(
-        impl->msaa_color_texture, NULL);
-    if (!impl->msaa_color_texture_view) {
+    impl->depth.msaa_color_texture_view = wgpuTextureCreateView(
+        impl->depth.msaa_color_texture, NULL);
+    if (!impl->depth.msaa_color_texture_view) {
         ecs_err("Failed to create MSAA color texture view");
         flecsEngine_releaseMsaaResources(impl);
         return -1;
@@ -221,26 +221,26 @@ static int flecsEngine_ensureMsaaResources(
         .sampleCount = (uint32_t)sc
     };
 
-    impl->msaa_depth_texture = wgpuDeviceCreateTexture(
+    impl->depth.msaa_depth_texture = wgpuDeviceCreateTexture(
         impl->device, &depth_desc);
-    if (!impl->msaa_depth_texture) {
+    if (!impl->depth.msaa_depth_texture) {
         ecs_err("Failed to create MSAA depth texture");
         flecsEngine_releaseMsaaResources(impl);
         return -1;
     }
 
-    impl->msaa_depth_texture_view = wgpuTextureCreateView(
-        impl->msaa_depth_texture, NULL);
-    if (!impl->msaa_depth_texture_view) {
+    impl->depth.msaa_depth_texture_view = wgpuTextureCreateView(
+        impl->depth.msaa_depth_texture, NULL);
+    if (!impl->depth.msaa_depth_texture_view) {
         ecs_err("Failed to create MSAA depth texture view");
         flecsEngine_releaseMsaaResources(impl);
         return -1;
     }
 
-    impl->msaa_texture_width = width;
-    impl->msaa_texture_height = height;
-    impl->msaa_texture_sample_count = sc;
-    impl->msaa_color_format = color_format;
+    impl->depth.msaa_texture_width = width;
+    impl->depth.msaa_texture_height = height;
+    impl->depth.msaa_texture_sample_count = sc;
+    impl->depth.msaa_color_format = color_format;
     return 0;
 }
 
@@ -295,7 +295,7 @@ int flecsEngine_initRenderer(
         goto error;
     }
 
-    impl->material_query = ecs_query(world, {
+    impl->materials.query = ecs_query(world, {
         .entity = ecs_entity(world, {
             .parent = engine_parent
         }),
@@ -309,7 +309,7 @@ int flecsEngine_initRenderer(
         .cache_kind = EcsQueryCacheAuto
     });
 
-    impl->point_light_query = ecs_query(world, {
+    impl->lighting.point_light_query = ecs_query(world, {
         .entity = ecs_entity(world, {
             .parent = engine_parent
         }),
@@ -321,7 +321,7 @@ int flecsEngine_initRenderer(
         .cache_kind = EcsQueryCacheAuto
     });
 
-    impl->spot_light_query = ecs_query(world, {
+    impl->lighting.spot_light_query = ecs_query(world, {
         .entity = ecs_entity(world, {
             .parent = engine_parent
         }),
@@ -405,7 +405,7 @@ static void FlecsEngineRender(
     /* Ensure MSAA resources match current sample_count / dimensions.
      * If sample_count changed, also rebuild batch pipelines. */
     {
-        int32_t prev_sc = impl->msaa_texture_sample_count;
+        int32_t prev_sc = impl->depth.msaa_texture_sample_count;
         int32_t cur_sc = impl->sample_count < 2 ? 0 : impl->sample_count;
 
         if (flecsEngine_ensureMsaaResources(impl)) {
@@ -577,6 +577,33 @@ void FlecsEngineRendererImport(
     flecsEngine_bloom_register(world);
     flecsEngine_exponentialHeightFog_register(world);
     flecsEngine_ssao_register(world);
+
+    /* Register FlecsTextureImpl (renderer-side companion for FlecsTexture) */
+    ECS_COMPONENT_DEFINE(world, FlecsTextureImpl);
+    ecs_set_hooks(world, FlecsTextureImpl, {
+        .ctor = flecs_default_ctor
+    });
+    ecs_add_pair(world, ecs_id(FlecsTexture), EcsWith, ecs_id(FlecsTextureImpl));
+
+    /* Augment material component hooks with renderer-side on_set callbacks.
+     * Hooks fire immediately (even inside deferred contexts like GLTF loading),
+     * while observers would be deferred and miss the window for creating GPU
+     * resources before dependent components read them. Use ecs_get_type_info
+     * to preserve the lifecycle hooks already set by the material module. */
+    {
+        const ecs_type_info_t *ti;
+        ecs_type_hooks_t hooks;
+
+        ti = ecs_get_type_info(world, ecs_id(FlecsTexture));
+        hooks = ti->hooks;
+        hooks.on_set = flecsEngine_texture_onSet;
+        ecs_set_hooks_id(world, ecs_id(FlecsTexture), &hooks);
+
+        ti = ecs_get_type_info(world, ecs_id(FlecsPbrTextures));
+        hooks = ti->hooks;
+        hooks.on_set = flecsEngine_pbrTextures_onSet;
+        ecs_set_hooks_id(world, ecs_id(FlecsPbrTextures), &hooks);
+    }
 
     ecs_set_name_prefix(world, "FlecsEngine");
 

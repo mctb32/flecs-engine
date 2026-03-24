@@ -173,13 +173,13 @@ bool flecsEngine_ibl_createRuntimeBindGroup(
         return false;
     }
 
-    if (!engine->shadow_texture_view || !engine->shadow_sampler) {
+    if (!engine->shadow.texture_view || !engine->shadow.sampler) {
         return false;
     }
 
-    if (!engine->cluster_info_buffer || !engine->cluster_grid_buffer ||
-        !engine->cluster_index_buffer || !engine->point_light_buffer ||
-        !engine->spot_light_buffer)
+    if (!engine->lighting.cluster_info_buffer || !engine->lighting.cluster_grid_buffer ||
+        !engine->lighting.cluster_index_buffer || !engine->lighting.point_light_buffer ||
+        !engine->lighting.spot_light_buffer)
     {
         return false;
     }
@@ -204,39 +204,39 @@ bool flecsEngine_ibl_createRuntimeBindGroup(
                 },
                 {
                     .binding = 3,
-                    .textureView = engine->shadow_texture_view
+                    .textureView = engine->shadow.texture_view
                 },
                 {
                     .binding = 4,
-                    .sampler = engine->shadow_sampler
+                    .sampler = engine->shadow.sampler
                 },
                 {
                     .binding = 5,
-                    .buffer = engine->cluster_info_buffer,
+                    .buffer = engine->lighting.cluster_info_buffer,
                     .size = sizeof(FlecsClusterInfo)
                 },
                 {
                     .binding = 6,
-                    .buffer = engine->cluster_grid_buffer,
+                    .buffer = engine->lighting.cluster_grid_buffer,
                     .size = (uint64_t)FLECS_ENGINE_CLUSTER_TOTAL *
                         sizeof(FlecsClusterEntry)
                 },
                 {
                     .binding = 7,
-                    .buffer = engine->cluster_index_buffer,
-                    .size = (uint64_t)engine->cluster_index_capacity *
+                    .buffer = engine->lighting.cluster_index_buffer,
+                    .size = (uint64_t)engine->lighting.cluster_index_capacity *
                         sizeof(uint32_t)
                 },
                 {
                     .binding = 8,
-                    .buffer = engine->point_light_buffer,
-                    .size = (uint64_t)engine->point_light_capacity *
+                    .buffer = engine->lighting.point_light_buffer,
+                    .size = (uint64_t)engine->lighting.point_light_capacity *
                         sizeof(FlecsGpuPointLight)
                 },
                 {
                     .binding = 9,
-                    .buffer = engine->spot_light_buffer,
-                    .size = (uint64_t)engine->spot_light_capacity *
+                    .buffer = engine->lighting.spot_light_buffer,
+                    .size = (uint64_t)engine->lighting.spot_light_capacity *
                         sizeof(FlecsGpuSpotLight)
                 }
             }

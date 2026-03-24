@@ -221,8 +221,8 @@ static void flecsEngine_renderView_render(
             world, view_entity, engine, view, encoder);
     } else {
         for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-            memset(engine->current_light_vp[i], 0, sizeof(mat4));
-            engine->cascade_splits[i] = 0.0f;
+            memset(engine->shadow.current_light_vp[i], 0, sizeof(mat4));
+            engine->shadow.cascade_splits[i] = 0.0f;
         }
     }
 

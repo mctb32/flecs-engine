@@ -201,8 +201,8 @@ WGPUTexture flecsEngine_texture_loadFile(
 WGPUBindGroupLayout flecsEngine_pbr_texture_ensureBindLayout(
     FlecsEngineImpl *impl)
 {
-    if (impl->pbr_texture_bind_layout) {
-        return impl->pbr_texture_bind_layout;
+    if (impl->materials.pbr_texture_bind_layout) {
+        return impl->materials.pbr_texture_bind_layout;
     }
 
     WGPUBindGroupLayoutEntry entries[5] = {
@@ -256,44 +256,44 @@ WGPUBindGroupLayout flecsEngine_pbr_texture_ensureBindLayout(
         .entryCount = 5
     };
 
-    impl->pbr_texture_bind_layout = wgpuDeviceCreateBindGroupLayout(
+    impl->materials.pbr_texture_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device, &layout_desc);
 
-    return impl->pbr_texture_bind_layout;
+    return impl->materials.pbr_texture_bind_layout;
 }
 
 static void flecsEngine_pbr_texture_ensureFallbacks(
     FlecsEngineImpl *engine)
 {
-    if (engine->fallback_white_tex) {
+    if (engine->materials.fallback_white_tex) {
         return;
     }
 
     WGPUDevice device = engine->device;
     WGPUQueue queue = engine->queue;
 
-    engine->fallback_white_tex = flecsEngine_texture_create1x1(
+    engine->materials.fallback_white_tex = flecsEngine_texture_create1x1(
         device, queue, 255, 255, 255, 255);
-    engine->fallback_white_view = wgpuTextureCreateView(
-        engine->fallback_white_tex, NULL);
+    engine->materials.fallback_white_view = wgpuTextureCreateView(
+        engine->materials.fallback_white_tex, NULL);
 
-    engine->fallback_black_tex = flecsEngine_texture_create1x1(
+    engine->materials.fallback_black_tex = flecsEngine_texture_create1x1(
         device, queue, 0, 0, 0, 255);
-    engine->fallback_black_view = wgpuTextureCreateView(
-        engine->fallback_black_tex, NULL);
+    engine->materials.fallback_black_view = wgpuTextureCreateView(
+        engine->materials.fallback_black_tex, NULL);
 
     /* Default normal: (0.5, 0.5, 1.0) = flat surface pointing up */
-    engine->fallback_normal_tex = flecsEngine_texture_create1x1(
+    engine->materials.fallback_normal_tex = flecsEngine_texture_create1x1(
         device, queue, 128, 128, 255, 255);
-    engine->fallback_normal_view = wgpuTextureCreateView(
-        engine->fallback_normal_tex, NULL);
+    engine->materials.fallback_normal_view = wgpuTextureCreateView(
+        engine->materials.fallback_normal_tex, NULL);
 }
 
 static WGPUSampler flecsEngine_pbr_texture_ensureSampler(
     FlecsEngineImpl *engine)
 {
-    if (engine->pbr_sampler) {
-        return engine->pbr_sampler;
+    if (engine->materials.pbr_sampler) {
+        return engine->materials.pbr_sampler;
     }
 
     WGPUSamplerDescriptor sampler_desc = {
@@ -306,9 +306,9 @@ static WGPUSampler flecsEngine_pbr_texture_ensureSampler(
         .maxAnisotropy = 1
     };
 
-    engine->pbr_sampler = wgpuDeviceCreateSampler(
+    engine->materials.pbr_sampler = wgpuDeviceCreateSampler(
         engine->device, &sampler_desc);
-    return engine->pbr_sampler;
+    return engine->materials.pbr_sampler;
 }
 
 bool flecsEngine_pbr_texture_createBindGroup(
@@ -322,16 +322,16 @@ bool flecsEngine_pbr_texture_createBindGroup(
     flecsEngine_pbr_texture_ensureFallbacks(engine);
 
     if (!albedo_view) {
-        albedo_view = engine->fallback_white_view;
+        albedo_view = engine->materials.fallback_white_view;
     }
     if (!emissive_view) {
-        emissive_view = engine->fallback_white_view;
+        emissive_view = engine->materials.fallback_white_view;
     }
     if (!roughness_view) {
-        roughness_view = engine->fallback_white_view;
+        roughness_view = engine->materials.fallback_white_view;
     }
     if (!normal_view) {
-        normal_view = engine->fallback_normal_view;
+        normal_view = engine->materials.fallback_normal_view;
     }
 
     WGPUSampler sampler = flecsEngine_pbr_texture_ensureSampler(engine);
@@ -357,4 +357,81 @@ bool flecsEngine_pbr_texture_createBindGroup(
 
     *out_bind_group = wgpuDeviceCreateBindGroup(engine->device, &bg_desc);
     return *out_bind_group != NULL;
+}
+
+void flecsEngine_texture_onSet(
+    ecs_iter_t *it)
+{
+    ecs_world_t *world = it->world;
+    FlecsTexture *tex = ecs_field(it, FlecsTexture, 0);
+
+    FlecsEngineImpl *engine = ecs_singleton_get_mut(world, FlecsEngineImpl);
+    if (!engine) {
+        return;
+    }
+
+    for (int i = 0; i < it->count; i++) {
+        if (!tex[i].path) {
+            continue;
+        }
+
+        WGPUTexture texture = flecsEngine_texture_loadFile(
+            engine->device, engine->queue, tex[i].path);
+        if (texture) {
+            FlecsTextureImpl *tex_impl = ecs_ensure(
+                world, it->entities[i], FlecsTextureImpl);
+            tex_impl->texture = texture;
+            tex_impl->view = wgpuTextureCreateView(texture, NULL);
+        }
+    }
+}
+
+void flecsEngine_pbrTextures_onSet(
+    ecs_iter_t *it)
+{
+    ecs_world_t *world = it->world;
+    FlecsPbrTextures *tex = ecs_field(it, FlecsPbrTextures, 0);
+
+    FlecsEngineImpl *engine = ecs_singleton_get_mut(world, FlecsEngineImpl);
+    if (!engine) {
+        return;
+    }
+
+    flecsEngine_pbr_texture_ensureBindLayout(engine);
+
+    for (int i = 0; i < it->count; i++) {
+        WGPUTextureView albedo_view = NULL;
+        WGPUTextureView emissive_view = NULL;
+        WGPUTextureView roughness_view = NULL;
+        WGPUTextureView normal_view = NULL;
+
+        if (tex[i].albedo) {
+            const FlecsTextureImpl *impl = ecs_get(
+                world, tex[i].albedo, FlecsTextureImpl);
+            if (impl) albedo_view = impl->view;
+        }
+        if (tex[i].emissive) {
+            const FlecsTextureImpl *impl = ecs_get(
+                world, tex[i].emissive, FlecsTextureImpl);
+            if (impl) emissive_view = impl->view;
+        }
+        if (tex[i].roughness) {
+            const FlecsTextureImpl *impl = ecs_get(
+                world, tex[i].roughness, FlecsTextureImpl);
+            if (impl) roughness_view = impl->view;
+        }
+        if (tex[i].normal) {
+            const FlecsTextureImpl *impl = ecs_get(
+                world, tex[i].normal, FlecsTextureImpl);
+            if (impl) normal_view = impl->view;
+        }
+
+        WGPUBindGroup bind_group = NULL;
+        if (flecsEngine_pbr_texture_createBindGroup(
+            engine, albedo_view, emissive_view,
+            roughness_view, normal_view, &bind_group))
+        {
+            tex[i]._bind_group = bind_group;
+        }
+    }
 }

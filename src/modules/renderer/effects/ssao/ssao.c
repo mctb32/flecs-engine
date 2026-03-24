@@ -540,7 +540,7 @@ static bool flecsEngine_ssao_bind(
     ecs_assert(entry_count != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(*entry_count == 2, ECS_INVALID_PARAMETER, NULL);
 
-    if (!engine->depth_texture_view) {
+    if (!engine->depth.depth_texture_view) {
         return false;
     }
 
@@ -562,7 +562,7 @@ static bool flecsEngine_ssao_bind(
 
     entries[2] = (WGPUBindGroupEntry){
         .binding = 2,
-        .textureView = engine->depth_texture_view
+        .textureView = engine->depth.depth_texture_view
     };
 
     entries[3] = (WGPUBindGroupEntry){
@@ -729,7 +729,7 @@ static bool flecsEngine_ssao_render(
         WGPUBindGroupEntry blur_entries[5] = {
             { .binding = 0, .textureView = impl->blur_intermediate_view },
             { .binding = 1, .sampler = effect_impl->input_sampler },
-            { .binding = 2, .textureView = engine->depth_texture_view },
+            { .binding = 2, .textureView = engine->depth.depth_texture_view },
             {
                 .binding = 3,
                 .buffer = impl->uniform_buffer,

@@ -27,6 +27,89 @@ typedef struct {
 } FlecsDefaultAttrCache;
 
 typedef struct {
+    WGPUTexture texture;
+    WGPUTextureView texture_view;
+    WGPUTextureView layer_views[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    uint32_t map_size;
+    uint32_t cascade_sizes[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    WGPUShaderModule shader_module;
+    WGPUBuffer vp_buffers[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    WGPUBindGroupLayout pass_bind_layout;
+    WGPUBindGroup pass_bind_groups[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    int current_cascade;
+    WGPUSampler sampler;
+    mat4 current_light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    float cascade_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    bool in_pass;
+} flecs_engine_shadow_t;
+
+typedef struct {
+    FlecsGpuPointLight *cpu_point_lights;
+    int32_t point_light_count;
+    int32_t point_light_capacity;
+    WGPUBuffer point_light_buffer;
+
+    FlecsGpuSpotLight *cpu_spot_lights;
+    int32_t spot_light_count;
+    int32_t spot_light_capacity;
+    WGPUBuffer spot_light_buffer;
+
+    uint32_t *cpu_cluster_indices;
+    int32_t cluster_index_capacity;
+    WGPUBuffer cluster_info_buffer;
+    WGPUBuffer cluster_grid_buffer;
+    WGPUBuffer cluster_index_buffer;
+    bool cluster_bind_group_dirty;
+
+    ecs_query_t *point_light_query;
+    ecs_query_t *spot_light_query;
+} flecs_engine_lighting_t;
+
+typedef struct {
+    WGPUBuffer buffer;
+    FlecsGpuMaterial *cpu_materials;
+    uint32_t buffer_capacity;
+    uint32_t count;
+    ecs_query_t *query;
+
+    WGPUBindGroupLayout pbr_texture_bind_layout;
+    WGPUSampler pbr_sampler;
+    WGPUTexture fallback_white_tex;
+    WGPUTextureView fallback_white_view;
+    WGPUTexture fallback_black_tex;
+    WGPUTextureView fallback_black_view;
+    WGPUTexture fallback_normal_tex;
+    WGPUTextureView fallback_normal_view;
+} flecs_engine_materials_t;
+
+typedef struct {
+    WGPUTexture depth_texture;
+    WGPUTextureView depth_texture_view;
+    uint32_t depth_texture_width;
+    uint32_t depth_texture_height;
+
+    WGPUTexture msaa_color_texture;
+    WGPUTextureView msaa_color_texture_view;
+    WGPUTexture msaa_depth_texture;
+    WGPUTextureView msaa_depth_texture_view;
+    uint32_t msaa_texture_width;
+    uint32_t msaa_texture_height;
+    int32_t msaa_texture_sample_count;
+    WGPUTextureFormat msaa_color_format;
+
+    /* Passthrough effect for blitting batch output to screen when no
+     * effects are enabled. Built directly during renderer init. */
+    WGPURenderPipeline passthrough_pipeline;
+    WGPUBindGroupLayout passthrough_bind_layout;
+    WGPUSampler passthrough_sampler;
+
+    /* Depth resolve pass: resolves MSAA depth into the 1-sample depth
+     * texture so that post-process effects (SSAO, fog, …) can read it. */
+    WGPURenderPipeline depth_resolve_pipeline;
+    WGPUBindGroupLayout depth_resolve_bind_layout;
+} flecs_engine_depth_t;
+
+typedef struct {
     GLFWwindow *window;
     int32_t width;
     int32_t height;
@@ -47,20 +130,6 @@ typedef struct {
     WGPUTexture frame_output_texture;
     WGPUTextureView frame_output_texture_view;
 
-    WGPUTexture depth_texture;
-    WGPUTextureView depth_texture_view;
-    uint32_t depth_texture_width;
-    uint32_t depth_texture_height;
-
-    WGPUTexture msaa_color_texture;
-    WGPUTextureView msaa_color_texture_view;
-    WGPUTexture msaa_depth_texture;
-    WGPUTextureView msaa_depth_texture_view;
-    uint32_t msaa_texture_width;
-    uint32_t msaa_texture_height;
-    int32_t msaa_texture_sample_count;
-    WGPUTextureFormat msaa_color_format;
-
     WGPUSurfaceConfiguration surface_config;
     WGPUTextureFormat hdr_color_format;
 
@@ -70,70 +139,13 @@ typedef struct {
     WGPUBindGroupLayout ibl_shadow_bind_layout;
     uint32_t scene_bind_version;
 
-    WGPUBuffer material_buffer;
-    FlecsGpuMaterial *cpu_materials;
-    uint32_t material_buffer_capacity;
-    uint32_t material_count;
-
     ecs_query_t *view_query;
-    ecs_query_t *material_query;
-    ecs_query_t *point_light_query;
-    ecs_query_t *spot_light_query;
-    uint32_t last_material_id;
     WGPURenderPipeline last_pipeline;
 
-    WGPUTexture shadow_texture;
-    WGPUTextureView shadow_texture_view;
-    WGPUTextureView shadow_layer_views[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    uint32_t shadow_map_size;
-    uint32_t shadow_cascade_sizes[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    WGPUShaderModule shadow_shader_module;
-    WGPUBuffer shadow_vp_buffers[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    WGPUBindGroupLayout shadow_pass_bind_layout;
-    WGPUBindGroup shadow_pass_bind_groups[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    int current_shadow_cascade;
-    WGPUSampler shadow_sampler;
-    mat4 current_light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    float cascade_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-
-    FlecsGpuPointLight *cpu_point_lights;
-    int32_t point_light_count;
-    int32_t point_light_capacity;
-    WGPUBuffer point_light_buffer;
-
-    FlecsGpuSpotLight *cpu_spot_lights;
-    int32_t spot_light_count;
-    int32_t spot_light_capacity;
-    WGPUBuffer spot_light_buffer;
-
-    uint32_t *cpu_cluster_indices;
-    int32_t cluster_index_capacity;
-    WGPUBuffer cluster_info_buffer;
-    WGPUBuffer cluster_grid_buffer;
-    WGPUBuffer cluster_index_buffer;
-    bool cluster_bind_group_dirty;
-
-    /* Passthrough effect for blitting batch output to screen when no
-     * effects are enabled. Built directly during renderer init. */
-    WGPURenderPipeline passthrough_pipeline;
-    WGPUBindGroupLayout passthrough_bind_layout;
-    WGPUSampler passthrough_sampler;
-
-    /* Depth resolve pass: resolves MSAA depth into the 1-sample depth
-     * texture so that post-process effects (SSAO, fog, …) can read it. */
-    WGPURenderPipeline depth_resolve_pipeline;
-    WGPUBindGroupLayout depth_resolve_bind_layout;
-
-    WGPUBindGroupLayout pbr_texture_bind_layout;
-    WGPUSampler pbr_sampler;
-    WGPUTexture fallback_white_tex;
-    WGPUTextureView fallback_white_view;
-    WGPUTexture fallback_black_tex;
-    WGPUTextureView fallback_black_view;
-    WGPUTexture fallback_normal_tex;
-    WGPUTextureView fallback_normal_view;
-
-    bool in_shadow_pass;
+    flecs_engine_shadow_t shadow;
+    flecs_engine_lighting_t lighting;
+    flecs_engine_materials_t materials;
+    flecs_engine_depth_t depth;
 
     FlecsDefaultAttrCache *default_attr_cache;
 } FlecsEngineImpl;

@@ -354,6 +354,12 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
     ecs_entity_t parent,
     const char *name);
 
+void flecsEngine_texture_onSet(
+    ecs_iter_t *it);
+
+void flecsEngine_pbrTextures_onSet(
+    ecs_iter_t *it);
+
 // Import renderer module
 void FlecsEngineRendererImport(
     ecs_world_t *world);

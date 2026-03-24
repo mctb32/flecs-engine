@@ -33,26 +33,26 @@ static void flecsEngine_cleanup(
     impl->sky_background_hdri = 0;
     impl->black_hdri = 0;
 
-    if (impl->passthrough_pipeline) {
-        wgpuRenderPipelineRelease(impl->passthrough_pipeline);
-        impl->passthrough_pipeline = NULL;
+    if (impl->depth.passthrough_pipeline) {
+        wgpuRenderPipelineRelease(impl->depth.passthrough_pipeline);
+        impl->depth.passthrough_pipeline = NULL;
     }
-    if (impl->passthrough_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->passthrough_bind_layout);
-        impl->passthrough_bind_layout = NULL;
+    if (impl->depth.passthrough_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->depth.passthrough_bind_layout);
+        impl->depth.passthrough_bind_layout = NULL;
     }
-    if (impl->passthrough_sampler) {
-        wgpuSamplerRelease(impl->passthrough_sampler);
-        impl->passthrough_sampler = NULL;
+    if (impl->depth.passthrough_sampler) {
+        wgpuSamplerRelease(impl->depth.passthrough_sampler);
+        impl->depth.passthrough_sampler = NULL;
     }
 
-    if (impl->depth_resolve_pipeline) {
-        wgpuRenderPipelineRelease(impl->depth_resolve_pipeline);
-        impl->depth_resolve_pipeline = NULL;
+    if (impl->depth.depth_resolve_pipeline) {
+        wgpuRenderPipelineRelease(impl->depth.depth_resolve_pipeline);
+        impl->depth.depth_resolve_pipeline = NULL;
     }
-    if (impl->depth_resolve_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->depth_resolve_bind_layout);
-        impl->depth_resolve_bind_layout = NULL;
+    if (impl->depth.depth_resolve_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->depth.depth_resolve_bind_layout);
+        impl->depth.depth_resolve_bind_layout = NULL;
     }
 
     flecsEngine_releaseMsaaResources(impl);
@@ -65,18 +65,18 @@ static void flecsEngine_cleanup(
     ecs_delete_with(world, ecs_id(FlecsRenderView));
     ecs_delete_with(world, ecs_id(FlecsRenderBatch));
 
-    if (impl->depth_texture_view) {
-        wgpuTextureViewRelease(impl->depth_texture_view);
-        impl->depth_texture_view = NULL;
+    if (impl->depth.depth_texture_view) {
+        wgpuTextureViewRelease(impl->depth.depth_texture_view);
+        impl->depth.depth_texture_view = NULL;
     }
 
-    if (impl->depth_texture) {
-        wgpuTextureRelease(impl->depth_texture);
-        impl->depth_texture = NULL;
+    if (impl->depth.depth_texture) {
+        wgpuTextureRelease(impl->depth.depth_texture);
+        impl->depth.depth_texture = NULL;
     }
 
-    impl->depth_texture_width = 0;
-    impl->depth_texture_height = 0;
+    impl->depth.depth_texture_width = 0;
+    impl->depth.depth_texture_height = 0;
 
     if (impl->queue) {
         wgpuQueueRelease(impl->queue);
@@ -140,9 +140,6 @@ int flecsEngine_init(
         .sample_count = sample_count,
         .surface_impl = output->ops,
         .output_done = false,
-        .depth_texture_width = 0,
-        .depth_texture_height = 0,
-        .last_material_id = 0,
         .default_attr_cache = flecsEngine_defaultAttrCache_create()
     };
 
@@ -261,13 +258,13 @@ void FlecsEngineImport(
 
     ECS_IMPORT(world, FlecsEngineWindow);
     ECS_IMPORT(world, FlecsEngineFrameCapture);
+    ECS_IMPORT(world, FlecsEngineLight);
+    ECS_IMPORT(world, FlecsEngineMaterial);
     ECS_IMPORT(world, FlecsEngineRenderer);
     ECS_IMPORT(world, FlecsEngineGeometry3);
     ECS_IMPORT(world, FlecsEngineTransform3);
     ECS_IMPORT(world, FlecsEngineMovement);
     ECS_IMPORT(world, FlecsEngineInput);
     ECS_IMPORT(world, FlecsEngineCamera);
-    ECS_IMPORT(world, FlecsEngineLight);
-    ECS_IMPORT(world, FlecsEngineMaterial);
     ECS_IMPORT(world, FlecsEngineGltf);
 }

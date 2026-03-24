@@ -222,7 +222,7 @@ static bool flecsEngine_exponentialHeightFog_bind(
     ecs_assert(entry_count != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(*entry_count == 2, ECS_INVALID_PARAMETER, NULL);
 
-    if (!engine->depth_texture_view) {
+    if (!engine->depth.depth_texture_view) {
         return false;
     }
 
@@ -245,7 +245,7 @@ static bool flecsEngine_exponentialHeightFog_bind(
 
     entries[2] = (WGPUBindGroupEntry){
         .binding = 2,
-        .textureView = engine->depth_texture_view
+        .textureView = engine->depth.depth_texture_view
     };
 
     entries[3] = (WGPUBindGroupEntry){

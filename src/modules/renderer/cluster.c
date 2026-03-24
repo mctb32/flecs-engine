@@ -46,23 +46,23 @@ int flecsEngine_cluster_init(
     int32_t init_indices = FLECS_ENGINE_CLUSTER_INITIAL_INDICES;
 
     /* CPU-side arrays */
-    impl->cpu_point_lights = ecs_os_calloc_n(
+    impl->lighting.cpu_point_lights = ecs_os_calloc_n(
         FlecsGpuPointLight, init_lights);
-    impl->point_light_capacity = init_lights;
+    impl->lighting.point_light_capacity = init_lights;
 
-    impl->cpu_spot_lights = ecs_os_calloc_n(
+    impl->lighting.cpu_spot_lights = ecs_os_calloc_n(
         FlecsGpuSpotLight, init_lights);
-    impl->spot_light_capacity = init_lights;
+    impl->lighting.spot_light_capacity = init_lights;
 
-    impl->cpu_cluster_indices = ecs_os_calloc_n(uint32_t, init_indices);
-    impl->cluster_index_capacity = init_indices;
+    impl->lighting.cpu_cluster_indices = ecs_os_calloc_n(uint32_t, init_indices);
+    impl->lighting.cluster_index_capacity = init_indices;
 
     /* GPU point light storage buffer */
     WGPUBufferDescriptor pl_desc = {
         .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
         .size = (uint64_t)init_lights * sizeof(FlecsGpuPointLight)
     };
-    impl->point_light_buffer = wgpuDeviceCreateBuffer(
+    impl->lighting.point_light_buffer = wgpuDeviceCreateBuffer(
         impl->device, &pl_desc);
 
     /* GPU spot light storage buffer */
@@ -70,7 +70,7 @@ int flecsEngine_cluster_init(
         .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
         .size = (uint64_t)init_lights * sizeof(FlecsGpuSpotLight)
     };
-    impl->spot_light_buffer = wgpuDeviceCreateBuffer(
+    impl->lighting.spot_light_buffer = wgpuDeviceCreateBuffer(
         impl->device, &sl_desc);
 
     /* Cluster info uniform buffer (fixed size) */
@@ -78,7 +78,7 @@ int flecsEngine_cluster_init(
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
         .size = sizeof(FlecsClusterInfo)
     };
-    impl->cluster_info_buffer = wgpuDeviceCreateBuffer(
+    impl->lighting.cluster_info_buffer = wgpuDeviceCreateBuffer(
         impl->device, &info_desc);
 
     /* Cluster grid storage buffer (fixed size) */
@@ -87,7 +87,7 @@ int flecsEngine_cluster_init(
         .size = (uint64_t)FLECS_ENGINE_CLUSTER_TOTAL *
             sizeof(FlecsClusterEntry)
     };
-    impl->cluster_grid_buffer = wgpuDeviceCreateBuffer(
+    impl->lighting.cluster_grid_buffer = wgpuDeviceCreateBuffer(
         impl->device, &grid_desc);
 
     /* Light index storage buffer */
@@ -95,12 +95,12 @@ int flecsEngine_cluster_init(
         .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
         .size = (uint64_t)init_indices * sizeof(uint32_t)
     };
-    impl->cluster_index_buffer = wgpuDeviceCreateBuffer(
+    impl->lighting.cluster_index_buffer = wgpuDeviceCreateBuffer(
         impl->device, &idx_desc);
 
-    if (!impl->point_light_buffer || !impl->spot_light_buffer ||
-        !impl->cluster_info_buffer || !impl->cluster_grid_buffer ||
-        !impl->cluster_index_buffer)
+    if (!impl->lighting.point_light_buffer || !impl->lighting.spot_light_buffer ||
+        !impl->lighting.cluster_info_buffer || !impl->lighting.cluster_grid_buffer ||
+        !impl->lighting.cluster_index_buffer)
     {
         ecs_err("failed to create cluster GPU buffers");
         return -1;
@@ -112,36 +112,36 @@ int flecsEngine_cluster_init(
 void flecsEngine_cluster_cleanup(
     FlecsEngineImpl *impl)
 {
-    if (impl->cluster_index_buffer) {
-        wgpuBufferRelease(impl->cluster_index_buffer);
-        impl->cluster_index_buffer = NULL;
+    if (impl->lighting.cluster_index_buffer) {
+        wgpuBufferRelease(impl->lighting.cluster_index_buffer);
+        impl->lighting.cluster_index_buffer = NULL;
     }
-    if (impl->cluster_grid_buffer) {
-        wgpuBufferRelease(impl->cluster_grid_buffer);
-        impl->cluster_grid_buffer = NULL;
+    if (impl->lighting.cluster_grid_buffer) {
+        wgpuBufferRelease(impl->lighting.cluster_grid_buffer);
+        impl->lighting.cluster_grid_buffer = NULL;
     }
-    if (impl->cluster_info_buffer) {
-        wgpuBufferRelease(impl->cluster_info_buffer);
-        impl->cluster_info_buffer = NULL;
+    if (impl->lighting.cluster_info_buffer) {
+        wgpuBufferRelease(impl->lighting.cluster_info_buffer);
+        impl->lighting.cluster_info_buffer = NULL;
     }
-    if (impl->point_light_buffer) {
-        wgpuBufferRelease(impl->point_light_buffer);
-        impl->point_light_buffer = NULL;
+    if (impl->lighting.point_light_buffer) {
+        wgpuBufferRelease(impl->lighting.point_light_buffer);
+        impl->lighting.point_light_buffer = NULL;
     }
-    if (impl->spot_light_buffer) {
-        wgpuBufferRelease(impl->spot_light_buffer);
-        impl->spot_light_buffer = NULL;
+    if (impl->lighting.spot_light_buffer) {
+        wgpuBufferRelease(impl->lighting.spot_light_buffer);
+        impl->lighting.spot_light_buffer = NULL;
     }
 
-    ecs_os_free(impl->cpu_point_lights);
-    impl->cpu_point_lights = NULL;
-    impl->point_light_capacity = 0;
-    ecs_os_free(impl->cpu_spot_lights);
-    impl->cpu_spot_lights = NULL;
-    impl->spot_light_capacity = 0;
-    ecs_os_free(impl->cpu_cluster_indices);
-    impl->cpu_cluster_indices = NULL;
-    impl->cluster_index_capacity = 0;
+    ecs_os_free(impl->lighting.cpu_point_lights);
+    impl->lighting.cpu_point_lights = NULL;
+    impl->lighting.point_light_capacity = 0;
+    ecs_os_free(impl->lighting.cpu_spot_lights);
+    impl->lighting.cpu_spot_lights = NULL;
+    impl->lighting.spot_light_capacity = 0;
+    ecs_os_free(impl->lighting.cpu_cluster_indices);
+    impl->lighting.cpu_cluster_indices = NULL;
+    impl->lighting.cluster_index_capacity = 0;
 }
 
 /* Ensure CPU + GPU light arrays can hold `needed` lights. Returns true
@@ -149,61 +149,61 @@ void flecsEngine_cluster_cleanup(
 bool flecsEngine_cluster_ensurePointLights(
     FlecsEngineImpl *engine, int32_t needed)
 {
-    if (needed <= engine->point_light_capacity) {
+    if (needed <= engine->lighting.point_light_capacity) {
         return false;
     }
 
-    int32_t new_cap = engine->point_light_capacity ? engine->point_light_capacity : 1;
+    int32_t new_cap = engine->lighting.point_light_capacity ? engine->lighting.point_light_capacity : 1;
     while (new_cap < needed) new_cap *= 2;
 
-    engine->cpu_point_lights = ecs_os_realloc_n(
-        engine->cpu_point_lights, FlecsGpuPointLight, new_cap);
+    engine->lighting.cpu_point_lights = ecs_os_realloc_n(
+        engine->lighting.cpu_point_lights, FlecsGpuPointLight, new_cap);
 
     flecsEngine_cluster_growBuffer(engine->device,
-        &engine->point_light_buffer, &engine->point_light_capacity,
+        &engine->lighting.point_light_buffer, &engine->lighting.point_light_capacity,
         new_cap, sizeof(FlecsGpuPointLight));
 
-    engine->cluster_bind_group_dirty = true;
+    engine->lighting.cluster_bind_group_dirty = true;
     return true;
 }
 
 bool flecsEngine_cluster_ensureSpotLights(
     FlecsEngineImpl *engine, int32_t needed)
 {
-    if (needed <= engine->spot_light_capacity) {
+    if (needed <= engine->lighting.spot_light_capacity) {
         return false;
     }
 
-    int32_t new_cap = engine->spot_light_capacity ? engine->spot_light_capacity : 1;
+    int32_t new_cap = engine->lighting.spot_light_capacity ? engine->lighting.spot_light_capacity : 1;
     while (new_cap < needed) new_cap *= 2;
 
-    engine->cpu_spot_lights = ecs_os_realloc_n(
-        engine->cpu_spot_lights, FlecsGpuSpotLight, new_cap);
+    engine->lighting.cpu_spot_lights = ecs_os_realloc_n(
+        engine->lighting.cpu_spot_lights, FlecsGpuSpotLight, new_cap);
 
     flecsEngine_cluster_growBuffer(engine->device,
-        &engine->spot_light_buffer, &engine->spot_light_capacity,
+        &engine->lighting.spot_light_buffer, &engine->lighting.spot_light_capacity,
         new_cap, sizeof(FlecsGpuSpotLight));
 
-    engine->cluster_bind_group_dirty = true;
+    engine->lighting.cluster_bind_group_dirty = true;
     return true;
 }
 
 static bool flecsEngine_cluster_ensureIndices(
     FlecsEngineImpl *engine, int32_t needed)
 {
-    if (needed <= engine->cluster_index_capacity) {
+    if (needed <= engine->lighting.cluster_index_capacity) {
         return false;
     }
 
-    int32_t new_cap = engine->cluster_index_capacity
-        ? engine->cluster_index_capacity : 1;
+    int32_t new_cap = engine->lighting.cluster_index_capacity
+        ? engine->lighting.cluster_index_capacity : 1;
     while (new_cap < needed) new_cap *= 2;
 
-    engine->cpu_cluster_indices = ecs_os_realloc_n(
-        engine->cpu_cluster_indices, uint32_t, new_cap);
+    engine->lighting.cpu_cluster_indices = ecs_os_realloc_n(
+        engine->lighting.cpu_cluster_indices, uint32_t, new_cap);
 
     bool changed = flecsEngine_cluster_growBuffer(engine->device,
-        &engine->cluster_index_buffer, &engine->cluster_index_capacity,
+        &engine->lighting.cluster_index_buffer, &engine->lighting.cluster_index_capacity,
         new_cap, sizeof(uint32_t));
 
     return changed;
@@ -297,7 +297,7 @@ void flecsEngine_cluster_build(
     FlecsEngineImpl *engine,
     const FlecsRenderView *view)
 {
-    if (!engine->cluster_info_buffer || !view->camera) {
+    if (!engine->lighting.cluster_info_buffer || !view->camera) {
         return;
     }
 
@@ -320,8 +320,8 @@ void flecsEngine_cluster_build(
 
     const float (*view_mat)[4] = (const float (*)[4])cam_impl->view;
 
-    int32_t point_count = engine->point_light_count;
-    int32_t spot_count = engine->spot_light_count;
+    int32_t point_count = engine->lighting.point_light_count;
+    int32_t spot_count = engine->lighting.spot_light_count;
 
     /* Upload cluster info */
     FlecsClusterInfo info = {
@@ -330,7 +330,7 @@ void flecsEngine_cluster_build(
         .screen_info = { (float)engine->actual_width, (float)engine->actual_height,
             near, log_ratio }
     };
-    wgpuQueueWriteBuffer(engine->queue, engine->cluster_info_buffer,
+    wgpuQueueWriteBuffer(engine->queue, engine->lighting.cluster_info_buffer,
         0, &info, sizeof(info));
 
     /* --- Two-pass cluster assignment --- */
@@ -344,10 +344,10 @@ void flecsEngine_cluster_build(
     for (int32_t li = 0; li < point_count; li++) {
         int tx0, tx1, ty0, ty1, sz0, sz1;
         if (!flecsEngine_cluster_sphereRange(view_mat,
-            engine->cpu_point_lights[li].position[0],
-            engine->cpu_point_lights[li].position[1],
-            engine->cpu_point_lights[li].position[2],
-            engine->cpu_point_lights[li].position[3],
+            engine->lighting.cpu_point_lights[li].position[0],
+            engine->lighting.cpu_point_lights[li].position[1],
+            engine->lighting.cpu_point_lights[li].position[2],
+            engine->lighting.cpu_point_lights[li].position[3],
             near, far, tan_half_fov, aspect, log_ratio,
             &tx0, &tx1, &ty0, &ty1, &sz0, &sz1)) continue;
         for (int sz = sz0; sz <= sz1; sz++)
@@ -359,10 +359,10 @@ void flecsEngine_cluster_build(
     for (int32_t li = 0; li < spot_count; li++) {
         int tx0, tx1, ty0, ty1, sz0, sz1;
         if (!flecsEngine_cluster_sphereRange(view_mat,
-            engine->cpu_spot_lights[li].position[0],
-            engine->cpu_spot_lights[li].position[1],
-            engine->cpu_spot_lights[li].position[2],
-            engine->cpu_spot_lights[li].position[3],
+            engine->lighting.cpu_spot_lights[li].position[0],
+            engine->lighting.cpu_spot_lights[li].position[1],
+            engine->lighting.cpu_spot_lights[li].position[2],
+            engine->lighting.cpu_spot_lights[li].position[3],
             near, far, tan_half_fov, aspect, log_ratio,
             &tx0, &tx1, &ty0, &ty1, &sz0, &sz1)) continue;
         for (int sz = sz0; sz <= sz1; sz++)
@@ -389,12 +389,12 @@ void flecsEngine_cluster_build(
 
     /* Grow index buffer if needed. Also pick up the dirty flag set by
      * the light setup functions if they resized GPU buffers. */
-    bool bg_dirty = engine->cluster_bind_group_dirty;
+    bool bg_dirty = engine->lighting.cluster_bind_group_dirty;
     bg_dirty |= flecsEngine_cluster_ensureIndices(
         engine, (int32_t)total_indices);
     if (bg_dirty) {
         engine->scene_bind_version++;
-        engine->cluster_bind_group_dirty = false;
+        engine->lighting.cluster_bind_group_dirty = false;
     }
 
     /* Pass 2: fill index list */
@@ -403,15 +403,15 @@ void flecsEngine_cluster_build(
     memset(point_fill, 0, sizeof(point_fill));
     memset(spot_fill, 0, sizeof(spot_fill));
 
-    uint32_t *indices = engine->cpu_cluster_indices;
+    uint32_t *indices = engine->lighting.cpu_cluster_indices;
 
     for (int32_t li = 0; li < point_count; li++) {
         int tx0, tx1, ty0, ty1, sz0, sz1;
         if (!flecsEngine_cluster_sphereRange(view_mat,
-            engine->cpu_point_lights[li].position[0],
-            engine->cpu_point_lights[li].position[1],
-            engine->cpu_point_lights[li].position[2],
-            engine->cpu_point_lights[li].position[3],
+            engine->lighting.cpu_point_lights[li].position[0],
+            engine->lighting.cpu_point_lights[li].position[1],
+            engine->lighting.cpu_point_lights[li].position[2],
+            engine->lighting.cpu_point_lights[li].position[3],
             near, far, tan_half_fov, aspect, log_ratio,
             &tx0, &tx1, &ty0, &ty1, &sz0, &sz1)) continue;
         for (int sz = sz0; sz <= sz1; sz++)
@@ -428,10 +428,10 @@ void flecsEngine_cluster_build(
     for (int32_t li = 0; li < spot_count; li++) {
         int tx0, tx1, ty0, ty1, sz0, sz1;
         if (!flecsEngine_cluster_sphereRange(view_mat,
-            engine->cpu_spot_lights[li].position[0],
-            engine->cpu_spot_lights[li].position[1],
-            engine->cpu_spot_lights[li].position[2],
-            engine->cpu_spot_lights[li].position[3],
+            engine->lighting.cpu_spot_lights[li].position[0],
+            engine->lighting.cpu_spot_lights[li].position[1],
+            engine->lighting.cpu_spot_lights[li].position[2],
+            engine->lighting.cpu_spot_lights[li].position[3],
             near, far, tan_half_fov, aspect, log_ratio,
             &tx0, &tx1, &ty0, &ty1, &sz0, &sz1)) continue;
         for (int sz = sz0; sz <= sz1; sz++)
@@ -446,23 +446,23 @@ void flecsEngine_cluster_build(
     }
 
     /* Upload everything to GPU */
-    wgpuQueueWriteBuffer(engine->queue, engine->cluster_grid_buffer,
+    wgpuQueueWriteBuffer(engine->queue, engine->lighting.cluster_grid_buffer,
         0, grid, sizeof(grid));
 
     if (total_indices > 0) {
-        wgpuQueueWriteBuffer(engine->queue, engine->cluster_index_buffer,
+        wgpuQueueWriteBuffer(engine->queue, engine->lighting.cluster_index_buffer,
             0, indices, (uint64_t)total_indices * sizeof(uint32_t));
     }
 
     if (point_count > 0) {
-        wgpuQueueWriteBuffer(engine->queue, engine->point_light_buffer,
-            0, engine->cpu_point_lights,
+        wgpuQueueWriteBuffer(engine->queue, engine->lighting.point_light_buffer,
+            0, engine->lighting.cpu_point_lights,
             (uint64_t)point_count * sizeof(FlecsGpuPointLight));
     }
 
     if (spot_count > 0) {
-        wgpuQueueWriteBuffer(engine->queue, engine->spot_light_buffer,
-            0, engine->cpu_spot_lights,
+        wgpuQueueWriteBuffer(engine->queue, engine->lighting.spot_light_buffer,
+            0, engine->lighting.cpu_spot_lights,
             (uint64_t)spot_count * sizeof(FlecsGpuSpotLight));
     }
 }

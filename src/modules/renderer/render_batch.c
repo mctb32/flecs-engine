@@ -244,13 +244,13 @@ static WGPURenderPipeline flecsEngine_renderBatch_createShadowPipeline(
     const WGPUVertexBufferLayout *vertex_buffers,
     uint32_t vertex_buffer_count)
 {
-    if (!engine->shadow_shader_module || !engine->shadow_pass_bind_layout) {
+    if (!engine->shadow.shader_module || !engine->shadow.pass_bind_layout) {
         return NULL;
     }
 
     WGPUPipelineLayoutDescriptor layout_desc = {
         .bindGroupLayoutCount = 1,
-        .bindGroupLayouts = &engine->shadow_pass_bind_layout
+        .bindGroupLayouts = &engine->shadow.pass_bind_layout
     };
 
     WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
@@ -271,7 +271,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createShadowPipeline(
     };
 
     WGPUVertexState vertex_state = {
-        .module = engine->shadow_shader_module,
+        .module = engine->shadow.shader_module,
         .entryPoint = WGPU_STR("vs_main"),
         .bufferCount = vertex_buffer_count,
         .buffers = vertex_buffers
@@ -526,7 +526,7 @@ static void FlecsRenderBatch_on_set(
             continue;
         }
 
-        if (impl.uses_shadow && engine->shadow_pass_bind_layout) {
+        if (impl.uses_shadow && engine->shadow.pass_bind_layout) {
             if (impl.uses_textures &&
                 rb[i].vertex_type == ecs_id(FlecsLitVertexUv))
             {
@@ -660,12 +660,12 @@ static bool flecsEngine_renderBatch_ensureMaterialBindings(
     const FlecsRenderBatch *batch,
     FlecsRenderBatchImpl *impl)
 {
-    if (!engine->material_buffer || !engine->material_count) {
+    if (!engine->materials.buffer || !engine->materials.count) {
         return false;
     }
 
     uint64_t material_buffer_size =
-        (uint64_t)engine->material_count * sizeof(FlecsGpuMaterial);
+        (uint64_t)engine->materials.count * sizeof(FlecsGpuMaterial);
 
     if (impl->bind_group_materials &&
         impl->material_buffer_size == material_buffer_size)
@@ -690,7 +690,7 @@ static bool flecsEngine_renderBatch_ensureMaterialBindings(
     uint32_t storage_binding = impl->uniform_count;
     entries[storage_binding] = (WGPUBindGroupEntry){
         .binding = storage_binding,
-        .buffer = engine->material_buffer,
+        .buffer = engine->materials.buffer,
         .size = material_buffer_size
     };
 
@@ -729,10 +729,10 @@ static void flecsEngine_renderBatch_updateUniforms(
     }
 
     for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-        glm_mat4_copy((vec4*)engine->current_light_vp[i], uniforms.light_vp[i]);
+        glm_mat4_copy((vec4*)engine->shadow.current_light_vp[i], uniforms.light_vp[i]);
     }
 
-    memcpy(uniforms.cascade_splits, engine->cascade_splits,
+    memcpy(uniforms.cascade_splits, engine->shadow.cascade_splits,
         sizeof(float) * FLECS_ENGINE_SHADOW_CASCADE_COUNT);
 
     int32_t pcf = view->shadow.pcf_samples;
@@ -746,9 +746,9 @@ static void flecsEngine_renderBatch_updateUniforms(
     /* Per-cascade scale factors: the fraction of the texture each cascade
      * actually uses. Distant cascades render at reduced resolution. */
     for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-        uniforms.shadow_cascade_scales[i] = engine->shadow_map_size > 0
-            ? (float)engine->shadow_cascade_sizes[i] /
-              (float)engine->shadow_map_size
+        uniforms.shadow_cascade_scales[i] = engine->shadow.map_size > 0
+            ? (float)engine->shadow.cascade_sizes[i] /
+              (float)engine->shadow.map_size
             : 1.0f;
     }
 
@@ -868,7 +868,7 @@ void flecsEngine_renderBatch_renderShadow(
     }
 
     wgpuRenderPassEncoderSetBindGroup(
-        pass, 0, engine->shadow_pass_bind_groups[engine->current_shadow_cascade],
+        pass, 0, engine->shadow.pass_bind_groups[engine->shadow.current_cascade],
         0, NULL);
 
     batch->callback(world, engine, pass, batch);

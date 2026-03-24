@@ -111,7 +111,7 @@ static void flecsEngine_textured_mesh_renderGroup(
     /* During shadow pass, use the non-UV vertex buffer so that
      * vertex attribute locations match the shadow depth shader. */
     const FlecsEngineImpl *eng = engine;
-    if (eng->in_shadow_pass) {
+    if (eng->shadow.in_pass) {
         flecsEngine_batch_draw(pass, ctx);
         return;
     }

@@ -12,14 +12,14 @@ static void flecsEngine_material_ensureBufferCapacity(
         return;
     }
 
-    if (impl->material_buffer &&
-        impl->cpu_materials &&
-        required_count <= impl->material_buffer_capacity)
+    if (impl->materials.buffer &&
+        impl->materials.cpu_materials &&
+        required_count <= impl->materials.buffer_capacity)
     {
         return;
     }
 
-    uint32_t new_capacity = impl->material_buffer_capacity;
+    uint32_t new_capacity = impl->materials.buffer_capacity;
     if (!new_capacity) {
         new_capacity = 64;
     }
@@ -43,51 +43,51 @@ static void flecsEngine_material_ensureBufferCapacity(
         });
     ecs_assert(new_material_buffer != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    if (impl->material_buffer) {
-        wgpuBufferRelease(impl->material_buffer);
+    if (impl->materials.buffer) {
+        wgpuBufferRelease(impl->materials.buffer);
     }
 
-    ecs_os_free(impl->cpu_materials);
+    ecs_os_free(impl->materials.cpu_materials);
 
-    impl->material_buffer = new_material_buffer;
-    impl->cpu_materials = new_cpu_materials;
-    impl->material_buffer_capacity = new_capacity;
+    impl->materials.buffer = new_material_buffer;
+    impl->materials.cpu_materials = new_cpu_materials;
+    impl->materials.buffer_capacity = new_capacity;
 }
 
 void flecsEngine_material_releaseBuffer(
     FlecsEngineImpl *impl)
 {
-    if (impl->material_buffer) {
-        wgpuBufferRelease(impl->material_buffer);
-        impl->material_buffer = NULL;
+    if (impl->materials.buffer) {
+        wgpuBufferRelease(impl->materials.buffer);
+        impl->materials.buffer = NULL;
     }
 
-    ecs_os_free(impl->cpu_materials);
-    impl->cpu_materials = NULL;
+    ecs_os_free(impl->materials.cpu_materials);
+    impl->materials.cpu_materials = NULL;
 
-    impl->material_buffer_capacity = 0;
-    impl->material_count = 0;
+    impl->materials.buffer_capacity = 0;
+    impl->materials.count = 0;
 }
 
 void flecsEngine_material_uploadBuffer(
     const ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
-    impl->material_count = 0;
-    if (!impl->material_query || !impl->queue) {
+    impl->materials.count = 0;
+    if (!impl->materials.query || !impl->queue) {
         return;
     }
 
 redo: {
         uint32_t required_count = 0;
-        uint32_t capacity = impl->material_buffer_capacity;
+        uint32_t capacity = impl->materials.buffer_capacity;
 
         if (capacity) {
             ecs_os_memset_n(
-                impl->cpu_materials, 0, FlecsGpuMaterial, capacity);
+                impl->materials.cpu_materials, 0, FlecsGpuMaterial, capacity);
         }
 
-        ecs_iter_t it = ecs_query_iter(world, impl->material_query);
+        ecs_iter_t it = ecs_query_iter(world, impl->materials.query);
         while (ecs_query_next(&it)) {
             const FlecsRgba *colors = ecs_field(&it, FlecsRgba, 0);
             const FlecsPbrMaterial *materials =
@@ -119,7 +119,7 @@ redo: {
                     em_color = (flecs_rgba_t){255, 255, 255, 255};
                 }
 
-                impl->cpu_materials[index] = (FlecsGpuMaterial){
+                impl->materials.cpu_materials[index] = (FlecsGpuMaterial){
                     .color = colors[i],
                     .metallic = materials[i].metallic,
                     .roughness = materials[i].roughness,
@@ -140,10 +140,10 @@ redo: {
 
         wgpuQueueWriteBuffer(
             impl->queue,
-            impl->material_buffer,
+            impl->materials.buffer,
             0,
-            impl->cpu_materials,
+            impl->materials.cpu_materials,
             (uint64_t)required_count * sizeof(FlecsGpuMaterial));
-        impl->material_count = required_count;
+        impl->materials.count = required_count;
     }
 }

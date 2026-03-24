@@ -210,18 +210,18 @@ void flecsEngine_renderView_renderEffects(
     if (last_enabled < 0) {
         WGPUBindGroupEntry entries[2] = {
             { .binding = 0, .textureView = viewImpl->effect_target_views[0] },
-            { .binding = 1, .sampler = engine->passthrough_sampler }
+            { .binding = 1, .sampler = engine->depth.passthrough_sampler }
         };
         WGPUBindGroup bg = wgpuDeviceCreateBindGroup(engine->device,
             &(WGPUBindGroupDescriptor){
-                .layout = engine->passthrough_bind_layout,
+                .layout = engine->depth.passthrough_bind_layout,
                 .entryCount = 2,
                 .entries = entries
             });
 
         WGPURenderPassEncoder pass = flecsEngine_renderEffect_beginPass(
             engine, view, encoder, view_texture, WGPULoadOp_Load);
-        wgpuRenderPassEncoderSetPipeline(pass, engine->passthrough_pipeline);
+        wgpuRenderPassEncoderSetPipeline(pass, engine->depth.passthrough_pipeline);
         wgpuRenderPassEncoderSetBindGroup(pass, 0, bg, 0, NULL);
         wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
         wgpuRenderPassEncoderEnd(pass);
@@ -313,18 +313,18 @@ void flecsEngine_renderView_renderEffects(
 
         WGPUBindGroupEntry entries[2] = {
             { .binding = 0, .textureView = upscale_input },
-            { .binding = 1, .sampler = engine->passthrough_sampler }
+            { .binding = 1, .sampler = engine->depth.passthrough_sampler }
         };
         WGPUBindGroup bg = wgpuDeviceCreateBindGroup(engine->device,
             &(WGPUBindGroupDescriptor){
-                .layout = engine->passthrough_bind_layout,
+                .layout = engine->depth.passthrough_bind_layout,
                 .entryCount = 2,
                 .entries = entries
             });
 
         WGPURenderPassEncoder pass = flecsEngine_renderEffect_beginPass(
             engine, view, encoder, view_texture, WGPULoadOp_Load);
-        wgpuRenderPassEncoderSetPipeline(pass, engine->passthrough_pipeline);
+        wgpuRenderPassEncoderSetPipeline(pass, engine->depth.passthrough_pipeline);
         wgpuRenderPassEncoderSetBindGroup(pass, 0, bg, 0, NULL);
         wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
         wgpuRenderPassEncoderEnd(pass);

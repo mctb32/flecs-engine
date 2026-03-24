@@ -18,7 +18,7 @@ int flecsEngine_initPassthrough(
         return -1;
     }
 
-    impl->passthrough_sampler = wgpuDeviceCreateSampler(impl->device,
+    impl->depth.passthrough_sampler = wgpuDeviceCreateSampler(impl->device,
         &(WGPUSamplerDescriptor){
             .addressModeU = WGPUAddressMode_ClampToEdge,
             .addressModeV = WGPUAddressMode_ClampToEdge,
@@ -30,7 +30,7 @@ int flecsEngine_initPassthrough(
             .lodMaxClamp = 32.0f,
             .maxAnisotropy = 1
         });
-    if (!impl->passthrough_sampler) {
+    if (!impl->depth.passthrough_sampler) {
         wgpuShaderModuleRelease(module);
         return -1;
     }
@@ -51,12 +51,12 @@ int flecsEngine_initPassthrough(
         }
     };
 
-    impl->passthrough_bind_layout = wgpuDeviceCreateBindGroupLayout(
+    impl->depth.passthrough_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device, &(WGPUBindGroupLayoutDescriptor){
             .entries = layout_entries,
             .entryCount = 2
         });
-    if (!impl->passthrough_bind_layout) {
+    if (!impl->depth.passthrough_bind_layout) {
         wgpuShaderModuleRelease(module);
         return -1;
     }
@@ -64,7 +64,7 @@ int flecsEngine_initPassthrough(
     WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
         impl->device, &(WGPUPipelineLayoutDescriptor){
             .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &impl->passthrough_bind_layout
+            .bindGroupLayouts = &impl->depth.passthrough_bind_layout
         });
     if (!pipeline_layout) {
         wgpuShaderModuleRelease(module);
@@ -76,7 +76,7 @@ int flecsEngine_initPassthrough(
         .writeMask = WGPUColorWriteMask_All
     };
 
-    impl->passthrough_pipeline = wgpuDeviceCreateRenderPipeline(
+    impl->depth.passthrough_pipeline = wgpuDeviceCreateRenderPipeline(
         impl->device, &(WGPURenderPipelineDescriptor){
             .layout = pipeline_layout,
             .vertex = {
@@ -100,5 +100,5 @@ int flecsEngine_initPassthrough(
     wgpuPipelineLayoutRelease(pipeline_layout);
     wgpuShaderModuleRelease(module);
 
-    return impl->passthrough_pipeline ? 0 : -1;
+    return impl->depth.passthrough_pipeline ? 0 : -1;
 }
