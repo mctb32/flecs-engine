@@ -4,6 +4,20 @@
 
 #include <stb_image.h>
 #include <stdio.h>
+#include <string.h>
+
+static uint32_t flecsEngine_computeMipCount(
+    uint32_t width,
+    uint32_t height)
+{
+    uint32_t count = 1;
+    uint32_t dim = width > height ? width : height;
+    while (dim > 1) {
+        dim >>= 1;
+        count++;
+    }
+    return count;
+}
 
 static WGPUTexture flecsEngine_texture_createFromPixels(
     WGPUDevice device,
@@ -13,12 +27,15 @@ static WGPUTexture flecsEngine_texture_createFromPixels(
     uint32_t height,
     WGPUTextureFormat format)
 {
+    uint32_t mip_count = flecsEngine_computeMipCount(width, height);
+    uint32_t bytes_per_pixel = 4;
+
     WGPUTextureDescriptor tex_desc = {
         .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
         .dimension = WGPUTextureDimension_2D,
         .size = { .width = width, .height = height, .depthOrArrayLayers = 1 },
         .format = format,
-        .mipLevelCount = 1,
+        .mipLevelCount = mip_count,
         .sampleCount = 1
     };
 
@@ -28,7 +45,7 @@ static WGPUTexture flecsEngine_texture_createFromPixels(
         return NULL;
     }
 
-    uint32_t bytes_per_pixel = 4;
+    /* Upload mip level 0 */
     WGPUTexelCopyTextureInfo dst = {
         .texture = texture,
         .mipLevel = 0,
@@ -47,6 +64,56 @@ static WGPUTexture flecsEngine_texture_createFromPixels(
         queue, &dst, pixels,
         (size_t)(width * height * bytes_per_pixel),
         &src_layout, &write_size);
+
+    /* Generate and upload remaining mip levels via box filter */
+    if (mip_count > 1) {
+        uint32_t prev_w = width, prev_h = height;
+        uint8_t *prev_pixels = ecs_os_malloc(
+            (ecs_size_t)(width * height * bytes_per_pixel));
+        memcpy(prev_pixels, pixels, width * height * bytes_per_pixel);
+
+        for (uint32_t mip = 1; mip < mip_count; mip++) {
+            uint32_t mip_w = prev_w > 1 ? prev_w / 2 : 1;
+            uint32_t mip_h = prev_h > 1 ? prev_h / 2 : 1;
+            uint8_t *mip_pixels = ecs_os_malloc(
+                (ecs_size_t)(mip_w * mip_h * bytes_per_pixel));
+
+            for (uint32_t y = 0; y < mip_h; y++) {
+                for (uint32_t x = 0; x < mip_w; x++) {
+                    uint32_t sx = x * 2, sy = y * 2;
+                    uint32_t sx1 = sx + 1 < prev_w ? sx + 1 : sx;
+                    uint32_t sy1 = sy + 1 < prev_h ? sy + 1 : sy;
+
+                    const uint8_t *p00 = &prev_pixels[(sy  * prev_w + sx ) * 4];
+                    const uint8_t *p10 = &prev_pixels[(sy  * prev_w + sx1) * 4];
+                    const uint8_t *p01 = &prev_pixels[(sy1 * prev_w + sx ) * 4];
+                    const uint8_t *p11 = &prev_pixels[(sy1 * prev_w + sx1) * 4];
+
+                    uint8_t *out = &mip_pixels[(y * mip_w + x) * 4];
+                    for (int c = 0; c < 4; c++) {
+                        out[c] = (uint8_t)(
+                            (p00[c] + p10[c] + p01[c] + p11[c] + 2) / 4);
+                    }
+                }
+            }
+
+            dst.mipLevel = mip;
+            src_layout.bytesPerRow = mip_w * bytes_per_pixel;
+            src_layout.rowsPerImage = mip_h;
+            write_size = (WGPUExtent3D){ mip_w, mip_h, 1 };
+            wgpuQueueWriteTexture(
+                queue, &dst, mip_pixels,
+                (size_t)(mip_w * mip_h * bytes_per_pixel),
+                &src_layout, &write_size);
+
+            ecs_os_free(prev_pixels);
+            prev_pixels = mip_pixels;
+            prev_w = mip_w;
+            prev_h = mip_h;
+        }
+
+        ecs_os_free(prev_pixels);
+    }
 
     return texture;
 }
@@ -106,8 +173,6 @@ static WGPUTexture flecsEngine_texture_loadDds(
     }
 
     uint32_t block_size = flecs_dds_block_size(info.dxgi_format);
-    uint32_t blocks_wide = (info.width + 3) / 4;
-    uint32_t blocks_high = (info.height + 3) / 4;
 
     WGPUTextureDescriptor tex_desc = {
         .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
@@ -115,7 +180,7 @@ static WGPUTexture flecsEngine_texture_loadDds(
         .size = { .width = info.width, .height = info.height,
                   .depthOrArrayLayers = 1 },
         .format = (WGPUTextureFormat)wgpu_format,
-        .mipLevelCount = 1,
+        .mipLevelCount = info.mip_count,
         .sampleCount = 1
     };
 
@@ -126,26 +191,42 @@ static WGPUTexture flecsEngine_texture_loadDds(
         return NULL;
     }
 
-    uint32_t data_size = blocks_wide * blocks_high * block_size;
+    /* Upload all mip levels from the DDS file */
+    const uint8_t *data_ptr = info.pixel_data;
+    uint32_t mip_w = info.width, mip_h = info.height;
 
-    WGPUTexelCopyTextureInfo dst = {
-        .texture = texture,
-        .mipLevel = 0,
-        .origin = { 0, 0, 0 },
-        .aspect = WGPUTextureAspect_All
-    };
+    for (uint32_t mip = 0; mip < info.mip_count; mip++) {
+        uint32_t bw = (mip_w + 3) / 4;
+        uint32_t bh = (mip_h + 3) / 4;
+        uint32_t mip_data_size = bw * bh * block_size;
 
-    WGPUTexelCopyBufferLayout src_layout = {
-        .offset = 0,
-        .bytesPerRow = blocks_wide * block_size,
-        .rowsPerImage = blocks_high
-    };
+        if (data_ptr + mip_data_size > info.pixel_data + info.pixel_data_size) {
+            break;
+        }
 
-    WGPUExtent3D write_size = { info.width, info.height, 1 };
+        WGPUTexelCopyTextureInfo dst = {
+            .texture = texture,
+            .mipLevel = mip,
+            .origin = { 0, 0, 0 },
+            .aspect = WGPUTextureAspect_All
+        };
 
-    wgpuQueueWriteTexture(
-        queue, &dst, info.pixel_data, data_size,
-        &src_layout, &write_size);
+        WGPUTexelCopyBufferLayout src_layout = {
+            .offset = 0,
+            .bytesPerRow = bw * block_size,
+            .rowsPerImage = bh
+        };
+
+        /* Use physical (block-aligned) size for compressed texture copies */
+        WGPUExtent3D write_size = { bw * 4, bh * 4, 1 };
+        wgpuQueueWriteTexture(
+            queue, &dst, data_ptr, mip_data_size,
+            &src_layout, &write_size);
+
+        data_ptr += mip_data_size;
+        mip_w = mip_w > 1 ? mip_w / 2 : 1;
+        mip_h = mip_h > 1 ? mip_h / 2 : 1;
+    }
 
     ecs_os_free(file_data);
     return texture;
@@ -303,7 +384,9 @@ static WGPUSampler flecsEngine_pbr_texture_ensureSampler(
         .magFilter = WGPUFilterMode_Linear,
         .minFilter = WGPUFilterMode_Linear,
         .mipmapFilter = WGPUMipmapFilterMode_Linear,
-        .maxAnisotropy = 1
+        .lodMinClamp = 0.0f,
+        .lodMaxClamp = 32.0f,
+        .maxAnisotropy = 16
     };
 
     engine->materials.pbr_sampler = wgpuDeviceCreateSampler(

@@ -125,9 +125,12 @@ void initEngine(
 {
   ecs_entity_t view_entity =  ecs_entity(world, { .name = "view" });
   FlecsRenderView view = {
-    .shadow.enabled = true,
-    .shadow.pcf_samples = 1,
-    .shadow.map_size = 4096,
+    .shadow = {
+      .enabled = true,
+      .pcf_samples = 1,
+      .map_size = 2048,
+      .max_range = 150
+    },
     .ambient_light = {0, 0, 0, 255},
     .background = {
       .sky_color = {30, 100, 200},
