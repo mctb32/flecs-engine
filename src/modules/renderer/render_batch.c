@@ -7,6 +7,7 @@
 ECS_COMPONENT_DECLARE(FlecsRenderBatch);
 ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);
 ECS_TAG_DECLARE(FlecsSkyboxBatch);
+ECS_TAG_DECLARE(FlecsTransparentBatch);
 
 ECS_DTOR(FlecsRenderBatch, ptr, {
     if (ptr->ctx && ptr->free_ctx) {
@@ -307,6 +308,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     bool use_cluster,
     bool use_textures,
     bool is_skybox,
+    bool is_transparent,
     const WGPUVertexBufferLayout *vertex_buffers,
     uint32_t vertex_buffer_count,
     WGPUTextureFormat color_format,
@@ -338,14 +340,29 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
         return NULL;
     }
 
+    WGPUBlendState blend_state = {
+        .color = {
+            .operation = WGPUBlendOperation_Add,
+            .srcFactor = WGPUBlendFactor_SrcAlpha,
+            .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha
+        },
+        .alpha = {
+            .operation = WGPUBlendOperation_Add,
+            .srcFactor = WGPUBlendFactor_One,
+            .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha
+        }
+    };
+
     WGPUColorTargetState color_target = {
         .format = color_format,
-        .writeMask = WGPUColorWriteMask_All
+        .writeMask = WGPUColorWriteMask_All,
+        .blend = is_transparent ? &blend_state : NULL
     };
 
     WGPUDepthStencilState depth_state = {
         .format = WGPUTextureFormat_Depth24Plus,
-        .depthWriteEnabled = WGPUOptionalBool_True,
+        .depthWriteEnabled = is_transparent
+            ? WGPUOptionalBool_False : WGPUOptionalBool_True,
         .depthCompare = WGPUCompareFunction_Less,
         .stencilReadMask = 0xFFFFFFFF,
         .stencilWriteMask = 0xFFFFFFFF
@@ -383,7 +400,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
         .multisample = WGPU_MULTISAMPLE(sample_count)
     };
 
-    if (is_skybox) {
+    if (is_skybox || is_transparent) {
         pipeline_desc.primitive.cullMode = WGPUCullMode_None;
     }
 
@@ -479,6 +496,7 @@ static void FlecsRenderBatch_on_set(
         impl.uses_cluster = flecsEngine_shader_usesCluster(shader);
         impl.uses_textures = flecsEngine_shader_usesTextures(shader);
         bool is_skybox = ecs_has(world, e, FlecsSkyboxBatch);
+        bool is_transparent = ecs_has(world, e, FlecsTransparentBatch);
 
         if ((impl.uses_ibl || impl.uses_shadow || impl.uses_cluster) &&
             !flecsEngine_ibl_ensureBindLayout(engine))
@@ -517,6 +535,7 @@ static void FlecsRenderBatch_on_set(
             impl.uses_cluster,
             impl.uses_textures,
             is_skybox,
+            is_transparent,
             vertex_buffers,
             (uint32_t)vertex_buffer_count,
             hdr_format,
@@ -526,7 +545,9 @@ static void FlecsRenderBatch_on_set(
             continue;
         }
 
-        if (impl.uses_shadow && engine->shadow.pass_bind_layout) {
+        if (impl.uses_shadow && engine->shadow.pass_bind_layout
+            && !is_transparent)
+        {
             if (impl.uses_textures &&
                 rb[i].vertex_type == ecs_id(FlecsLitVertexUv))
             {
@@ -762,6 +783,10 @@ static void flecsEngine_renderBatch_updateUniforms(
     uniforms.sky_color[2] = flecsEngine_colorChannelToFloat(view->background.sky_color.b);
     uniforms.sky_color[3] = flecsEngine_colorChannelToFloat(view->background.sky_color.a);
 
+    engine->camera_pos[0] = uniforms.camera_pos[0];
+    engine->camera_pos[1] = uniforms.camera_pos[1];
+    engine->camera_pos[2] = uniforms.camera_pos[2];
+
     wgpuQueueWriteBuffer(
         engine->queue,
         impl->uniform_buffers[0],
@@ -881,6 +906,7 @@ void flecsEngine_renderBatch_register(
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchImpl);
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchSet);
     ECS_TAG_DEFINE(world, FlecsSkyboxBatch);
+    ECS_TAG_DEFINE(world, FlecsTransparentBatch);
 
     ecs_set_hooks(world, FlecsRenderBatch, {
         .ctor = flecs_default_ctor,

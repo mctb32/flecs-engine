@@ -186,6 +186,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
             { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA },
             { .id = ecs_id(FlecsPbrTextures), .src.id = EcsUp, .trav = EcsIsA,
                 .oper = EcsNot },
+            { .id = FlecsAlphaBlend, .src.id = EcsUp, .trav = EcsIsA,
+                .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto,
         .group_by = EcsIsA,
@@ -318,6 +320,8 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
             { .id = ecs_id(FlecsWorldTransform3), .src.id = EcsSelf },
             { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA },
             { .id = ecs_id(FlecsPbrTextures), .src.id = EcsUp, .trav = EcsIsA },
+            { .id = FlecsAlphaBlend, .src.id = EcsUp, .trav = EcsIsA,
+                .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto,
         .group_by = EcsIsA,
@@ -339,6 +343,282 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
         },
         .extract_callback = flecsEngine_mesh_extract,
         .callback = flecsEngine_textured_mesh_render,
+        .ctx = flecsEngine_mesh_createCtx(false),
+        .free_ctx = flecsEngine_mesh_deleteCtx
+    });
+
+    return batch;
+}
+
+/* --- Transparent textured mesh batch --- */
+
+typedef struct {
+    uint64_t group_id;
+    float distance_sq;
+} flecsEngine_sorted_group_t;
+
+static int flecsEngine_sortGroupByDistance(
+    const void *a,
+    const void *b)
+{
+    const flecsEngine_sorted_group_t *ga = a;
+    const flecsEngine_sorted_group_t *gb = b;
+    /* Back-to-front: farthest first */
+    if (ga->distance_sq < gb->distance_sq) return 1;
+    if (ga->distance_sq > gb->distance_sq) return -1;
+    return 0;
+}
+
+static void flecsEngine_transparent_textured_mesh_render(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const FlecsRenderBatch *batch)
+{
+    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
+    ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    if (engine->shadow.in_pass) {
+        /* Skip transparent objects during shadow pass */
+        return;
+    }
+
+    /* Count non-empty groups */
+    int32_t group_count = 0;
+    ecs_map_iter_t git = ecs_map_iter(groups);
+    while (ecs_map_next(&git)) {
+        uint64_t group_id = ecs_map_key(&git);
+        if (!group_id) continue;
+        flecsEngine_batch_t *ctx =
+            ecs_query_get_group_ctx(batch->query, group_id);
+        if (!ctx || !ctx->count) continue;
+        group_count ++;
+    }
+
+    if (!group_count) {
+        return;
+    }
+
+    /* Collect groups with distances to camera */
+    flecsEngine_sorted_group_t *sorted =
+        ecs_os_malloc_n(flecsEngine_sorted_group_t, group_count);
+
+    float cam_x = engine->camera_pos[0];
+    float cam_y = engine->camera_pos[1];
+    float cam_z = engine->camera_pos[2];
+
+    int32_t si = 0;
+    git = ecs_map_iter(groups);
+    while (ecs_map_next(&git)) {
+        uint64_t group_id = ecs_map_key(&git);
+        if (!group_id) continue;
+
+        flecsEngine_batch_t *ctx =
+            ecs_query_get_group_ctx(batch->query, group_id);
+        if (!ctx || !ctx->count) continue;
+
+        /* Use first instance's position as representative */
+        const FlecsInstanceTransform *t =
+            &ctx->buffers->cpu_transforms[ctx->offset];
+        float dx = t->c3.x - cam_x;
+        float dy = t->c3.y - cam_y;
+        float dz = t->c3.z - cam_z;
+
+        sorted[si].group_id = group_id;
+        sorted[si].distance_sq = dx * dx + dy * dy + dz * dz;
+        si ++;
+    }
+
+    /* Sort back-to-front */
+    qsort(sorted, (size_t)group_count, sizeof(flecsEngine_sorted_group_t),
+        flecsEngine_sortGroupByDistance);
+
+    /* Render in sorted order */
+    for (int32_t i = 0; i < group_count; i ++) {
+        uint64_t group_id = sorted[i].group_id;
+        flecsEngine_batch_t *ctx =
+            ecs_query_get_group_ctx(batch->query, group_id);
+        ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
+
+        const FlecsPbrTextures *pbr_tex = ecs_get(
+            world, (ecs_entity_t)group_id, FlecsPbrTextures);
+        if (!pbr_tex || !pbr_tex->_bind_group) {
+            continue;
+        }
+        wgpuRenderPassEncoderSetBindGroup(
+            pass, 2, (WGPUBindGroup)pbr_tex->_bind_group, 0, NULL);
+
+        ctx->vertex_buffer = ctx->mesh.vertex_uv_buffer;
+        flecsEngine_batch_draw(pass, ctx);
+    }
+
+    ecs_os_free(sorted);
+}
+
+ecs_entity_t flecsEngine_createBatch_textured_mesh_transparent(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name)
+{
+    ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
+    ecs_entity_t shader = flecsEngine_shader_pbrTextured(world);
+
+    ecs_query_t *q = ecs_query(world, {
+        .entity = batch,
+        .terms = {
+            { .id = ecs_id(FlecsMesh3Impl), .src.id = EcsUp, .trav = EcsIsA },
+            { .id = ecs_id(FlecsWorldTransform3), .src.id = EcsSelf },
+            { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA },
+            { .id = ecs_id(FlecsPbrTextures), .src.id = EcsUp, .trav = EcsIsA },
+            { .id = FlecsAlphaBlend, .src.id = EcsUp, .trav = EcsIsA },
+        },
+        .cache_kind = EcsQueryCacheAuto,
+        .group_by = EcsIsA,
+        .group_by_callback = flecsEngine_mesh_groupByMesh,
+        .on_group_create = flecsEngine_mesh_onGroupCreate,
+        .on_group_delete = flecsEngine_mesh_onGroupDelete
+    });
+
+    ecs_add(world, batch, FlecsTransparentBatch);
+
+    ecs_set(world, batch, FlecsRenderBatch, {
+        .shader = shader,
+        .query = q,
+        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .instance_types = {
+            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsMaterialId)
+        },
+        .uniforms = {
+            ecs_id(FlecsUniform)
+        },
+        .extract_callback = flecsEngine_mesh_extract,
+        .callback = flecsEngine_transparent_textured_mesh_render,
+        .ctx = flecsEngine_mesh_createCtx(false),
+        .free_ctx = flecsEngine_mesh_deleteCtx
+    });
+
+    return batch;
+}
+
+/* --- Transparent non-textured mesh batch (materialIndex) --- */
+
+static void flecsEngine_transparent_mesh_render(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+
+    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
+    ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    if (engine->shadow.in_pass) {
+        return;
+    }
+
+    /* Count non-empty groups */
+    int32_t group_count = 0;
+    ecs_map_iter_t git = ecs_map_iter(groups);
+    while (ecs_map_next(&git)) {
+        uint64_t group_id = ecs_map_key(&git);
+        if (!group_id) continue;
+        flecsEngine_batch_t *ctx =
+            ecs_query_get_group_ctx(batch->query, group_id);
+        if (!ctx || !ctx->count) continue;
+        group_count ++;
+    }
+
+    if (!group_count) {
+        return;
+    }
+
+    /* Collect groups with distances to camera */
+    flecsEngine_sorted_group_t *sorted =
+        ecs_os_malloc_n(flecsEngine_sorted_group_t, group_count);
+
+    float cam_x = engine->camera_pos[0];
+    float cam_y = engine->camera_pos[1];
+    float cam_z = engine->camera_pos[2];
+
+    int32_t si = 0;
+    git = ecs_map_iter(groups);
+    while (ecs_map_next(&git)) {
+        uint64_t group_id = ecs_map_key(&git);
+        if (!group_id) continue;
+
+        flecsEngine_batch_t *ctx =
+            ecs_query_get_group_ctx(batch->query, group_id);
+        if (!ctx || !ctx->count) continue;
+
+        const FlecsInstanceTransform *t =
+            &ctx->buffers->cpu_transforms[ctx->offset];
+        float dx = t->c3.x - cam_x;
+        float dy = t->c3.y - cam_y;
+        float dz = t->c3.z - cam_z;
+
+        sorted[si].group_id = group_id;
+        sorted[si].distance_sq = dx * dx + dy * dy + dz * dz;
+        si ++;
+    }
+
+    /* Sort back-to-front */
+    qsort(sorted, (size_t)group_count, sizeof(flecsEngine_sorted_group_t),
+        flecsEngine_sortGroupByDistance);
+
+    /* Render in sorted order */
+    for (int32_t i = 0; i < group_count; i ++) {
+        uint64_t group_id = sorted[i].group_id;
+        flecsEngine_batch_t *ctx =
+            ecs_query_get_group_ctx(batch->query, group_id);
+        ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
+        flecsEngine_batch_draw(pass, ctx);
+    }
+
+    ecs_os_free(sorted);
+}
+
+ecs_entity_t flecsEngine_createBatch_mesh_materialIndex_transparent(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name)
+{
+    ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
+    ecs_entity_t shader = flecsEngine_shader_pbrColoredMaterialIndex(world);
+
+    ecs_query_t *q = ecs_query(world, {
+        .entity = batch,
+        .terms = {
+            { .id = ecs_id(FlecsMesh3Impl), .src.id = EcsUp, .trav = EcsIsA },
+            { .id = ecs_id(FlecsWorldTransform3), .src.id = EcsSelf },
+            { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA },
+            { .id = ecs_id(FlecsPbrTextures), .src.id = EcsUp, .trav = EcsIsA,
+                .oper = EcsNot },
+            { .id = FlecsAlphaBlend, .src.id = EcsUp, .trav = EcsIsA },
+        },
+        .cache_kind = EcsQueryCacheAuto,
+        .group_by = EcsIsA,
+        .group_by_callback = flecsEngine_mesh_groupByMesh,
+        .on_group_create = flecsEngine_mesh_onGroupCreate,
+        .on_group_delete = flecsEngine_mesh_onGroupDelete
+    });
+
+    ecs_add(world, batch, FlecsTransparentBatch);
+
+    ecs_set(world, batch, FlecsRenderBatch, {
+        .shader = shader,
+        .query = q,
+        .vertex_type = ecs_id(FlecsLitVertex),
+        .instance_types = {
+            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsMaterialId)
+        },
+        .uniforms = {
+            ecs_id(FlecsUniform)
+        },
+        .extract_callback = flecsEngine_mesh_extract,
+        .callback = flecsEngine_transparent_mesh_render,
         .ctx = flecsEngine_mesh_createCtx(false),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });

@@ -76,6 +76,7 @@ static const char *kShaderSource =
     "@fragment fn fs_main(input : VertexOutput) -> @location(0) vec4<f32> {\n"
     "  let material = materials[input.material_id];\n"
     "  let base_color = textureSample(albedo_tex, tex_sampler, input.uv);\n"
+    "  if (base_color.a < 0.5) { discard; }\n"
     "  let mat_color = unpack4x8unorm(material.color);\n"
     "  let albedo = base_color.rgb * mat_color.rgb;\n"
     "\n"
@@ -111,7 +112,7 @@ static const char *kShaderSource =
     "    input.world_pos,\n"
     "    mapped_normal,\n"
     "    input.pos);\n"
-    "  return vec4<f32>(lit, base_color.a);\n"
+    "  return vec4<f32>(lit, base_color.a * mat_color.a);\n"
     "}\n";
 
 ecs_entity_t flecsEngine_shader_pbrTextured(

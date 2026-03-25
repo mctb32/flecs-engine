@@ -234,4 +234,44 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
     ecs_entity_t parent,
     const char *name);
 
+ecs_entity_t flecsEngine_createBatch_textured_mesh_transparent(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name);
+
+ecs_entity_t flecsEngine_createBatch_mesh_materialIndex_transparent(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name);
+
+/* Shared mesh batch infrastructure (used by textured_mesh too) */
+uint64_t flecsEngine_mesh_groupByMesh(
+    ecs_world_t *world,
+    ecs_table_t *table,
+    ecs_id_t id,
+    void *ctx);
+
+void* flecsEngine_mesh_onGroupCreate(
+    ecs_world_t *world,
+    uint64_t group_id,
+    void *ptr);
+
+void flecsEngine_mesh_onGroupDelete(
+    ecs_world_t *world,
+    uint64_t group_id,
+    void *group_ptr,
+    void *ptr);
+
+void flecsEngine_mesh_extractGroup(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch,
+    uint64_t group_id,
+    flecsEngine_batch_buffers_t *shared);
+
+void flecsEngine_mesh_extract(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch);
+
 #endif

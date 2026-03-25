@@ -50,4 +50,6 @@ ECS_PRIVATE
 
 extern ECS_COMPONENT_DECLARE(FlecsPbrTextures);
 
+extern ECS_TAG_DECLARE(FlecsAlphaBlend);
+
 #endif

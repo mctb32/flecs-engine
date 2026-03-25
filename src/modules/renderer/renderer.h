@@ -14,6 +14,7 @@
 struct FlecsRenderBatch;
 struct FlecsRenderEffect;
 extern ECS_TAG_DECLARE(FlecsSkyboxBatch);
+extern ECS_TAG_DECLARE(FlecsTransparentBatch);
 
 typedef void (*flecs_render_batch_callback)(
     const ecs_world_t *world,
@@ -351,6 +352,11 @@ bool flecsEngine_pbr_texture_createBindGroup(
     WGPUBindGroup *out_bind_group);
 
 ecs_entity_t flecsEngine_createBatch_textured_mesh(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name);
+
+ecs_entity_t flecsEngine_createBatch_textured_mesh_transparent(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name);

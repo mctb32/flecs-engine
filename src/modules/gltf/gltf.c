@@ -361,6 +361,21 @@ static void flecsEngine_gltf_setupMaterial(
     if (has_textures) {
         ecs_set_ptr(world, entity, FlecsPbrTextures, &tex);
     }
+
+    if (mat->alpha_mode == cgltf_alpha_mode_blend) {
+        ecs_add(world, entity, FlecsAlphaBlend);
+    }
+
+    /* Approximate KHR_materials_transmission as alpha blending */
+    if (mat->has_transmission &&
+        mat->transmission.transmission_factor > 0.0f)
+    {
+        float alpha = 1.0f - mat->transmission.transmission_factor;
+        FlecsRgba *rgba = ecs_ensure(world, entity, FlecsRgba);
+        rgba->a = (uint8_t)(alpha * 255.0f);
+        ecs_modified(world, entity, FlecsRgba);
+        ecs_add(world, entity, FlecsAlphaBlend);
+    }
 }
 
 static ecs_entity_t flecsEngine_gltf_getNodeEntity(

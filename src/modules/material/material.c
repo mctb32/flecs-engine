@@ -6,6 +6,7 @@ ECS_COMPONENT_DECLARE(FlecsEmissive);
 ECS_COMPONENT_DECLARE(FlecsMaterialId);
 ECS_COMPONENT_DECLARE(FlecsTexture);
 ECS_COMPONENT_DECLARE(FlecsPbrTextures);
+ECS_TAG_DECLARE(FlecsAlphaBlend);
 
 static void FlecsMaterialIdOnAdd(
     ecs_iter_t *it)
@@ -134,6 +135,9 @@ void FlecsEngineMaterialImport(
     ecs_set_hooks(world, FlecsPbrTextures, {
         .ctor = ecs_ctor(FlecsPbrTextures)
     });
+
+    ECS_TAG_DEFINE(world, FlecsAlphaBlend);
+    ecs_add_pair(world, FlecsAlphaBlend, EcsOnInstantiate, EcsInherit);
 
     ecs_observer(world, {
         .entity = ecs_entity(world, {

@@ -143,6 +143,7 @@ typedef struct {
 
     ecs_query_t *view_query;
     WGPURenderPipeline last_pipeline;
+    float camera_pos[3];
 
     flecs_engine_shadow_t shadow;
     flecs_engine_lighting_t lighting;
