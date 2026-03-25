@@ -208,25 +208,28 @@ void flecsEngine_renderView_renderEffects(
 
     /* No effects enabled — blit batch output to screen via passthrough. */
     if (last_enabled < 0) {
-        WGPUBindGroupEntry entries[2] = {
-            { .binding = 0, .textureView = viewImpl->effect_target_views[0] },
-            { .binding = 1, .sampler = engine->depth.passthrough_sampler }
-        };
-        WGPUBindGroup bg = wgpuDeviceCreateBindGroup(engine->device,
-            &(WGPUBindGroupDescriptor){
-                .layout = engine->depth.passthrough_bind_layout,
-                .entryCount = 2,
-                .entries = entries
-            });
+        if (!viewImpl->passthrough_bind_group) {
+            WGPUBindGroupEntry entries[2] = {
+                { .binding = 0, .textureView = viewImpl->effect_target_views[0] },
+                { .binding = 1, .sampler = engine->depth.passthrough_sampler }
+            };
+            viewImpl->passthrough_bind_group = wgpuDeviceCreateBindGroup(
+                engine->device,
+                &(WGPUBindGroupDescriptor){
+                    .layout = engine->depth.passthrough_bind_layout,
+                    .entryCount = 2,
+                    .entries = entries
+                });
+        }
 
         WGPURenderPassEncoder pass = flecsEngine_renderEffect_beginPass(
             engine, view, encoder, view_texture, WGPULoadOp_Load);
         wgpuRenderPassEncoderSetPipeline(pass, engine->depth.passthrough_pipeline);
-        wgpuRenderPassEncoderSetBindGroup(pass, 0, bg, 0, NULL);
+        wgpuRenderPassEncoderSetBindGroup(pass, 0,
+            viewImpl->passthrough_bind_group, 0, NULL);
         wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
         wgpuRenderPassEncoderEnd(pass);
         wgpuRenderPassEncoderRelease(pass);
-        wgpuBindGroupRelease(bg);
         return;
     }
 

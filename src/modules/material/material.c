@@ -7,12 +7,11 @@ ECS_COMPONENT_DECLARE(FlecsMaterialId);
 ECS_COMPONENT_DECLARE(FlecsTexture);
 ECS_COMPONENT_DECLARE(FlecsPbrTextures);
 
-static uint32_t flecs_material_next_id;
-
 static void FlecsMaterialIdOnAdd(
     ecs_iter_t *it)
 {
     ecs_world_t *world = it->world;
+    FlecsEngineImpl *impl = ecs_singleton_ensure(world, FlecsEngineImpl);
 
     for (int32_t i = 0; i < it->count; i ++) {
         ecs_entity_t e = it->entities[i];
@@ -21,8 +20,8 @@ static void FlecsMaterialIdOnAdd(
         }
 
         FlecsMaterialId *material_id = ecs_ensure(world, e, FlecsMaterialId);
-        material_id->value = flecs_material_next_id;
-        flecs_material_next_id ++;
+        material_id->value = impl->materials.next_id;
+        impl->materials.next_id ++;
         ecs_modified(world, e, FlecsMaterialId);
     }
 }

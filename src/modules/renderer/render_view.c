@@ -75,6 +75,11 @@ static void flecsEngine_renderView_releaseTargets(
         impl->effect_target_textures = NULL;
     }
 
+    if (impl->passthrough_bind_group) {
+        wgpuBindGroupRelease(impl->passthrough_bind_group);
+        impl->passthrough_bind_group = NULL;
+    }
+
     impl->effect_target_count = 0;
     impl->effect_target_width = 0;
     impl->effect_target_height = 0;

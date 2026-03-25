@@ -80,6 +80,8 @@ typedef struct {
     WGPUTextureView fallback_black_view;
     WGPUTexture fallback_normal_tex;
     WGPUTextureView fallback_normal_view;
+    uint32_t next_id;
+    uint32_t last_id;
 } flecs_engine_materials_t;
 
 typedef struct {
@@ -198,6 +200,7 @@ typedef struct {
     uint32_t effect_target_width;
     uint32_t effect_target_height;
     WGPUTextureFormat effect_target_format;
+    WGPUBindGroup passthrough_bind_group;
 } FlecsRenderViewImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderViewImpl);

@@ -73,10 +73,16 @@ void flecsEngine_material_uploadBuffer(
     const ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
+    if (impl->materials.last_id == impl->materials.next_id) {
+        return;
+    }
+
     impl->materials.count = 0;
     if (!impl->materials.query || !impl->queue) {
         return;
     }
+
+    ecs_trace("upload materials buffer");
 
 redo: {
         uint32_t required_count = 0;
@@ -145,5 +151,6 @@ redo: {
             impl->materials.cpu_materials,
             (uint64_t)required_count * sizeof(FlecsGpuMaterial));
         impl->materials.count = required_count;
+        impl->materials.last_id = impl->materials.next_id;
     }
 }

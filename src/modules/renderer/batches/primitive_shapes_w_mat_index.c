@@ -4,6 +4,34 @@
 #include "batches.h"
 #include "flecs_engine.h"
 
+typedef struct {
+    flecsEngine_batch_t group;
+    flecsEngine_batch_buffers_t buffers;
+} flecsEngine_primitive_mi_ctx_t;
+
+static flecsEngine_primitive_mi_ctx_t* flecsEngine_primitive_mi_createCtx(
+    ecs_world_t *world,
+    const FlecsMesh3Impl *mesh,
+    ecs_entity_t component,
+    flecsEngine_primitive_scale_t scale_callback)
+{
+    flecsEngine_primitive_mi_ctx_t *ctx =
+        ecs_os_calloc_t(flecsEngine_primitive_mi_ctx_t);
+    flecsEngine_batch_buffers_init(&ctx->buffers, false);
+    flecsEngine_batch_init(&ctx->group, world, mesh, 0, false,
+        component, scale_callback);
+    ctx->group.buffers = &ctx->buffers;
+    return ctx;
+}
+
+static void flecsEngine_primitive_mi_deleteCtx(void *ptr)
+{
+    flecsEngine_primitive_mi_ctx_t *ctx = ptr;
+    flecsEngine_batch_fini(&ctx->group);
+    flecsEngine_batch_buffers_fini(&ctx->buffers);
+    ecs_os_free(ctx);
+}
+
 static ecs_entity_t flecsEngine_createBatch_primitive_materialIndex(
     ecs_world_t *world,
     ecs_entity_t parent,
@@ -45,8 +73,9 @@ static ecs_entity_t flecsEngine_createBatch_primitive_materialIndex(
         },
         .extract_callback = flecsEngine_primitive_extract,
         .callback = flecsEngine_primitive_render,
-        .ctx = flecsEngine_batch_create(world, mesh, 0, false, component, scale_callback),
-        .free_ctx = flecsEngine_batch_delete
+        .ctx = flecsEngine_primitive_mi_createCtx(
+            world, mesh, component, scale_callback),
+        .free_ctx = flecsEngine_primitive_mi_deleteCtx
     });
 
     return batch;

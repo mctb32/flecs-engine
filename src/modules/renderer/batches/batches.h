@@ -7,6 +7,7 @@ typedef void (*flecsEngine_primitive_scale_t)(
     const void *value,
     float *out);
 
+/* Shared GPU+CPU instance buffers. One per batch, shared across all groups. */
 typedef struct {
     WGPUBuffer instance_transform;
     WGPUBuffer instance_color;
@@ -20,7 +21,16 @@ typedef struct {
     FlecsMaterialId *cpu_material_ids;
     int32_t count;
     int32_t capacity;
+    bool owns_material_data;
+} flecsEngine_batch_buffers_t;
+
+/* Per-group lightweight descriptor. Points into shared buffers at `offset`. */
+typedef struct {
+    flecsEngine_batch_buffers_t *buffers;
+    int32_t count;
+    int32_t offset;
     FlecsMesh3Impl mesh;
+    WGPUBuffer vertex_buffer; /* vertex buffer used for drawing (set by caller) */
 
     ecs_entity_t component;
     ecs_size_t component_size;
@@ -29,6 +39,26 @@ typedef struct {
     uint64_t group_id;
     bool owns_material_data;
 } flecsEngine_batch_t;
+
+/* --- Shared buffer lifecycle --- */
+
+void flecsEngine_batch_buffers_init(
+    flecsEngine_batch_buffers_t *buf,
+    bool owns_material_data);
+
+void flecsEngine_batch_buffers_fini(
+    flecsEngine_batch_buffers_t *buf);
+
+void flecsEngine_batch_buffers_ensureCapacity(
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_buffers_t *buf,
+    int32_t count);
+
+void flecsEngine_batch_buffers_upload(
+    const FlecsEngineImpl *engine,
+    const flecsEngine_batch_buffers_t *buf);
+
+/* --- Per-group batch lifecycle --- */
 
 void flecsEngine_batch_init(
     flecsEngine_batch_t* batch,
@@ -53,17 +83,17 @@ void flecsEngine_batch_fini(
 void flecsEngine_batch_delete(
     void *ptr);
 
-void flecsEngine_batch_ensureCapacity(
-    const FlecsEngineImpl *engine,
-    flecsEngine_batch_t *ctx,
-    int32_t count);
-
+/* Extract instances for a single group into shared buffers at ctx->offset.
+ * Does NOT upload — caller must call flecsEngine_batch_buffers_upload after
+ * all groups are extracted. */
 void flecsEngine_batch_extractInstances(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch,
     flecsEngine_batch_t *ctx);
 
+/* Draw a single group using the shared buffers at ctx->offset.
+ * Uses ctx->vertex_buffer for vertex slot 0. */
 void flecsEngine_batch_draw(
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_t *ctx);
@@ -76,29 +106,29 @@ void flecsEngine_batch_transformInstance(
     float scale_z);
 
 void flecsEngine_box_scale(
-    const void *ptr, 
+    const void *ptr,
     float *scale);
 
 void flecsEngine_quad_scale(
-    const void *ptr, 
+    const void *ptr,
     float *scale);
 
 void flecsEngine_triangle_scale(
-    const void *ptr, 
+    const void *ptr,
     float *scale);
 
 void flecsEngine_right_triangle_scale(
-    const void *ptr, 
+    const void *ptr,
     float *scale);
 
 void flecsEngine_triangle_prism_scale(
-    const void *ptr, 
+    const void *ptr,
     float *scale);
 
 void flecsEngine_right_triangle_prism_scale(
     const void *ptr,
     float *scale);
-    
+
 void flecsEngine_primitive_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
@@ -118,10 +148,6 @@ void flecsEngine_batch_extractSingleInstance(
     float scale_x,
     float scale_y,
     float scale_z);
-
-void flecsEngine_batch_upload(
-    const FlecsEngineImpl *engine,
-    const flecsEngine_batch_t *ctx);
 
 ecs_entity_t flecsEngine_createBatch_mesh_materialData(
     ecs_world_t *world,

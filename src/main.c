@@ -126,18 +126,18 @@ void initEngine(
   ecs_entity_t view_entity =  ecs_entity(world, { .name = "view" });
   FlecsRenderView view = {
     .shadow = {
-      .enabled = false,
-      .pcf_samples = 1,
+      .enabled = true,
+      .pcf_samples = 3,
       .map_size = 2048,
       .max_range = 150
     },
     .ambient_light = {0, 0, 0, 255},
     .background = {
-      .sky_color = {10, 50, 150},
-      .haze_color = {255, 255, 255},
+      .sky_color = {5, 45, 100},
+      .haze_color = {50, 50, 0},
       .horizon_color = {255, 255, 255},
       .ground_color = {50, 50, 50},
-      .ibl = false
+      .ibl = true
     }
   };
 
@@ -175,8 +175,8 @@ void initEngine(
 
   // Light
   view.light = ecs_entity(world, { .name = "light" });
-  ecs_set(world, view.light, FlecsPosition3, {1, 5, 2});
-  ecs_set(world, view.light, FlecsDirectionalLight, { .intensity = 5.0f });
+  ecs_set(world, view.light, FlecsPosition3, {-2, 10, -3});
+  ecs_set(world, view.light, FlecsDirectionalLight, { .intensity = 6.0f });
   ecs_set(world, view.light, FlecsLookAt, { 0, 0, 0 });
   ecs_set(world, view.light, FlecsRgba, {255, 255, 230, 255});
 
@@ -200,11 +200,11 @@ void initEngine(
   fog_settings.density = 0;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = false, .effect =
+    (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_ssao(world, view_entity,
         "ssao", 0, &ssao_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = false, .effect =
+    (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_bloom(world, view_entity,
         "bloom", 1, &bloom_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
@@ -212,7 +212,7 @@ void initEngine(
       flecsEngine_createEffect_exponentialHeightFog(
         world, view_entity, "heightFog", 2, &fog_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = false, .effect =
+    (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_tonyMcMapFace(world, view_entity,
         "tonyMcMapFace", 3) };
 
@@ -254,9 +254,11 @@ int main(
 
   initEngine(world, options);
 
+  ecs_log_set_level(0);
+
   ecs_entity_t s = ecs_script(world, {
-    // .filename = "etc/assets/scenes/sponza.flecs"
     .filename = "etc/assets/scenes/bistro.flecs"
+    // .filename = "etc/assets/scenes/sponza.flecs"
     // .filename = "etc/assets/scenes/a_beautiful_game.flecs"
     // .filename = "etc/assets/scenes/flight_helmet.flecs"
     // .filename = "etc/assets/scenes/damaged_helmet.flecs"
@@ -279,6 +281,8 @@ int main(
 #else
   while (ecs_progress(world, 0)) { }
 #endif
+
+  ecs_log_set_level(-1);
 
   return ecs_fini(world);
 }

@@ -6,6 +6,7 @@
 
 typedef struct {
     flecsEngine_batch_t batch;
+    flecsEngine_batch_buffers_t buffers;
     FlecsWorldTransform3 transform;
     FlecsRgba color;
     flecs_vec3_t size;
@@ -16,7 +17,10 @@ static flecs_engine_infinite_grid_ctx_t* flecsEngine_infinite_grid_createCtx(
 {
     flecs_engine_infinite_grid_ctx_t *result =
         ecs_os_calloc_t(flecs_engine_infinite_grid_ctx_t);
-    flecsEngine_batch_init(&result->batch, world, flecsEngine_quad_getAsset(world), 0, true, 0, NULL);
+    flecsEngine_batch_buffers_init(&result->buffers, true);
+    flecsEngine_batch_init(&result->batch, world,
+        flecsEngine_quad_getAsset(world), 0, true, 0, NULL);
+    result->batch.buffers = &result->buffers;
 
     glm_mat4_identity(result->transform.m);
     glm_rotate(result->transform.m, -glm_rad(90.0f), (vec3){1.0f, 0.0f, 0.0f});
@@ -31,6 +35,7 @@ static void flecsEngine_infinite_grid_deleteCtx(
 {
     flecs_engine_infinite_grid_ctx_t *ctx = arg;
     flecsEngine_batch_fini(&ctx->batch);
+    flecsEngine_batch_buffers_fini(&ctx->buffers);
     ecs_os_free(ctx);
 }
 
