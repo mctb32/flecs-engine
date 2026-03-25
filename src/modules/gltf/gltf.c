@@ -247,7 +247,7 @@ static ecs_entity_t flecsEngine_gltf_getImageEntity(
     const cgltf_texture_view *tv,
     const char *gltf_path)
 {
-    if (!tv->texture || !tv->texture->image || !tv->texture->image->uri) {
+    if (!tv || !tv->texture || !tv->texture->image || !tv->texture->image->uri) {
         return 0;
     }
 
@@ -321,13 +321,24 @@ static void flecsEngine_gltf_setupMaterial(
         uint8_t a = (uint8_t)(sg->diffuse_factor[3] * 255.0f);
         ecs_set(world, entity, FlecsRgba, { r, g, b, a });
 
+        /* Scale glossiness by sqrt of specular intensity to approximate the
+         * spec-gloss model in metal-rough. Without this, low-specular
+         * materials (like fabric) end up with low roughness and look like
+         * shiny plastic, because the metal-rough model can't represent
+         * "smooth but not reflective" without per-material F0. */
+        float max_spec = fmaxf(fmaxf(
+            sg->specular_factor[0], sg->specular_factor[1]),
+            sg->specular_factor[2]);
         ecs_set(world, entity, FlecsPbrMaterial, {
             .metallic = 0.0f,
-            .roughness = 1.0f - sg->glossiness_factor
+            .roughness = 1.0f - sg->glossiness_factor * sqrtf(max_spec)
         });
 
         albedo_tv = &sg->diffuse_texture;
-        roughness_tv = &sg->specular_glossiness_texture;
+        /* Don't use the specular-glossiness texture as roughness texture.
+         * The shader expects metal-rough layout (G=roughness, B=metallic)
+         * but spec-gloss textures store specular in RGB and glossiness in
+         * A, so the channels don't match. */
     } else {
         const cgltf_pbr_metallic_roughness *pbr =
             &mat->pbr_metallic_roughness;
