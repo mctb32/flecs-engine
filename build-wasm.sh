@@ -13,9 +13,11 @@ fi
 # shellcheck disable=SC1091
 . "$EMSDK_DIR/emsdk_env.sh" > /dev/null 2>&1
 
-echo "Configuring wasm build..."
-emcmake cmake -S . -B "$BUILD_DIR" \
-  -DCMAKE_BUILD_TYPE=Release
+if [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
+  echo "Configuring wasm build..."
+  emcmake cmake -S . -B "$BUILD_DIR" \
+    -DCMAKE_BUILD_TYPE=Release
+fi
 
 echo "Building..."
 cmake --build "$BUILD_DIR" --config Release --parallel 8
