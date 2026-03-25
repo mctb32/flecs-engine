@@ -234,12 +234,7 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
     ecs_entity_t parent,
     const char *name);
 
-ecs_entity_t flecsEngine_createBatch_textured_mesh_transparent(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
-
-ecs_entity_t flecsEngine_createBatch_mesh_materialIndex_transparent(
+ecs_entity_t flecsEngine_createBatch_mesh_transparent(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name);

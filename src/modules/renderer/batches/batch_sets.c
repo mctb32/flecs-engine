@@ -89,10 +89,7 @@ ecs_entity_t flecsEngine_createBatchSet_geometry(
 
     /* Transparent batches must render last (after all opaques) */
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_mesh_materialIndex_transparent(
-            world, batch_set_entity, NULL);
-    ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_textured_mesh_transparent(
+        flecsEngine_createBatch_mesh_transparent(
             world, batch_set_entity, NULL);
 
     ecs_set_ptr(world, batch_set_entity, FlecsRenderBatchSet, &batch_set);
