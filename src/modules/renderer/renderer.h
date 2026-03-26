@@ -15,6 +15,7 @@ struct FlecsRenderBatch;
 struct FlecsRenderEffect;
 extern ECS_TAG_DECLARE(FlecsSkyboxBatch);
 extern ECS_TAG_DECLARE(FlecsTransparentBatch);
+extern ECS_TAG_DECLARE(FlecsGroundPlaneBatch);
 
 typedef void (*flecs_render_batch_callback)(
     const ecs_world_t *world,

@@ -8,6 +8,7 @@ ECS_COMPONENT_DECLARE(FlecsRenderBatch);
 ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);
 ECS_TAG_DECLARE(FlecsSkyboxBatch);
 ECS_TAG_DECLARE(FlecsTransparentBatch);
+ECS_TAG_DECLARE(FlecsGroundPlaneBatch);
 
 ECS_DTOR(FlecsRenderBatch, ptr, {
     if (ptr->ctx && ptr->free_ctx) {
@@ -301,6 +302,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     bool use_textures,
     bool is_skybox,
     bool is_transparent,
+    bool is_ground_plane,
     const WGPUVertexBufferLayout *vertex_buffers,
     uint32_t vertex_buffer_count,
     WGPUTextureFormat color_format,
@@ -392,7 +394,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
         .multisample = WGPU_MULTISAMPLE(sample_count)
     };
 
-    if (is_skybox || is_transparent) {
+    if (is_skybox || is_transparent || is_ground_plane) {
         pipeline_desc.primitive.cullMode = WGPUCullMode_None;
     }
 
@@ -554,6 +556,7 @@ static void FlecsRenderBatch_on_set(
         impl.uses_textures = shader_impl->uses_textures;
         bool is_skybox = ecs_has(world, e, FlecsSkyboxBatch);
         bool is_transparent = ecs_has(world, e, FlecsTransparentBatch);
+        bool is_ground_plane = ecs_has(world, e, FlecsGroundPlaneBatch);
 
         if ((impl.uses_ibl || impl.uses_shadow || impl.uses_cluster) &&
             !flecsEngine_ibl_ensureBindLayout(engine))
@@ -592,6 +595,7 @@ static void FlecsRenderBatch_on_set(
             impl.uses_textures,
             is_skybox,
             is_transparent,
+            is_ground_plane,
             vertex_buffers,
             (uint32_t)vertex_buffer_count,
             hdr_format,
@@ -601,7 +605,7 @@ static void FlecsRenderBatch_on_set(
             continue;
         }
 
-        if (!is_transparent) {
+        if (!is_transparent && !is_ground_plane) {
             flecsEngine_renderBatch_setupShadowPipeline(
                 world, engine, &rb[i], &impl,
                 vertex_buffers, vertex_buffer_count);
@@ -921,6 +925,7 @@ void flecsEngine_renderBatch_register(
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchSet);
     ECS_TAG_DEFINE(world, FlecsSkyboxBatch);
     ECS_TAG_DEFINE(world, FlecsTransparentBatch);
+    ECS_TAG_DEFINE(world, FlecsGroundPlaneBatch);
 
     ecs_set_hooks(world, FlecsRenderBatch, {
         .ctor = flecs_default_ctor,

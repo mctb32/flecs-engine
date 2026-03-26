@@ -133,8 +133,8 @@ void initEngine(
     .ambient_light = {0, 0, 0, 255},
     .background = {
       .sky_color = {5, 45, 100},
-      .haze_color = {50, 50, 0},
-      .horizon_color = {255, 255, 255},
+      .haze_color = {250, 130, 0},
+      .horizon_color = {250, 255, 255},
       .ground_color = {50, 50, 50},
       .ibl = true
     }
@@ -171,14 +171,14 @@ void initEngine(
   });
   ecs_add(world, view.camera, FlecsCameraController);
   ecs_set(world, view.camera, FlecsPosition3, {-20.38, 2.023, 16.23});
-  ecs_set(world, view.camera, FlecsLookAt, {-19.46, 1.967, 15.842});
+  ecs_set(world, view.camera, FlecsLookAt, {-19.46, 0, 15.842});
 
   // Light
   view.light = ecs_entity(world, { .name = "light" });
-  ecs_set(world, view.light, FlecsPosition3, {-2, 10, -3});
-  ecs_set(world, view.light, FlecsDirectionalLight, { .intensity = 6.0f });
+  ecs_set(world, view.light, FlecsPosition3, {1, 1, 1});
+  ecs_set(world, view.light, FlecsDirectionalLight, { .intensity = 2.0f });
   ecs_set(world, view.light, FlecsLookAt, { 0, 0, 0 });
-  ecs_set(world, view.light, FlecsRgba, {255, 255, 230, 255});
+  ecs_set(world, view.light, FlecsRgba, {255, 160, 100, 255});
 
   // HDRI (optional, for image based lighting)
   // view.hdri = flecsEngine_createHdri(
@@ -187,6 +187,8 @@ void initEngine(
   // RenderBatches (what to render in scene)
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
     flecsEngine_createBatch_skybox(world, view_entity, "skybox");
+  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
+    flecsEngine_createBatch_infinitePlane(world, view_entity, "ground_plane");
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
     flecsEngine_createBatchSet_geometry(world, view_entity, "geometry");
 
@@ -265,7 +267,8 @@ int main(
   ecs_log_set_level(0);
 
   ecs_entity_t s = ecs_script(world, {
-    .filename = "etc/assets/scenes/bistro.flecs"
+    .filename = "etc/assets/scenes/kenney_city.flecs"
+    // .filename = "etc/assets/scenes/bistro.flecs"
     // .filename = "etc/assets/scenes/sponza.flecs"
     // .filename = "etc/assets/scenes/a_beautiful_game.flecs"
     // .filename = "etc/assets/scenes/flight_helmet.flecs"

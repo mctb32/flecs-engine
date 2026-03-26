@@ -239,6 +239,11 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
     ecs_entity_t parent,
     const char *name);
 
+ecs_entity_t flecsEngine_createBatch_infinitePlane(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name);
+
 /* Shared mesh batch infrastructure (used by textured_mesh too) */
 uint64_t flecsEngine_mesh_groupByMesh(
     ecs_world_t *world,
