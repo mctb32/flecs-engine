@@ -295,8 +295,8 @@ static void flecsEngine_batch_copyMaterialIds(
 
 /* --- Extract / Draw --- */
 
-/* Test a world-space AABB against the camera frustum and all shadow cascade
- * frustums. Returns true if the AABB is visible from any of them. */
+/* Test a world-space AABB against the camera frustum and the shadow
+ * frustum. Returns true if the AABB is inside either. */
 static bool flecsEngine_isVisibleAABB(
     const FlecsEngineImpl *engine,
     const float wmin[3],
@@ -306,12 +306,9 @@ static bool flecsEngine_isVisibleAABB(
         return true;
     }
 
-    for (int32_t c = 0; c < engine->shadow_frustum_count; c ++) {
-        if (flecsEngine_testAABBFrustum(
-            engine->shadow_frustum_planes[c], wmin, wmax))
-        {
-            return true;
-        }
+    if (engine->shadow_frustum_valid) {
+        return flecsEngine_testAABBFrustum(
+            engine->shadow_frustum_planes, wmin, wmax);
     }
 
     return false;

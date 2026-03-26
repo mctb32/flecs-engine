@@ -155,9 +155,9 @@ typedef struct {
 
     /* Frustum culling state (computed once per frame during extract) */
     float frustum_planes[6][4];
-    float shadow_frustum_planes[FLECS_ENGINE_SHADOW_CASCADE_COUNT][6][4];
-    int32_t shadow_frustum_count;
+    float shadow_frustum_planes[6][4];
     bool frustum_valid;
+    bool shadow_frustum_valid;
 } FlecsEngineImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);

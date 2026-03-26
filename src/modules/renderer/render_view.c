@@ -269,7 +269,7 @@ static void flecsEngine_renderView_extract(
 
     /* Extract frustum planes from camera view-projection matrix */
     engine->frustum_valid = false;
-    engine->shadow_frustum_count = 0;
+    engine->shadow_frustum_valid = false;
 
     if (view->camera) {
         const FlecsCameraImpl *camera = ecs_get(
@@ -279,28 +279,31 @@ static void flecsEngine_renderView_extract(
                 camera->mvp,
                 engine->frustum_planes);
             engine->frustum_valid = true;
-        }
-    }
 
-    /* Extract shadow cascade frustum planes so entities that cast shadows
-     * into the visible area are not culled during batch extraction. */
-    if (view->shadow.enabled && view->camera && view->light) {
-        mat4 cascade_vps[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-        float cascade_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+            /* Build a second frustum with far = max_range so that shadow
+             * casters beyond the camera far plane but within shadow range
+             * are not culled during batch extraction. */
+            if (view->shadow.enabled && view->shadow.max_range > 0.0f) {
+                const FlecsCamera *cam = ecs_get(
+                    world, view->camera, FlecsCamera);
+                if (cam) {
+                    mat4 shadow_proj;
+                    glm_perspective(
+                        cam->fov,
+                        cam->aspect_ratio > 0.0f ? cam->aspect_ratio : 1.0f,
+                        cam->near_,
+                        view->shadow.max_range,
+                        shadow_proj);
 
-        flecsEngine_shadow_computeCascades(
-            world, view, engine->shadow.map_size,
-            engine->shadow.cascade_sizes,
-            view->shadow.max_range,
-            cascade_vps, cascade_splits);
+                    mat4 shadow_vp;
+                    glm_mat4_mul(shadow_proj, (vec4*)camera->view, shadow_vp);
 
-        if (cascade_splits[0] > 0.0f) {
-            for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
-                flecsEngine_frustum_extractPlanes(
-                    cascade_vps[c],
-                    engine->shadow_frustum_planes[c]);
+                    flecsEngine_frustum_extractPlanes(
+                        shadow_vp,
+                        engine->shadow_frustum_planes);
+                    engine->shadow_frustum_valid = true;
+                }
             }
-            engine->shadow_frustum_count = FLECS_ENGINE_SHADOW_CASCADE_COUNT;
         }
     }
 
