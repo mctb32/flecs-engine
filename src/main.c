@@ -156,6 +156,7 @@ void initEngine(
       .width = options.width,
       .height = options.height,
       .resolution_scale = 1,
+      .vsync = true,
       .msaa = false
     });
   }
