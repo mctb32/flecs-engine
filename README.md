@@ -24,17 +24,23 @@ You should probably not use this, unless:
 - Movement systems
 - Instancing
 - PBR materials
+- Transparency
 - Directional light
 - Pointlights
 - Spotlights
 - Clustered light rendering
 - Cascading shadow maps
+- Frustum culling
 - Image based lighting (support for .exr and .hdr)
 - Skybox
 - Bloom
 - Height based fog
 - Tony McMapFace tone mapping
+- MSAA
 - Infinite grid
+- Infinite plane
+- Input handling
+- Camera controller
 - Data-driven engine setup
 - Rendering to image
 
