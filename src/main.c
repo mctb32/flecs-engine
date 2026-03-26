@@ -136,7 +136,7 @@ void initEngine(
       .haze_color = {250, 130, 0},
       .horizon_color = {250, 255, 255},
       .ground_color = {50, 50, 50},
-      .ibl = true
+      .ambient_intensity = 1.0
     }
   };
 
@@ -181,8 +181,8 @@ void initEngine(
   ecs_set(world, view.light, FlecsRgba, {255, 160, 100, 255});
 
   // HDRI (optional, for image based lighting)
-  // view.hdri = flecsEngine_createHdri(
-  //   world, view_entity, "hdri", "etc/assets/hdri/industrial_sunset_puresky_4k.exr", 1024, 64);
+  view.hdri = flecsEngine_createHdri(
+    world, view_entity, "hdri", "etc/assets/hdri/industrial_sunset_puresky_4k.exr", 1024, 64);
 
   // RenderBatches (what to render in scene)
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
@@ -199,7 +199,8 @@ void initEngine(
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
   FlecsExponentialHeightFog fog_settings =
     flecsEngine_exponentialHeightFogSettingsDefault();
-  fog_settings.density = 0;
+  fog_settings.density = 0.3;
+  fog_settings.falloff = 1.3;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =

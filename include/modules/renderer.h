@@ -109,7 +109,7 @@ ECS_STRUCT(flecs_engine_background_t, {
     flecs_rgba_t ground_color;
     flecs_rgba_t haze_color;
     flecs_rgba_t horizon_color;
-    ecs_bool_t ibl;
+    ecs_f32_t ambient_intensity;
 });
 
 ECS_STRUCT(flecs_render_view_effect_t, {

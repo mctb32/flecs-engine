@@ -367,6 +367,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
         depth_state.depthCompare = WGPUCompareFunction_LessEqual;
     }
 
+
     WGPUVertexState vertex_state = {
         .module = shader_impl->shader_module,
         .entryPoint = WGPU_STR(shader->vertex_entry ? shader->vertex_entry : "vs_main"),
@@ -794,7 +795,7 @@ static void flecsEngine_renderBatch_updateUniforms(
     uniforms.ambient_light[0] = flecsEngine_colorChannelToFloat(view->ambient_light.r);
     uniforms.ambient_light[1] = flecsEngine_colorChannelToFloat(view->ambient_light.g);
     uniforms.ambient_light[2] = flecsEngine_colorChannelToFloat(view->ambient_light.b);
-    uniforms.ambient_light[3] = flecsEngine_colorChannelToFloat(view->ambient_light.a);
+    uniforms.ambient_light[3] = view->background.ambient_intensity;
 
     uniforms.sky_color[0] = flecsEngine_colorChannelToFloat(view->background.sky_color.r);
     uniforms.sky_color[1] = flecsEngine_colorChannelToFloat(view->background.sky_color.g);
@@ -852,11 +853,12 @@ void flecsEngine_renderBatch_render(
 
     if (impl->uses_ibl || impl->uses_shadow || impl->uses_cluster) {
         bool is_skybox = ecs_has(world, batch_entity, FlecsSkyboxBatch);
+        bool is_ground = ecs_has(world, batch_entity, FlecsGroundPlaneBatch);
         ecs_entity_t hdri = view->hdri;
         if (!hdri) {
             hdri = engine->sky_background_hdri;
         }
-        if (!view->background.ibl && !is_skybox) {
+        if (view->background.ambient_intensity == 0 && !is_skybox && !is_ground) {
             hdri = engine->black_hdri;
         }
 

@@ -19,7 +19,7 @@ ECS_CTOR(FlecsRenderView, ptr, {
         .ground_color = {0},
         .haze_color = {255, 255, 255, 255},
         .horizon_color = {255, 255, 255, 255},
-        .ibl = true
+        .ambient_intensity = 1.0
     };
     ptr->shadow.enabled = true;
     ptr->shadow.map_size = FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT;
@@ -370,7 +370,7 @@ void flecsEngine_renderView_register(
             { .name = "ground_color", .type = ecs_id(flecs_rgba_t) },
             { .name = "haze_color", .type = ecs_id(flecs_rgba_t) },
             { .name = "horizon_color", .type = ecs_id(flecs_rgba_t) },
-            { .name = "ibl", .type = ecs_id(ecs_bool_t) }
+            { .name = "ambient_intensity", .type = ecs_id(ecs_f32_t) }
         }
     });
 
