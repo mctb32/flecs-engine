@@ -138,6 +138,7 @@ int flecsEngine_init(
         .actual_height = height / resolution_scale,
         .resolution_scale = resolution_scale,
         .sample_count = sample_count,
+        .vsync = output->vsync,
         .surface_impl = output->ops,
         .output_done = false,
         .default_attr_cache = flecsEngine_defaultAttrCache_create()

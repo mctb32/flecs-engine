@@ -164,6 +164,16 @@ static void FlecsOnWindowCreate(
         existing->resolution_scale = scale;
 
         existing->sample_count = wnd->msaa ? 4 : 1;
+
+        bool new_vsync = wnd->vsync;
+        if (new_vsync != existing->vsync) {
+            existing->vsync = new_vsync;
+            existing->surface_config.presentMode = new_vsync
+                ? WGPUPresentMode_Fifo
+                : WGPUPresentMode_Immediate;
+            flecsEngine_reconfigureSurface(existing);
+        }
+
         return;
     }
 
@@ -206,7 +216,8 @@ static void FlecsOnWindowCreate(
         .width = w,
         .height = h,
         .resolution_scale = wnd->resolution_scale,
-        .msaa = wnd->msaa
+        .msaa = wnd->msaa,
+        .vsync = wnd->vsync
     };
 
     if (flecsEngine_init(it->world, &output_desc)) {

@@ -119,6 +119,7 @@ typedef struct {
     int32_t actual_height;
     int32_t resolution_scale;
     int32_t sample_count; /* 1 or 4 (derived from msaa bool) */
+    bool vsync;
     const struct FlecsEngineSurfaceInterface *surface_impl;
     bool output_done;
     const char *frame_output_path;
@@ -341,6 +342,7 @@ typedef struct FlecsEngineOutputDesc {
     int32_t height;
     int32_t resolution_scale;
     bool msaa;
+    bool vsync;
 } FlecsEngineOutputDesc;
 
 #endif

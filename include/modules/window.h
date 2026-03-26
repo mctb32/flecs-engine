@@ -11,6 +11,7 @@ ECS_STRUCT(FlecsWindow, {
     int32_t height;
     int32_t resolution_scale;
     bool msaa;
+    bool vsync;
     const char *title;
 });
 

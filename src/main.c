@@ -270,15 +270,21 @@ int main(
     ecs_err("failed to load script\n");
   }
 
-#ifndef __EMSCRIPTEN__
-  ecs_singleton_set(world, EcsRest, {0});
-#endif
-
 #ifdef __EMSCRIPTEN__
   emscripten_set_main_loop_arg(
       (em_arg_callback_func)flecsWasmFrame, world, 0, 1);
 #else
-  while (ecs_progress(world, 0)) { }
+  ecs_singleton_set(world, EcsRest, {0});
+  
+  int32_t count = 0;
+  ecs_time_t t; ecs_time_measure(&t);
+  while (ecs_progress(world, 0)) {
+    if (count == 120) {
+      printf("120 frames in %f\n", ecs_time_measure(&t));
+      count = 0;
+    }
+    count ++;
+  }
 #endif
 
   ecs_log_set_level(-1);

@@ -382,6 +382,10 @@ WGPUSurface flecsEngine_createSurface(
 int flecsEngine_configureSurface(
     FlecsEngineImpl *impl)
 {
+    WGPUPresentMode present_mode = impl->vsync
+        ? WGPUPresentMode_Fifo
+        : WGPUPresentMode_Immediate;
+
 #ifdef __EMSCRIPTEN__
     WGPUTextureFormat preferred =
         wgpuSurfaceGetPreferredFormat(impl->surface, impl->adapter);
@@ -392,7 +396,7 @@ int flecsEngine_configureSurface(
         .format = preferred,
         .width = (uint32_t)impl->width,
         .height = (uint32_t)impl->height,
-        .presentMode = WGPUPresentMode_Fifo,
+        .presentMode = present_mode,
     };
 
     WGPUSwapChainDescriptor sc_desc = {
@@ -400,7 +404,7 @@ int flecsEngine_configureSurface(
         .format = preferred,
         .width = (uint32_t)impl->width,
         .height = (uint32_t)impl->height,
-        .presentMode = WGPUPresentMode_Fifo,
+        .presentMode = present_mode,
     };
 
     compat_swap_chain =
@@ -428,7 +432,7 @@ int flecsEngine_configureSurface(
         .format = surface_caps.formats[0],
         .width = (uint32_t)impl->width,
         .height = (uint32_t)impl->height,
-        .presentMode = WGPUPresentMode_Fifo,
+        .presentMode = present_mode,
         .alphaMode = surface_caps.alphaModes[0]
     };
 
@@ -452,7 +456,7 @@ void flecsEngine_reconfigureSurface(
         .format = impl->surface_config.format,
         .width = impl->surface_config.width,
         .height = impl->surface_config.height,
-        .presentMode = WGPUPresentMode_Fifo,
+        .presentMode = impl->surface_config.presentMode,
     };
 
     compat_swap_chain =
