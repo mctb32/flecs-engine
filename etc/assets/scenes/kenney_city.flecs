@@ -205,6 +205,28 @@ template RandomSkyscraper {
 }
 
 @tree Parent
+template RandomIndustrial {
+  const p = rng.u(8)
+  if p == 0 {
+    _ : prefabs.industrial_a {}
+  } else if p == 1 {
+    _ : prefabs.industrial_b {}
+  } else if p == 2 {
+    _ : prefabs.industrial_c {}
+  } else if p == 3 {
+    _ : prefabs.industrial_d {}
+  } else if p == 4 {
+    _ : prefabs.industrial_e {}
+  } else if p == 5 {
+    _ : prefabs.industrial_f {}
+  } else if p == 6 {
+    _ : prefabs.industrial_g {}
+  } else if p == 7 {
+    _ : prefabs.industrial_h {}
+  }
+}
+
+@tree Parent
 template ForestBlock {
   for tx in 0..12 {
     for tz in 0..8 {
@@ -221,6 +243,22 @@ template ForestBlock {
           Position3: {treeX, 0, treeZ}
         }
       }
+    }
+  }
+}
+
+@tree Parent
+template IndustrialBlock {
+  for i in 0..2 {
+    const bx = 1.75 + i * 2.0
+
+    RandomIndustrial() {
+      Position3: {bx, 0, 1.5}
+    }
+
+    RandomIndustrial() {
+      Position3: {bx, 0, 2.5}
+      Rotation3: {0, math.PI, 0}
     }
   }
 }
@@ -346,9 +384,16 @@ template KenneyCity {
 
       const density = math.perlin2(xP * 0.025, zP * 0.025) * 0.5 + 0.5
 
-      if density < 0.4 {
-        ForestBlock() {
+      if density < 0.25 {
+        IndustrialBlock() {
           Position3: {xP, 0, zP}
+        }
+      }
+      if density >= 0.25 {
+        if density < 0.4 {
+          ForestBlock() {
+            Position3: {xP, 0, zP}
+          }
         }
       }
       if density >= 0.4 {
