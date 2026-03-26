@@ -135,6 +135,30 @@ static bool flecsEngine_gltf_readMesh(
     flecsEngine_gltf_readIndices(
         idx_acc, ecs_vec_first_t(&mesh3->indices, uint32_t));
 
+    /* Fix degenerate UV triangles. Some models map every vertex of a face to 
+     * the same UV point on a color atlas. This produces zero UV gradients in 
+     * the fragment shader, which makes the cotangent-frame normal mapping 
+     * generate NaN normals. Apply a sub-texel perturbation so the TBN 
+     * construction has valid gradients. */
+    if (uv_acc) {
+        flecs_vec2_t *uvs = ecs_vec_first_t(&mesh3->uvs, flecs_vec2_t);
+        uint32_t *indices = ecs_vec_first_t(&mesh3->indices, uint32_t);
+        const float eps = 1.0f / 4096.0f;
+
+        for (int32_t t = 0; t + 2 < idx_count; t += 3) {
+            uint32_t i0 = indices[t], i1 = indices[t + 1], i2 = indices[t + 2];
+            float du1 = uvs[i1].x - uvs[i0].x;
+            float dv1 = uvs[i1].y - uvs[i0].y;
+            float du2 = uvs[i2].x - uvs[i0].x;
+            float dv2 = uvs[i2].y - uvs[i0].y;
+            float cross = du1 * dv2 - dv1 * du2;
+            if (fabsf(cross) < 1e-6f) {
+                uvs[i1].x += eps;
+                uvs[i2].y += eps;
+            }
+        }
+    }
+
     return true;
 }
 

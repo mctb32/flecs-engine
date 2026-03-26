@@ -302,7 +302,6 @@ static bool flecsEngine_isVisibleAABB(
     const float wmin[3],
     const float wmax[3])
 {
-    return true;
     if (flecsEngine_testAABBFrustum(engine->frustum_planes, wmin, wmax)) {
         return true;
     }
