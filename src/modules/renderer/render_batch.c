@@ -61,15 +61,7 @@ static void flecsEngine_renderBatch_releaseImpl(
     }
 }
 
-ECS_DTOR(FlecsRenderBatchImpl, ptr, {
-    flecsEngine_renderBatch_releaseImpl(ptr);
-})
-
-ECS_MOVE(FlecsRenderBatchImpl, dst, src, {
-    flecsEngine_renderBatch_releaseImpl(dst);
-    *dst = *src;
-    ecs_os_zeromem(src);
-})
+FLECS_ENGINE_IMPL_HOOKS(FlecsRenderBatchImpl, flecsEngine_renderBatch_releaseImpl)
 
 ECS_COMPONENT_DECLARE(FlecsRenderBatchSet);
 
@@ -411,6 +403,102 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     return pipeline;
 }
 
+static void flecsEngine_renderBatch_logErr(
+    const ecs_world_t *world,
+    ecs_entity_t entity,
+    const char *msg)
+{
+    char *name = ecs_get_path(world, entity);
+    ecs_err(msg, name);
+    ecs_os_free(name);
+}
+
+static bool flecsEngine_renderBatch_validate(
+    const ecs_world_t *world,
+    ecs_entity_t e,
+    const FlecsRenderBatch *rb,
+    const FlecsShader **shader_out,
+    const FlecsShaderImpl **shader_impl_out)
+{
+    if (!rb->vertex_type) {
+        flecsEngine_renderBatch_logErr(world, e,
+            "missing vertex type for render batch %s");
+        return false;
+    }
+    if (!rb->instance_types[0]) {
+        flecsEngine_renderBatch_logErr(world, e,
+            "missing instance type for render batch %s");
+        return false;
+    }
+    if (!rb->shader) {
+        flecsEngine_renderBatch_logErr(world, e,
+            "missing shader asset for render batch %s");
+        return false;
+    }
+
+    *shader_out = ecs_get(world, rb->shader, FlecsShader);
+    if (!*shader_out) {
+        flecsEngine_renderBatch_logErr(world, e,
+            "invalid shader asset for render batch %s");
+        return false;
+    }
+
+    *shader_impl_out = flecsEngine_shader_ensureImpl(world, rb->shader);
+    if (!*shader_impl_out || !(*shader_impl_out)->shader_module) {
+        return false;
+    }
+
+    return true;
+}
+
+static void flecsEngine_renderBatch_setupShadowPipeline(
+    ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    FlecsRenderBatch *rb,
+    FlecsRenderBatchImpl *impl,
+    const WGPUVertexBufferLayout *vertex_buffers,
+    int32_t vertex_buffer_count)
+{
+    if (!impl->uses_shadow || !engine->shadow.pass_bind_layout) {
+        return;
+    }
+
+    if (impl->uses_textures &&
+        rb->vertex_type == ecs_id(FlecsLitVertexUv))
+    {
+        /* For textured batches, build the shadow pipeline with
+         * the non-UV vertex layout so that instance transform
+         * locations match the shadow shader expectations. */
+        WGPUVertexAttribute shadow_vert_attrs[16];
+        WGPUVertexAttribute shadow_inst_attrs[256] = {0};
+        WGPUVertexBufferLayout shadow_vbufs[1 + FLECS_ENGINE_INSTANCE_TYPES_MAX] = {0};
+
+        int32_t sv_count = flecsEngine_vertexAttrFromType(
+            world, ecs_id(FlecsLitVertex), shadow_vert_attrs, 16, 0);
+
+        shadow_vbufs[0] = (WGPUVertexBufferLayout){
+            .arrayStride = flecsEngine_type_sizeof(world, ecs_id(FlecsLitVertex)),
+            .stepMode = WGPUVertexStepMode_Vertex,
+            .attributeCount = sv_count,
+            .attributes = shadow_vert_attrs
+        };
+
+        int32_t shadow_vbuf_count = flecsEngine_renderBatch_setupInstanceBindings(
+            world, rb, sv_count,
+            shadow_vbufs, 1, shadow_inst_attrs);
+
+        impl->pipeline_shadow = flecsEngine_renderBatch_createShadowPipeline(
+            engine,
+            shadow_vbufs,
+            (uint32_t)shadow_vbuf_count);
+    } else {
+        impl->pipeline_shadow = flecsEngine_renderBatch_createShadowPipeline(
+            engine,
+            vertex_buffers,
+            (uint32_t)vertex_buffer_count);
+    }
+}
+
 static void FlecsRenderBatch_on_set(
     ecs_iter_t *it)
 {
@@ -428,41 +516,12 @@ static void FlecsRenderBatch_on_set(
         int32_t vertex_buffer_count = 0;
 
         FlecsRenderBatchImpl impl = {};
+        const FlecsShader *shader;
+        const FlecsShaderImpl *shader_impl;
 
-        if (!rb[i].vertex_type) {
-            char *batch_name = ecs_get_path(world, e);
-            ecs_err("missing vertex type for render batch %s", batch_name);
-            ecs_os_free(batch_name);
-            continue;
-        }
-
-        if (!rb[i].instance_types[0]) {
-            char *batch_name = ecs_get_path(world, e);
-            ecs_err("missing instance type for render batch %s", batch_name);
-            ecs_os_free(batch_name);
-            continue;
-        }
-
-        if (!rb[i].shader) {
-            char *batch_name = ecs_get_path(world, e);
-            ecs_err("missing shader asset for render batch %s", batch_name);
-            ecs_os_free(batch_name);
-            continue;
-        }
-
-        const FlecsShader *shader = ecs_get(world, rb[i].shader, FlecsShader);
-        if (!shader) {
-            char *batch_name = ecs_get_path(world, e);
-            char *shader_name = ecs_get_path(world, rb[i].shader);
-            ecs_err("invalid shader asset '%s' for render batch %s",
-                shader_name, batch_name);
-            ecs_os_free(shader_name);
-            ecs_os_free(batch_name);
-            continue;
-        }
-
-        const FlecsShaderImpl *shader_impl = flecsEngine_shader_ensureImpl(world, rb[i].shader);
-        if (!shader_impl || !shader_impl->shader_module) {
+        if (!flecsEngine_renderBatch_validate(
+            world, e, &rb[i], &shader, &shader_impl))
+        {
             continue;
         }
 
@@ -474,43 +533,40 @@ static void FlecsRenderBatch_on_set(
             continue;
         }
 
-        WGPUVertexBufferLayout vertex_layout = {
+        vertex_buffers[0] = (WGPUVertexBufferLayout){
             .arrayStride = flecsEngine_type_sizeof(world, rb[i].vertex_type),
             .stepMode = WGPUVertexStepMode_Vertex,
             .attributeCount = vertex_attr_count,
             .attributes = vertex_attrs
         };
-
-        vertex_buffers[0] = vertex_layout;
         vertex_buffer_count ++;
 
         // Setup instance data bindings
-        vertex_buffer_count = flecsEngine_renderBatch_setupInstanceBindings(world, &rb[i], 
-            vertex_attr_count, vertex_buffers, vertex_buffer_count, 
+        vertex_buffer_count = flecsEngine_renderBatch_setupInstanceBindings(world, &rb[i],
+            vertex_attr_count, vertex_buffers, vertex_buffer_count,
             instance_attrs);
 
         bool use_material_buffer = flecsEngine_renderBatch_usesMaterialId(&rb[i]);
         impl.uses_material = use_material_buffer;
-        impl.uses_ibl = flecsEngine_shader_usesIbl(shader);
-        impl.uses_shadow = flecsEngine_shader_usesShadow(shader);
-        impl.uses_cluster = flecsEngine_shader_usesCluster(shader);
-        impl.uses_textures = flecsEngine_shader_usesTextures(shader);
+        impl.uses_ibl = shader_impl->uses_ibl;
+        impl.uses_shadow = shader_impl->uses_shadow;
+        impl.uses_cluster = shader_impl->uses_cluster;
+        impl.uses_textures = shader_impl->uses_textures;
         bool is_skybox = ecs_has(world, e, FlecsSkyboxBatch);
         bool is_transparent = ecs_has(world, e, FlecsTransparentBatch);
 
         if ((impl.uses_ibl || impl.uses_shadow || impl.uses_cluster) &&
             !flecsEngine_ibl_ensureBindLayout(engine))
         {
-            char *batch_name = ecs_get_path(world, e);
-            ecs_err("failed to create render batch '%s': "
-                "scene bind layout is not available", batch_name);
-            ecs_os_free(batch_name);
+            flecsEngine_renderBatch_logErr(world, e,
+                "failed to create render batch '%s': "
+                "scene bind layout is not available");
             flecsEngine_renderBatch_releaseImpl(&impl);
             continue;
         }
 
         // Setup uniform + optional storage buffer bindings
-        if (!flecsEngine_renderBatch_setupBindings(world, engine, 
+        if (!flecsEngine_renderBatch_setupBindings(world, engine,
             rb[i].uniforms,
             WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
             use_material_buffer,
@@ -545,43 +601,10 @@ static void FlecsRenderBatch_on_set(
             continue;
         }
 
-        if (impl.uses_shadow && engine->shadow.pass_bind_layout
-            && !is_transparent)
-        {
-            if (impl.uses_textures &&
-                rb[i].vertex_type == ecs_id(FlecsLitVertexUv))
-            {
-                /* For textured batches, build the shadow pipeline with
-                 * the non-UV vertex layout so that instance transform
-                 * locations match the shadow shader expectations. */
-                WGPUVertexAttribute shadow_vert_attrs[16];
-                WGPUVertexAttribute shadow_inst_attrs[256] = {0};
-                WGPUVertexBufferLayout shadow_vbufs[1 + FLECS_ENGINE_INSTANCE_TYPES_MAX] = {0};
-
-                int32_t sv_count = flecsEngine_vertexAttrFromType(
-                    world, ecs_id(FlecsLitVertex), shadow_vert_attrs, 16, 0);
-
-                shadow_vbufs[0] = (WGPUVertexBufferLayout){
-                    .arrayStride = flecsEngine_type_sizeof(world, ecs_id(FlecsLitVertex)),
-                    .stepMode = WGPUVertexStepMode_Vertex,
-                    .attributeCount = sv_count,
-                    .attributes = shadow_vert_attrs
-                };
-
-                int32_t shadow_vbuf_count = flecsEngine_renderBatch_setupInstanceBindings(
-                    world, &rb[i], sv_count,
-                    shadow_vbufs, 1, shadow_inst_attrs);
-
-                impl.pipeline_shadow = flecsEngine_renderBatch_createShadowPipeline(
-                    engine,
-                    shadow_vbufs,
-                    (uint32_t)shadow_vbuf_count);
-            } else {
-                impl.pipeline_shadow = flecsEngine_renderBatch_createShadowPipeline(
-                    engine,
-                    vertex_buffers,
-                    (uint32_t)vertex_buffer_count);
-            }
+        if (!is_transparent) {
+            flecsEngine_renderBatch_setupShadowPipeline(
+                world, engine, &rb[i], &impl,
+                vertex_buffers, vertex_buffer_count);
         }
 
         ecs_set_ptr(world, e, FlecsRenderBatchImpl, &impl);
@@ -603,9 +626,8 @@ void flecsEngine_renderBatch_setupCamera(
     const FlecsCameraImpl *camera = ecs_get(
         world, entity, FlecsCameraImpl);
     if (!camera) {
-        char *cam_name = ecs_get_path(world, entity);
-        ecs_err("invalid camera '%s' in view", cam_name);
-        ecs_os_free(cam_name);
+        flecsEngine_renderBatch_logErr(world, entity,
+            "invalid camera '%s' in view");
         return;
     }
 
@@ -634,26 +656,22 @@ void flecsEngine_renderBatch_setupLight(
     const FlecsDirectionalLight *light = ecs_get(
         world, entity, FlecsDirectionalLight);
     if (!light) {
-        char *light_name = ecs_get_path(world, entity);
-        ecs_err("invalid directional light '%s'", light_name);
-        ecs_os_free(light_name);
+        flecsEngine_renderBatch_logErr(world, entity,
+            "invalid directional light '%s'");
         return;
     }
 
     const FlecsRotation3 *rotation = ecs_get(world, entity, FlecsRotation3);
     if (!rotation) {
-        char *light_name = ecs_get_path(world, entity);
-        ecs_err("directional light '%s' is missing Rotation3", light_name);
-        ecs_os_free(light_name);
+        flecsEngine_renderBatch_logErr(world, entity,
+            "directional light '%s' is missing Rotation3");
         return;
     }
 
     vec3 ray_dir;
     if (!flecsEngine_lightDirFromRotation(rotation, ray_dir)) {
-        char *light_name = ecs_get_path(world, entity);
-        ecs_err(
-            "directional light '%s' has invalid Rotation3", light_name);
-        ecs_os_free(light_name);
+        flecsEngine_renderBatch_logErr(world, entity,
+            "directional light '%s' has invalid Rotation3");
         return;
     }
 

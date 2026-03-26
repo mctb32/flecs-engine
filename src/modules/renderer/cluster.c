@@ -292,6 +292,78 @@ static bool flecsEngine_cluster_sphereRange(
     return true;
 }
 
+/* Iterate lights and count how many fall into each cluster cell.
+ * `positions` points to the first light's position[4] array; `stride_bytes`
+ * is the byte distance between consecutive lights (sizeof the light struct).
+ * The position[3] component (w) is used as the light range. */
+static void flecsEngine_cluster_countLights(
+    const float (*view_mat)[4],
+    const float *positions,
+    int32_t stride_bytes,
+    int32_t light_count,
+    float near, float far,
+    float tan_half_fov, float aspect,
+    float log_ratio,
+    uint16_t *cell_counts)
+{
+    for (int32_t li = 0; li < light_count; li++) {
+        const float *pos = (const float *)((const char *)positions +
+            (size_t)li * (size_t)stride_bytes);
+
+        int tx0, tx1, ty0, ty1, sz0, sz1;
+        if (!flecsEngine_cluster_sphereRange(view_mat,
+                pos[0], pos[1], pos[2], pos[3],
+                near, far, tan_half_fov, aspect, log_ratio,
+                &tx0, &tx1, &ty0, &ty1, &sz0, &sz1)) {
+            continue;
+        }
+
+        for (int sz = sz0; sz <= sz1; sz++)
+            for (int ty = ty0; ty <= ty1; ty++)
+                for (int tx = tx0; tx <= tx1; tx++)
+                    cell_counts[flecsEngine_cluster_index(tx, ty, sz)]++;
+    }
+}
+
+/* Iterate lights and fill the index buffer for each cluster cell.
+ * `cell_offsets[ci]` is the base index into `index_buf` for cell `ci`;
+ * `fill_offsets[ci]` tracks the current write position within the cell
+ * and must be zero-initialized by the caller. */
+static void flecsEngine_cluster_fillLights(
+    const float (*view_mat)[4],
+    const float *positions,
+    int32_t stride_bytes,
+    int32_t light_count,
+    float near, float far,
+    float tan_half_fov, float aspect,
+    float log_ratio,
+    const uint32_t *cell_offsets,
+    uint16_t *fill_offsets,
+    uint32_t *index_buf)
+{
+    for (int32_t li = 0; li < light_count; li++) {
+        const float *pos = (const float *)((const char *)positions +
+            (size_t)li * (size_t)stride_bytes);
+
+        int tx0, tx1, ty0, ty1, sz0, sz1;
+        if (!flecsEngine_cluster_sphereRange(view_mat,
+                pos[0], pos[1], pos[2], pos[3],
+                near, far, tan_half_fov, aspect, log_ratio,
+                &tx0, &tx1, &ty0, &ty1, &sz0, &sz1)) {
+            continue;
+        }
+
+        for (int sz = sz0; sz <= sz1; sz++)
+            for (int ty = ty0; ty <= ty1; ty++)
+                for (int tx = tx0; tx <= tx1; tx++) {
+                    int ci = flecsEngine_cluster_index(tx, ty, sz);
+                    uint32_t dst = cell_offsets[ci] + fill_offsets[ci];
+                    index_buf[dst] = (uint32_t)li;
+                    fill_offsets[ci]++;
+                }
+    }
+}
+
 void flecsEngine_cluster_build(
     const ecs_world_t *world,
     FlecsEngineImpl *engine,
@@ -341,35 +413,15 @@ void flecsEngine_cluster_build(
     memset(point_counts, 0, sizeof(point_counts));
     memset(spot_counts, 0, sizeof(spot_counts));
 
-    for (int32_t li = 0; li < point_count; li++) {
-        int tx0, tx1, ty0, ty1, sz0, sz1;
-        if (!flecsEngine_cluster_sphereRange(view_mat,
-            engine->lighting.cpu_point_lights[li].position[0],
-            engine->lighting.cpu_point_lights[li].position[1],
-            engine->lighting.cpu_point_lights[li].position[2],
-            engine->lighting.cpu_point_lights[li].position[3],
-            near, far, tan_half_fov, aspect, log_ratio,
-            &tx0, &tx1, &ty0, &ty1, &sz0, &sz1)) continue;
-        for (int sz = sz0; sz <= sz1; sz++)
-            for (int ty = ty0; ty <= ty1; ty++)
-                for (int tx = tx0; tx <= tx1; tx++)
-                    point_counts[flecsEngine_cluster_index(tx, ty, sz)]++;
-    }
+    flecsEngine_cluster_countLights(view_mat,
+        (const float *)engine->lighting.cpu_point_lights,
+        (int32_t)sizeof(FlecsGpuPointLight), point_count,
+        near, far, tan_half_fov, aspect, log_ratio, point_counts);
 
-    for (int32_t li = 0; li < spot_count; li++) {
-        int tx0, tx1, ty0, ty1, sz0, sz1;
-        if (!flecsEngine_cluster_sphereRange(view_mat,
-            engine->lighting.cpu_spot_lights[li].position[0],
-            engine->lighting.cpu_spot_lights[li].position[1],
-            engine->lighting.cpu_spot_lights[li].position[2],
-            engine->lighting.cpu_spot_lights[li].position[3],
-            near, far, tan_half_fov, aspect, log_ratio,
-            &tx0, &tx1, &ty0, &ty1, &sz0, &sz1)) continue;
-        for (int sz = sz0; sz <= sz1; sz++)
-            for (int ty = ty0; ty <= ty1; ty++)
-                for (int tx = tx0; tx <= tx1; tx++)
-                    spot_counts[flecsEngine_cluster_index(tx, ty, sz)]++;
-    }
+    flecsEngine_cluster_countLights(view_mat,
+        (const float *)engine->lighting.cpu_spot_lights,
+        (int32_t)sizeof(FlecsGpuSpotLight), spot_count,
+        near, far, tan_half_fov, aspect, log_ratio, spot_counts);
 
     /* Compute offsets via prefix sum */
     FlecsClusterEntry grid[FLECS_ENGINE_CLUSTER_TOTAL];
@@ -398,6 +450,13 @@ void flecsEngine_cluster_build(
     }
 
     /* Pass 2: fill index list */
+    uint32_t point_offsets[FLECS_ENGINE_CLUSTER_TOTAL];
+    uint32_t spot_offsets[FLECS_ENGINE_CLUSTER_TOTAL];
+    for (int i = 0; i < FLECS_ENGINE_CLUSTER_TOTAL; i++) {
+        point_offsets[i] = grid[i].point_offset;
+        spot_offsets[i] = grid[i].spot_offset;
+    }
+
     uint16_t point_fill[FLECS_ENGINE_CLUSTER_TOTAL];
     uint16_t spot_fill[FLECS_ENGINE_CLUSTER_TOTAL];
     memset(point_fill, 0, sizeof(point_fill));
@@ -405,45 +464,17 @@ void flecsEngine_cluster_build(
 
     uint32_t *indices = engine->lighting.cpu_cluster_indices;
 
-    for (int32_t li = 0; li < point_count; li++) {
-        int tx0, tx1, ty0, ty1, sz0, sz1;
-        if (!flecsEngine_cluster_sphereRange(view_mat,
-            engine->lighting.cpu_point_lights[li].position[0],
-            engine->lighting.cpu_point_lights[li].position[1],
-            engine->lighting.cpu_point_lights[li].position[2],
-            engine->lighting.cpu_point_lights[li].position[3],
-            near, far, tan_half_fov, aspect, log_ratio,
-            &tx0, &tx1, &ty0, &ty1, &sz0, &sz1)) continue;
-        for (int sz = sz0; sz <= sz1; sz++)
-            for (int ty = ty0; ty <= ty1; ty++)
-                for (int tx = tx0; tx <= tx1; tx++) {
-                    int ci = flecsEngine_cluster_index(tx, ty, sz);
-                    uint32_t dst = grid[ci].point_offset +
-                        point_fill[ci];
-                    indices[dst] = (uint32_t)li;
-                    point_fill[ci]++;
-                }
-    }
+    flecsEngine_cluster_fillLights(view_mat,
+        (const float *)engine->lighting.cpu_point_lights,
+        (int32_t)sizeof(FlecsGpuPointLight), point_count,
+        near, far, tan_half_fov, aspect, log_ratio,
+        point_offsets, point_fill, indices);
 
-    for (int32_t li = 0; li < spot_count; li++) {
-        int tx0, tx1, ty0, ty1, sz0, sz1;
-        if (!flecsEngine_cluster_sphereRange(view_mat,
-            engine->lighting.cpu_spot_lights[li].position[0],
-            engine->lighting.cpu_spot_lights[li].position[1],
-            engine->lighting.cpu_spot_lights[li].position[2],
-            engine->lighting.cpu_spot_lights[li].position[3],
-            near, far, tan_half_fov, aspect, log_ratio,
-            &tx0, &tx1, &ty0, &ty1, &sz0, &sz1)) continue;
-        for (int sz = sz0; sz <= sz1; sz++)
-            for (int ty = ty0; ty <= ty1; ty++)
-                for (int tx = tx0; tx <= tx1; tx++) {
-                    int ci = flecsEngine_cluster_index(tx, ty, sz);
-                    uint32_t dst = grid[ci].spot_offset +
-                        spot_fill[ci];
-                    indices[dst] = (uint32_t)li;
-                    spot_fill[ci]++;
-                }
-    }
+    flecsEngine_cluster_fillLights(view_mat,
+        (const float *)engine->lighting.cpu_spot_lights,
+        (int32_t)sizeof(FlecsGpuSpotLight), spot_count,
+        near, far, tan_half_fov, aspect, log_ratio,
+        spot_offsets, spot_fill, indices);
 
     /* Upload everything to GPU */
     wgpuQueueWriteBuffer(engine->queue, engine->lighting.cluster_grid_buffer,

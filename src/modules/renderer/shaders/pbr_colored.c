@@ -6,12 +6,11 @@
 #include "common/pbr_functions_wgsl.h"
 #include "common/shadow_wgsl.h"
 #include "common/pbr_lighting_wgsl.h"
+#include "common/ibl_bindings_wgsl.h"
 
 static const char *kShaderSource =
     FLECS_ENGINE_SHADER_COMMON_UNIFORMS_WGSL
-    "@group(1) @binding(0) var ibl_prefiltered_env : texture_cube<f32>;\n"
-    "@group(1) @binding(1) var ibl_sampler : sampler;\n"
-    "@group(1) @binding(2) var ibl_brdf_lut : texture_2d<f32>;\n"
+    FLECS_ENGINE_SHADER_COMMON_IBL_BINDINGS_WGSL
     FLECS_ENGINE_SHADER_COMMON_SHADOW_WGSL
     FLECS_ENGINE_SHADER_COMMON_CLUSTER_WGSL
     "struct VertexInput {\n"

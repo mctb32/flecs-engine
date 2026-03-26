@@ -56,15 +56,7 @@ static void flecsEngine_tony_releaseResources(
     }
 }
 
-ECS_DTOR(FlecsTonyImpl, ptr, {
-    flecsEngine_tony_releaseResources(ptr);
-})
-
-ECS_MOVE(FlecsTonyImpl, dst, src, {
-    flecsEngine_tony_releaseResources(dst);
-    *dst = *src;
-    ecs_os_zeromem(src);
-})
+FLECS_ENGINE_IMPL_HOOKS(FlecsTonyImpl, flecsEngine_tony_releaseResources)
 
 static bool flecsEngine_tony_setup(
     const ecs_world_t *world,

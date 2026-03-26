@@ -237,6 +237,130 @@ void flecsEngine_shadow_cleanup(
     }
 }
 
+static void flecsEngine_shadow_computeSingleCascade(
+    const vec3 ray_dir,
+    const vec3 up,
+    mat4 inv_view,
+    float tan_half_fov,
+    float aspect,
+    float cascade_near,
+    float cascade_far,
+    uint32_t cascade_size,
+    mat4 out_vp)
+{
+    /* Compute 8 frustum corners in view space (right-handed, -Z forward) */
+    float nh = cascade_near * tan_half_fov;
+    float nw = nh * aspect;
+    float fh = cascade_far * tan_half_fov;
+    float fw = fh * aspect;
+
+    vec4 corners[8] = {
+        { -nw, -nh, -cascade_near, 1.0f },
+        {  nw, -nh, -cascade_near, 1.0f },
+        {  nw,  nh, -cascade_near, 1.0f },
+        { -nw,  nh, -cascade_near, 1.0f },
+        { -fw, -fh, -cascade_far, 1.0f },
+        {  fw, -fh, -cascade_far, 1.0f },
+        {  fw,  fh, -cascade_far, 1.0f },
+        { -fw,  fh, -cascade_far, 1.0f },
+    };
+
+    /* Transform corners to world space and compute center */
+    vec3 center = {0.0f, 0.0f, 0.0f};
+    for (int i = 0; i < 8; i++) {
+        glm_mat4_mulv(inv_view, corners[i], corners[i]);
+        center[0] += corners[i][0];
+        center[1] += corners[i][1];
+        center[2] += corners[i][2];
+    }
+
+    glm_vec3_scale(center, 1.0f / 8.0f, center);
+
+    /* Build light view matrix centered on the cascade frustum */
+    float shadow_distance = 200.0f;
+    vec3 light_pos;
+    glm_vec3_scale((float*)ray_dir, -shadow_distance, light_pos);
+    glm_vec3_add(light_pos, center, light_pos);
+
+    mat4 light_view;
+    glm_lookat(light_pos, center, (float*)up, light_view);
+
+    /* Transform corners to light space and compute tight AABB */
+    float min_x, max_x, min_y, max_y, min_z, max_z;
+    {
+        vec4 lc;
+        glm_mat4_mulv(light_view, corners[0], lc);
+        min_x = max_x = lc[0];
+        min_y = max_y = lc[1];
+        min_z = max_z = lc[2];
+    }
+
+    for (int i = 1; i < 8; i++) {
+        vec4 lc;
+        glm_mat4_mulv(light_view, corners[i], lc);
+        if (lc[0] < min_x) min_x = lc[0];
+        if (lc[0] > max_x) max_x = lc[0];
+        if (lc[1] < min_y) min_y = lc[1];
+        if (lc[1] > max_y) max_y = lc[1];
+        if (lc[2] < min_z) min_z = lc[2];
+        if (lc[2] > max_z) max_z = lc[2];
+    }
+
+    /* Push the light back so tall shadow casters remain in front. */
+    float z_push = max_z + shadow_distance;
+    if (z_push > 0.0f) {
+        light_view[3][2] -= z_push;
+        min_z -= z_push;
+        max_z -= z_push;
+    }
+
+    /* Use square extent for stable shadow map */
+    float half_x = (max_x - min_x) * 0.5f;
+    float half_y = (max_y - min_y) * 0.5f;
+    float extent = fmaxf(half_x, half_y);
+
+    /* Pad by one texel for snapping headroom */
+    extent += (2.0f * extent) / (float)cascade_size;
+
+    /* Re-center light view on the AABB center */
+    float aabb_cx = (min_x + max_x) * 0.5f;
+    float aabb_cy = (min_y + max_y) * 0.5f;
+    light_view[3][0] -= aabb_cx;
+    light_view[3][1] -= aabb_cy;
+
+    /* Extend far Z range to catch shadow casters behind the camera */
+    float z_range = max_z - min_z;
+    min_z -= z_range;
+
+    /* Snap light-space origin to texel boundaries to prevent shimmer */
+    float texel_size = (2.0f * extent) / (float)cascade_size;
+    vec4 origin = {0.0f, 0.0f, 0.0f, 1.0f};
+    glm_mat4_mulv(light_view, origin, origin);
+    origin[0] = floorf(origin[0] / texel_size) * texel_size;
+    origin[1] = floorf(origin[1] / texel_size) * texel_size;
+
+    vec4 snapped;
+    glm_mat4_mulv(light_view, (vec4){0.0f, 0.0f, 0.0f, 1.0f}, snapped);
+    light_view[3][0] += origin[0] - snapped[0];
+    light_view[3][1] += origin[1] - snapped[1];
+
+    /* Build orthographic projection */
+    float near_plane = 0.01f;
+    float far_plane = -min_z;
+    if (far_plane <= near_plane) {
+        far_plane = near_plane + 1.0f;
+    }
+
+    mat4 light_proj;
+    glm_ortho_rh_zo(
+        -extent, extent,
+        -extent, extent,
+        near_plane, far_plane,
+        light_proj);
+
+    glm_mat4_mul(light_proj, light_view, out_vp);
+}
+
 void flecsEngine_shadow_computeCascades(
     const ecs_world_t *world,
     const FlecsRenderView *view,
@@ -313,135 +437,10 @@ void flecsEngine_shadow_computeCascades(
         float cascade_near = (c == 0) ? near : splits[c - 1];
         float cascade_far = splits[c];
 
-        /* Compute 8 frustum corners in view space (right-handed, -Z forward) */
-        float nh = cascade_near * tan_half_fov;
-        float nw = nh * aspect;
-        float fh = cascade_far * tan_half_fov;
-        float fw = fh * aspect;
-
-        vec4 corners[8] = {
-            { -nw, -nh, -cascade_near, 1.0f },
-            {  nw, -nh, -cascade_near, 1.0f },
-            {  nw,  nh, -cascade_near, 1.0f },
-            { -nw,  nh, -cascade_near, 1.0f },
-            { -fw, -fh, -cascade_far, 1.0f },
-            {  fw, -fh, -cascade_far, 1.0f },
-            {  fw,  fh, -cascade_far, 1.0f },
-            { -fw,  fh, -cascade_far, 1.0f },
-        };
-
-        /* Transform corners to world space and compute center */
-        vec3 center = {0.0f, 0.0f, 0.0f};
-        for (int i = 0; i < 8; i++) {
-            glm_mat4_mulv(inv_view, corners[i], corners[i]);
-            center[0] += corners[i][0];
-            center[1] += corners[i][1];
-            center[2] += corners[i][2];
-        }
-
-        glm_vec3_scale(center, 1.0f / 8.0f, center);
-
-        /* Build light view matrix centered on the cascade frustum */
-        float shadow_distance = 200.0f;
-        vec3 light_pos;
-        glm_vec3_scale(ray_dir, -shadow_distance, light_pos);
-        glm_vec3_add(light_pos, center, light_pos);
-
-        mat4 light_view;
-        glm_lookat(light_pos, center, up, light_view);
-
-        /* Transform corners to light space and compute tight AABB */
-        float min_x, max_x, min_y, max_y, min_z, max_z;
-        {
-            vec4 lc;
-            glm_mat4_mulv(light_view, corners[0], lc);
-            min_x = max_x = lc[0];
-            min_y = max_y = lc[1];
-            min_z = max_z = lc[2];
-        }
-
-        for (int i = 1; i < 8; i++) {
-            vec4 lc;
-            glm_mat4_mulv(light_view, corners[i], lc);
-            if (lc[0] < min_x) min_x = lc[0];
-            if (lc[0] > max_x) max_x = lc[0];
-            if (lc[1] < min_y) min_y = lc[1];
-            if (lc[1] > max_y) max_y = lc[1];
-            if (lc[2] < min_z) min_z = lc[2];
-            if (lc[2] > max_z) max_z = lc[2];
-        }
-
-        /* Push the light back along its view direction so that tall
-         * shadow casters above the camera frustum remain in front of
-         * the light. Without this, objects extending above the frustum
-         * can end up behind the light (positive Z in light-view space)
-         * and get clipped by the orthographic projection. Pushing by
-         * shadow_distance ensures objects up to shadow_distance above
-         * the nearest frustum corner are captured. */
-        float z_push = max_z + shadow_distance;
-        if (z_push > 0.0f) {
-            light_view[3][2] -= z_push;
-            min_z -= z_push;
-            max_z -= z_push;
-        }
-
-        /* Use square extent for stable shadow map (avoids axis-dependent
-         * resolution differences and simplifies texel snapping). */
-        float half_x = (max_x - min_x) * 0.5f;
-        float half_y = (max_y - min_y) * 0.5f;
-        float extent = fmaxf(half_x, half_y);
-
-        /* Pad by one texel so the texel-snapping step below (which can
-         * shift the view by up to one texel) never pushes frustum corners
-         * outside the shadow map UV [0,1] range. Use the per-cascade
-         * effective size for correct texel calculations. */
-        uint32_t cascade_size = cascade_sizes[c];
-        extent += (2.0f * extent) / (float)cascade_size;
-
-        /* Re-center light view on the AABB center so the symmetric ortho
-         * projection [-extent, extent] fully covers the frustum slice.
-         * Without this, the AABB may be off-center from the light-space
-         * origin, causing pixels near cascade edges to fall outside the
-         * shadow map UV [0,1] range. */
-        float aabb_cx = (min_x + max_x) * 0.5f;
-        float aabb_cy = (min_y + max_y) * 0.5f;
-        light_view[3][0] -= aabb_cx;
-        light_view[3][1] -= aabb_cy;
-
-        /* Extend far Z range to catch shadow casters behind the camera */
-        float z_range = max_z - min_z;
-        min_z -= z_range;
-
-        /* Snap light-space origin to texel boundaries to prevent shimmer */
-        float texel_size = (2.0f * extent) / (float)cascade_size;
-        vec4 origin = {0.0f, 0.0f, 0.0f, 1.0f};
-        glm_mat4_mulv(light_view, origin, origin);
-        origin[0] = floorf(origin[0] / texel_size) * texel_size;
-        origin[1] = floorf(origin[1] / texel_size) * texel_size;
-
-        vec4 snapped;
-        glm_mat4_mulv(light_view, (vec4){0.0f, 0.0f, 0.0f, 1.0f}, snapped);
-        light_view[3][0] += origin[0] - snapped[0];
-        light_view[3][1] += origin[1] - snapped[1];
-
-        /* Build orthographic projection.
-         * Use a near plane close to the light to avoid clipping tall
-         * shadow casters that are closer to the light than the frustum
-         * corners. With Float32 depth, precision is sufficient. */
-        float near_plane = 0.01f;
-        float far_plane = -min_z;
-        if (far_plane <= near_plane) {
-            far_plane = near_plane + 1.0f;
-        }
-
-        mat4 light_proj;
-        glm_ortho_rh_zo(
-            -extent, extent,
-            -extent, extent,
-            near_plane, far_plane,
-            light_proj);
-
-        glm_mat4_mul(light_proj, light_view, out_light_vp[c]);
+        flecsEngine_shadow_computeSingleCascade(
+            ray_dir, up, inv_view, tan_half_fov, aspect,
+            cascade_near, cascade_far, cascade_sizes[c],
+            out_light_vp[c]);
     }
 }
 

@@ -247,15 +247,7 @@ static void flecsEngine_bloom_releaseResources(
     }
 }
 
-ECS_DTOR(FlecsBloomImpl, ptr, {
-    flecsEngine_bloom_releaseResources(ptr);
-})
-
-ECS_MOVE(FlecsBloomImpl, dst, src, {
-    flecsEngine_bloom_releaseResources(dst);
-    *dst = *src;
-    ecs_os_zeromem(src);
-})
+FLECS_ENGINE_IMPL_HOOKS(FlecsBloomImpl, flecsEngine_bloom_releaseResources)
 
 static bool flecsEngine_bloom_createTexture(
     const FlecsEngineImpl *engine,

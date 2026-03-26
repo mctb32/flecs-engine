@@ -288,15 +288,7 @@ static void flecsEngine_ssao_releaseResources(
     }
 }
 
-ECS_DTOR(FlecsSSAOImpl, ptr, {
-    flecsEngine_ssao_releaseResources(ptr);
-})
-
-ECS_MOVE(FlecsSSAOImpl, dst, src, {
-    flecsEngine_ssao_releaseResources(dst);
-    *dst = *src;
-    ecs_os_zeromem(src);
-})
+FLECS_ENGINE_IMPL_HOOKS(FlecsSSAOImpl, flecsEngine_ssao_releaseResources)
 
 static void flecsEngine_ssao_fillUniform(
     const ecs_world_t *world,

@@ -1,3 +1,6 @@
+#ifndef FLECS_ENGINE_UTILS_H
+#define FLECS_ENGINE_UTILS_H
+
 #include "types.h"
 
 void flecsEngine_registerVec3Type(
@@ -49,3 +52,5 @@ ecs_entity_t flecsEngine_vecVec2(
 
 ecs_entity_t flecsEngine_vecU32(
     ecs_world_t *world);
+
+#endif

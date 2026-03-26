@@ -1,70 +1,7 @@
 #include "geometry3.h"
+#include "geometry3_math.h"
 #include <math.h>
 #include <stdio.h>
-
-#define FLECS_GEOMETRY3_CYLINDER_SEGMENTS_MIN (3)
-#define FLECS_GEOMETRY3_CYLINDER_SEGMENTS_MAX_SMOOTH (16382)
-#define FLECS_GEOMETRY3_CYLINDER_SEGMENTS_MAX_FLAT (10922)
-#define FLECS_GEOMETRY3_CYLINDER_CACHE_SEGMENTS_MASK (0x7fffffffULL)
-#define FLECS_GEOMETRY3_CYLINDER_CACHE_SMOOTH_MASK (1ULL << 63)
-
-static int32_t flecsEngine_cylinder_segmentsNormalize(
-    int32_t segments,
-    bool smooth)
-{
-    int32_t max_segments = FLECS_GEOMETRY3_CYLINDER_SEGMENTS_MAX_FLAT;
-    if (smooth) {
-        max_segments = FLECS_GEOMETRY3_CYLINDER_SEGMENTS_MAX_SMOOTH;
-    }
-
-    if (segments < FLECS_GEOMETRY3_CYLINDER_SEGMENTS_MIN) {
-        return FLECS_GEOMETRY3_CYLINDER_SEGMENTS_MIN;
-    }
-    if (segments > max_segments) {
-        return max_segments;
-    }
-    return segments;
-}
-
-static uint32_t flecsEngine_cylinder_lengthBits(
-    float length)
-{
-    union {
-        float f;
-        uint32_t u;
-    } length_bits = { .f = length };
-
-    return length_bits.u;
-}
-
-static uint64_t flecsEngine_cylinder_cacheKey(
-    int32_t segments,
-    bool smooth,
-    float length)
-{
-    uint64_t key =
-        (((uint64_t)segments & FLECS_GEOMETRY3_CYLINDER_CACHE_SEGMENTS_MASK) << 32) |
-        (uint64_t)flecsEngine_cylinder_lengthBits(length);
-
-    if (smooth) {
-        key |= FLECS_GEOMETRY3_CYLINDER_CACHE_SMOOTH_MASK;
-    }
-
-    return key;
-}
-
-static ecs_entity_t flecsEngine_cylinder_findAsset(
-    const FlecsGeometry3Cache *ctx,
-    uint64_t key)
-{
-    ecs_map_val_t *entry = ecs_map_get(
-        &ctx->cylinder_cache, (ecs_map_key_t)key);
-    if (!entry) {
-        return 0;
-    }
-
-    return (ecs_entity_t)entry[0];
-}
 
 static void flecsEngine_cylinder_generateSmoothMesh(
     FlecsMesh3 *mesh,
@@ -318,13 +255,13 @@ static ecs_entity_t flecsEngine_cylinder_getAsset(
     bool smooth,
     float length)
 {
-    int32_t normalized_segments = flecsEngine_cylinder_segmentsNormalize(
-        segments, smooth);
-    uint64_t key = flecsEngine_cylinder_cacheKey(
+    int32_t normalized_segments = flecsEngine_segmentsNormalize(
+        segments, smooth, 3, 16382, 10922);
+    uint64_t key = flecsEngine_cacheKey(
         normalized_segments, smooth, length);
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
 
-    ecs_entity_t asset = flecsEngine_cylinder_findAsset(ctx, key);
+    ecs_entity_t asset = flecsEngine_findCachedAsset(&ctx->cylinder_cache, key);
     if (asset) {
         return asset;
     }
@@ -360,17 +297,17 @@ void FlecsCylinder_on_replace(
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        int32_t old_segments = flecsEngine_cylinder_segmentsNormalize(
-            old[i].segments, old[i].smooth);
-        int32_t new_segments = flecsEngine_cylinder_segmentsNormalize(
-            new[i].segments, new[i].smooth);
-        uint64_t old_key = flecsEngine_cylinder_cacheKey(
+        int32_t old_segments = flecsEngine_segmentsNormalize(
+            old[i].segments, old[i].smooth, 3, 16382, 10922);
+        int32_t new_segments = flecsEngine_segmentsNormalize(
+            new[i].segments, new[i].smooth, 3, 16382, 10922);
+        uint64_t old_key = flecsEngine_cacheKey(
             old_segments, old[i].smooth, old[i].length);
-        uint64_t new_key = flecsEngine_cylinder_cacheKey(
+        uint64_t new_key = flecsEngine_cacheKey(
             new_segments, new[i].smooth, new[i].length);
 
         if (old_key != new_key) {
-            ecs_entity_t old_asset = flecsEngine_cylinder_findAsset(ctx, old_key);
+            ecs_entity_t old_asset = flecsEngine_findCachedAsset(&ctx->cylinder_cache, old_key);
             if (old_asset) {
                 ecs_remove_pair(world, it->entities[i], EcsIsA, old_asset);
             }

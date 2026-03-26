@@ -90,15 +90,8 @@ static void flecsEngine_exponentialHeightFog_releaseResources(
     }
 }
 
-ECS_DTOR(FlecsExponentialHeightFogImpl, ptr, {
-    flecsEngine_exponentialHeightFog_releaseResources(ptr);
-})
-
-ECS_MOVE(FlecsExponentialHeightFogImpl, dst, src, {
-    flecsEngine_exponentialHeightFog_releaseResources(dst);
-    *dst = *src;
-    ecs_os_zeromem(src);
-})
+FLECS_ENGINE_IMPL_HOOKS(FlecsExponentialHeightFogImpl,
+    flecsEngine_exponentialHeightFog_releaseResources)
 
 static void flecsEngine_exponentialHeightFog_fillUniform(
     const ecs_world_t *world,

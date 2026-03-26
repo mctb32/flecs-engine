@@ -6,14 +6,13 @@
 #include "common/pbr_functions_wgsl.h"
 #include "common/shadow_wgsl.h"
 #include "common/pbr_lighting_wgsl.h"
+#include "common/ibl_bindings_wgsl.h"
+#include "common/gpu_material_wgsl.h"
 
 static const char *kShaderSource =
     FLECS_ENGINE_SHADER_COMMON_UNIFORMS_WGSL
-    "@group(1) @binding(0) var ibl_prefiltered_env : texture_cube<f32>;\n"
-    "@group(1) @binding(1) var ibl_sampler : sampler;\n"
-    "@group(1) @binding(2) var ibl_brdf_lut : texture_2d<f32>;\n"
+    FLECS_ENGINE_SHADER_COMMON_IBL_BINDINGS_WGSL
     FLECS_ENGINE_SHADER_COMMON_SHADOW_WGSL
-
     FLECS_ENGINE_SHADER_COMMON_CLUSTER_WGSL
 
     /* PBR texture bindings at group 2 */
@@ -23,14 +22,7 @@ static const char *kShaderSource =
     "@group(2) @binding(3) var normal_tex : texture_2d<f32>;\n"
     "@group(2) @binding(4) var tex_sampler : sampler;\n"
 
-    "struct GpuMaterial {\n"
-    "  color : u32,\n"
-    "  metallic : f32,\n"
-    "  roughness : f32,\n"
-    "  emissive_strength : f32,\n"
-    "  emissive_color : u32\n"
-    "};\n"
-    "@group(0) @binding(1) var<storage, read> materials : array<GpuMaterial>;\n"
+    FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_WGSL
 
     "struct VertexInput {\n"
     "  @location(0) pos : vec3<f32>,\n"

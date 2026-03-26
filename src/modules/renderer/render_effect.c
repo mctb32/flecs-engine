@@ -49,15 +49,7 @@ static void flecsEngine_renderEffect_release(
     }
 }
 
-ECS_DTOR(FlecsRenderEffectImpl, ptr, {
-    flecsEngine_renderEffect_release(ptr);
-})
-
-ECS_MOVE(FlecsRenderEffectImpl, dst, src, {
-    flecsEngine_renderEffect_release(dst);
-    *dst = *src;
-    ecs_os_zeromem(src);
-})
+FLECS_ENGINE_IMPL_HOOKS(FlecsRenderEffectImpl, flecsEngine_renderEffect_release)
 
 static bool flecsEngine_renderEffect_createInputSampler(
     const FlecsEngineImpl *engine,

@@ -1,74 +1,11 @@
 #include "geometry3.h"
+#include "geometry3_math.h"
 #include <math.h>
 #include <stdio.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
-
-#define FLECS_GEOMETRY3_CONE_SIDES_MIN (3)
-#define FLECS_GEOMETRY3_CONE_SIDES_MAX_SMOOTH (32766)
-#define FLECS_GEOMETRY3_CONE_SIDES_MAX_FLAT (16383)
-#define FLECS_GEOMETRY3_CONE_CACHE_SIDES_MASK (0x7fffffffULL)
-#define FLECS_GEOMETRY3_CONE_CACHE_SMOOTH_MASK (1ULL << 63)
-
-static int32_t flecsEngine_cone_sidesNormalize(
-    int32_t sides,
-    bool smooth)
-{
-    int32_t max_sides = FLECS_GEOMETRY3_CONE_SIDES_MAX_FLAT;
-    if (smooth) {
-        max_sides = FLECS_GEOMETRY3_CONE_SIDES_MAX_SMOOTH;
-    }
-
-    if (sides < FLECS_GEOMETRY3_CONE_SIDES_MIN) {
-        return FLECS_GEOMETRY3_CONE_SIDES_MIN;
-    }
-    if (sides > max_sides) {
-        return max_sides;
-    }
-    return sides;
-}
-
-static uint32_t flecsEngine_cone_lengthBits(
-    float length)
-{
-    union {
-        float f;
-        uint32_t u;
-    } length_bits = { .f = length };
-
-    return length_bits.u;
-}
-
-static uint64_t flecsEngine_cone_cacheKey(
-    int32_t sides,
-    bool smooth,
-    float length)
-{
-    uint64_t key =
-        (((uint64_t)sides & FLECS_GEOMETRY3_CONE_CACHE_SIDES_MASK) << 32) |
-        (uint64_t)flecsEngine_cone_lengthBits(length);
-
-    if (smooth) {
-        key |= FLECS_GEOMETRY3_CONE_CACHE_SMOOTH_MASK;
-    }
-
-    return key;
-}
-
-static ecs_entity_t flecsEngine_cone_findAsset(
-    const FlecsGeometry3Cache *ctx,
-    uint64_t key)
-{
-    ecs_map_val_t *entry = ecs_map_get(
-        &ctx->cone_cache, (ecs_map_key_t)key);
-    if (!entry) {
-        return 0;
-    }
-
-    return (ecs_entity_t)entry[0];
-}
 
 static void flecsEngine_cone_generateFlatMesh(
     FlecsMesh3 *mesh,
@@ -332,13 +269,13 @@ static ecs_entity_t flecsEngine_cone_getEntity(
     bool smooth,
     float length)
 {
-    int32_t normalized_sides = flecsEngine_cone_sidesNormalize(
-        sides, smooth);
-    uint64_t key = flecsEngine_cone_cacheKey(
+    int32_t normalized_sides = flecsEngine_segmentsNormalize(
+        sides, smooth, 3, 32766, 16383);
+    uint64_t key = flecsEngine_cacheKey(
         normalized_sides, smooth, length);
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
 
-    ecs_entity_t asset = flecsEngine_cone_findAsset(ctx, key);
+    ecs_entity_t asset = flecsEngine_findCachedAsset(&ctx->cone_cache, key);
     if (asset) {
         return asset;
     }
@@ -381,17 +318,17 @@ void FlecsCone_on_replace(
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        int32_t old_sides = flecsEngine_cone_sidesNormalize(
-            old[i].segments, old[i].smooth);
-        int32_t new_sides = flecsEngine_cone_sidesNormalize(
-            new[i].segments, new[i].smooth);
-        uint64_t old_key = flecsEngine_cone_cacheKey(
+        int32_t old_sides = flecsEngine_segmentsNormalize(
+            old[i].segments, old[i].smooth, 3, 32766, 16383);
+        int32_t new_sides = flecsEngine_segmentsNormalize(
+            new[i].segments, new[i].smooth, 3, 32766, 16383);
+        uint64_t old_key = flecsEngine_cacheKey(
             old_sides, old[i].smooth, old[i].length);
-        uint64_t new_key = flecsEngine_cone_cacheKey(
+        uint64_t new_key = flecsEngine_cacheKey(
             new_sides, new[i].smooth, new[i].length);
 
         if (old_key != new_key) {
-            ecs_entity_t old_asset = flecsEngine_cone_findAsset(ctx, old_key);
+            ecs_entity_t old_asset = flecsEngine_findCachedAsset(&ctx->cone_cache, old_key);
             if (old_asset) {
                 ecs_remove_pair(world, it->entities[i], EcsIsA, old_asset);
             }

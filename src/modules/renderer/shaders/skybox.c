@@ -1,12 +1,11 @@
 #include "shaders.h"
 #include "../renderer.h"
 #include "common/uniforms_wgsl.h"
+#include "common/ibl_bindings_wgsl.h"
 
 static const char *kShaderSource =
     FLECS_ENGINE_SHADER_COMMON_UNIFORMS_WGSL
-    "@group(1) @binding(0) var ibl_prefiltered_env : texture_cube<f32>;\n"
-    "@group(1) @binding(1) var ibl_sampler : sampler;\n"
-    "@group(1) @binding(2) var ibl_brdf_lut : texture_2d<f32>;\n"
+    FLECS_ENGINE_SHADER_COMMON_IBL_BINDINGS_WGSL
     "struct VertexInput {\n"
     "  @location(0) pos : vec3<f32>,\n"
     "  @location(1) nrm : vec3<f32>,\n"

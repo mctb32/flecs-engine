@@ -30,15 +30,7 @@ static void flecsShaderImplRelease(
     }
 }
 
-ECS_DTOR(FlecsShaderImpl, ptr, {
-    flecsShaderImplRelease(ptr);
-})
-
-ECS_MOVE(FlecsShaderImpl, dst, src, {
-    flecsShaderImplRelease(dst);
-    *dst = *src;
-    ecs_os_zeromem(src);
-})
+FLECS_ENGINE_IMPL_HOOKS(FlecsShaderImpl, flecsShaderImplRelease)
 
 static bool flecsEngine_shader_compile(
     ecs_world_t *world,
@@ -73,6 +65,12 @@ static bool flecsEngine_shader_compile(
         ecs_os_free(name);
         return false;
     }
+
+    /* Detect shader features from source once at compile time */
+    shader_impl->uses_ibl = flecsEngine_shader_usesIbl(shader);
+    shader_impl->uses_shadow = flecsEngine_shader_usesShadow(shader);
+    shader_impl->uses_cluster = flecsEngine_shader_usesCluster(shader);
+    shader_impl->uses_textures = flecsEngine_shader_usesTextures(shader);
 
     return true;
 }

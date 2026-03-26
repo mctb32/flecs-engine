@@ -1,57 +1,7 @@
 #include "geometry3.h"
+#include "geometry3_math.h"
 #include <math.h>
 #include <stdio.h>
-
-#define FLECS_GEOMETRY3_BEVEL_SEGMENTS_MIN (1)
-#define FLECS_GEOMETRY3_BEVEL_SEGMENTS_MAX_SMOOTH (32766)
-#define FLECS_GEOMETRY3_BEVEL_SEGMENTS_MAX_FLAT (10922)
-#define FLECS_GEOMETRY3_BEVEL_CACHE_SEGMENTS_MASK (0x7fffffffULL)
-#define FLECS_GEOMETRY3_BEVEL_CACHE_SMOOTH_MASK (1ULL << 63)
-
-static int32_t flecsEngine_bevel_segmentsNormalize(
-    int32_t segments,
-    bool smooth)
-{
-    int32_t max_segments = FLECS_GEOMETRY3_BEVEL_SEGMENTS_MAX_FLAT;
-    if (smooth) {
-        max_segments = FLECS_GEOMETRY3_BEVEL_SEGMENTS_MAX_SMOOTH;
-    }
-
-    if (segments < FLECS_GEOMETRY3_BEVEL_SEGMENTS_MIN) {
-        return FLECS_GEOMETRY3_BEVEL_SEGMENTS_MIN;
-    }
-    if (segments > max_segments) {
-        return max_segments;
-    }
-    return segments;
-}
-
-static uint64_t flecsEngine_bevel_cacheKey(
-    int32_t segments,
-    bool smooth)
-{
-    uint64_t key =
-        ((uint64_t)segments & FLECS_GEOMETRY3_BEVEL_CACHE_SEGMENTS_MASK) << 32;
-
-    if (smooth) {
-        key |= FLECS_GEOMETRY3_BEVEL_CACHE_SMOOTH_MASK;
-    }
-
-    return key;
-}
-
-static ecs_entity_t flecsEngine_bevel_findAsset(
-    const FlecsGeometry3Cache *ctx,
-    uint64_t key)
-{
-    ecs_map_val_t *entry = ecs_map_get(
-        &ctx->bevel_cache, (ecs_map_key_t)key);
-    if (!entry) {
-        return 0;
-    }
-
-    return (ecs_entity_t)entry[0];
-}
 
 static void flecsEngine_bevel_generateSmoothMesh(
     FlecsMesh3 *mesh,
@@ -189,13 +139,13 @@ static ecs_entity_t flecsEngine_bevel_getAsset(
     int32_t segments,
     bool smooth)
 {
-    int32_t normalized_segments = flecsEngine_bevel_segmentsNormalize(
-        segments, smooth);
-    uint64_t key = flecsEngine_bevel_cacheKey(
+    int32_t normalized_segments = flecsEngine_segmentsNormalize(
+        segments, smooth, 1, 32766, 10922);
+    uint64_t key = flecsEngine_cacheKeySimple(
         normalized_segments, smooth);
     FlecsGeometry3Cache *ctx = ecs_singleton_ensure(world, FlecsGeometry3Cache);
 
-    ecs_entity_t asset = flecsEngine_bevel_findAsset(ctx, key);
+    ecs_entity_t asset = flecsEngine_findCachedAsset(&ctx->bevel_cache, key);
     if (asset) {
         return asset;
     }
@@ -239,17 +189,17 @@ void FlecsBevel_on_replace(
     ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        int32_t old_segments = flecsEngine_bevel_segmentsNormalize(
-            old[i].segments, old[i].smooth);
-        int32_t new_segments = flecsEngine_bevel_segmentsNormalize(
-            new[i].segments, new[i].smooth);
-        uint64_t old_key = flecsEngine_bevel_cacheKey(
+        int32_t old_segments = flecsEngine_segmentsNormalize(
+            old[i].segments, old[i].smooth, 1, 32766, 10922);
+        int32_t new_segments = flecsEngine_segmentsNormalize(
+            new[i].segments, new[i].smooth, 1, 32766, 10922);
+        uint64_t old_key = flecsEngine_cacheKeySimple(
             old_segments, old[i].smooth);
-        uint64_t new_key = flecsEngine_bevel_cacheKey(
+        uint64_t new_key = flecsEngine_cacheKeySimple(
             new_segments, new[i].smooth);
 
         if (old_key != new_key) {
-            ecs_entity_t old_asset = flecsEngine_bevel_findAsset(ctx, old_key);
+            ecs_entity_t old_asset = flecsEngine_findCachedAsset(&ctx->bevel_cache, old_key);
             if (old_asset) {
                 ecs_remove_pair(world, it->entities[i], EcsIsA, old_asset);
             }
