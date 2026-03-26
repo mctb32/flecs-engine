@@ -45,6 +45,11 @@ You should probably not use this, unless:
 - tinyexr
 - stb_image
 
+## Assets used
+- [Kronos sample assets](https://github.com/KhronosGroup/glTF-Sample-Assets)
+- [Niagra bistro](https://github.com/zeux/niagara_bistro)
+- [Kenney](https://kenney.nl/)
+
 ## Screenshots
 <img width="1392" height="940" alt="Screenshot 2026-03-07 at 2 00 34 PM" src="https://github.com/user-attachments/assets/4cf79f25-273c-4c50-970a-ae89603f6664" />
 <img width="1392" height="940" alt="Screenshot 2026-03-07 at 2 00 26 PM" src="https://github.com/user-attachments/assets/9fd58e3b-b369-4558-89ca-c21472931bf2" />
