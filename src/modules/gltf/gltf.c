@@ -701,7 +701,7 @@ void FlecsEngineGltfImport(
         }
     });
 
-    ecs_add_pair(world, ecs_id(FlecsGltf), EcsOnInstantiate, EcsInherit);
+    ecs_add_pair(world, ecs_id(FlecsGltf), EcsOnInstantiate, EcsDontInherit);
 
     ecs_set_hooks(world, FlecsGltf, {
         .ctor = flecs_default_ctor,
