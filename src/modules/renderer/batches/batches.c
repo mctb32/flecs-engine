@@ -2,6 +2,7 @@
 #include <string.h>
 #include "batches.h"
 #include "../frustum_cull.h"
+#include "../../../tracy_hooks.h"
 
 /* --- Shared buffer lifecycle --- */
 
@@ -154,8 +155,10 @@ void flecsEngine_batch_buffers_upload(
     const FlecsEngineImpl *engine,
     const flecsEngine_batch_buffers_t *buf)
 {
+    FLECS_TRACY_ZONE_BEGIN("BatchUpload");
     int32_t count = buf->count;
     if (!count) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -195,6 +198,7 @@ void flecsEngine_batch_buffers_upload(
             buf->cpu_material_ids,
             (uint64_t)count * sizeof(FlecsMaterialId));
     }
+    FLECS_TRACY_ZONE_END;
 }
 
 /* --- Per-group batch lifecycle --- */
@@ -320,6 +324,7 @@ void flecsEngine_batch_extractInstances(
     const FlecsRenderBatch *batch,
     flecsEngine_batch_t *ctx)
 {
+    FLECS_TRACY_ZONE_BEGIN("ExtractInstances");
     flecsEngine_batch_buffers_t *buf = ctx->buffers;
     ecs_assert(buf != NULL, ECS_INTERNAL_ERROR, NULL);
 
@@ -439,6 +444,7 @@ void flecsEngine_batch_extractInstances(
 
         ctx->count += added;
     }
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_primitive_extract(

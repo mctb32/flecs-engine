@@ -2,6 +2,7 @@
 #include "../shaders/shaders.h"
 #include "../../geometry3/geometry3.h"
 #include "batches.h"
+#include "../../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 /* --- Shared grouped-mesh infrastructure (used by textured_mesh.c too) --- */
@@ -92,6 +93,7 @@ void flecsEngine_mesh_extract(
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch)
 {
+    FLECS_TRACY_ZONE_BEGIN("MeshExtract");
     flecsEngine_mesh_ctx_t *mctx = batch->ctx;
     flecsEngine_batch_buffers_t *shared = &mctx->buffers;
 
@@ -127,6 +129,7 @@ redo: {
     }
 
     flecsEngine_batch_buffers_upload(engine, shared);
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_mesh_render(

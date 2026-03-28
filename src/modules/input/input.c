@@ -1,5 +1,6 @@
 #define FLECS_ENGINE_INPUT_IMPL
 #include "input.h"
+#include "../../tracy_hooks.h"
 
 ECS_COMPONENT_DECLARE(FlecsInput);
 extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);
@@ -256,8 +257,10 @@ static void flecsEngine_input_bindWindow(
 static void FlecsReadInputs(
     ecs_iter_t *it)
 {
+    FLECS_TRACY_ZONE_BEGIN("ReadInputs");
     const FlecsEngineImpl *engine = ecs_singleton_get(it->world, FlecsEngineImpl);
     if (!engine || !engine->window) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -288,6 +291,7 @@ static void FlecsReadInputs(
 
     input->mouse.view.x = input->mouse.wnd.x - ((float)wnd_w * 0.5f);
     input->mouse.view.y = input->mouse.wnd.y - ((float)wnd_h * 0.5f);
+    FLECS_TRACY_ZONE_END;
 }
 
 void FlecsEngineInputImport(

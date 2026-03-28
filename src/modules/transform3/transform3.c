@@ -2,6 +2,7 @@
 
 #define FLECS_ENGINE_TRANSFORM3_IMPL
 #include "transform3.h"
+#include "../../tracy_hooks.h"
 
 ECS_COMPONENT_DECLARE(FlecsPosition3);
 ECS_COMPONENT_DECLARE(FlecsRotation3);
@@ -140,6 +141,7 @@ static bool flecsEngine_transform3_parent(ecs_iter_t *it) {
 }
 
 static void FlecsTransform3(ecs_iter_t *it) {
+    FLECS_TRACY_ZONE_BEGIN("Transform3");
     ecs_world_t *world = it->world;
     flecs_transform3_queries_t *ctx = it->ctx;
 
@@ -153,18 +155,20 @@ static void FlecsTransform3(ecs_iter_t *it) {
         } {
             ecs_iter_t it = ecs_query_iter(world, ctx->q_parent);
             ecs_iter_set_group(&it, depth);
-            has_results |= flecsEngine_transform3_parent(&it); 
+            has_results |= flecsEngine_transform3_parent(&it);
         }
 
         if (!has_results) {
             break;
         }
     }
+    FLECS_TRACY_ZONE_END;
 }
 
 static void FlecsRotationFromLookAt(
     ecs_iter_t *it)
 {
+    FLECS_TRACY_ZONE_BEGIN("RotationFromLookAt");
     const FlecsPosition3 *p = ecs_field(it, FlecsPosition3, 0);
     const FlecsLookAt *lookat = ecs_field(it, FlecsLookAt, 1);
     FlecsRotation3 *r = ecs_field(it, FlecsRotation3, 2);
@@ -184,6 +188,7 @@ static void FlecsRotationFromLookAt(
             r[i].z = 0.0f;
         }
     }
+    FLECS_TRACY_ZONE_END;
 }
 
 void FlecsEngineTransform3Import(

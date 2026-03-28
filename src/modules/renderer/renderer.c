@@ -376,8 +376,10 @@ static void FlecsEngineRender(
 
     const FlecsEngineSurfaceInterface *surface_impl = impl->surface_impl;
 
+    FLECS_TRACY_ZONE_BEGIN_N(__prepare, "PrepareFrame");
     int prep_result = flecsEngine_surfaceInterface_prepareFrame(
         surface_impl, it->world, impl);
+    FLECS_TRACY_ZONE_END_N(__prepare);
     if (prep_result > 0) {
         FLECS_TRACY_ZONE_END;
         return;
@@ -434,8 +436,10 @@ static void FlecsEngineRender(
     WGPUCommandEncoder encoder = NULL;
     WGPUCommandBuffer cmd = NULL;
 
+    FLECS_TRACY_ZONE_BEGIN_N(__acquire, "AcquireFrame");
     int target_result = flecsEngine_surfaceInterface_acquireFrame(
         surface_impl, impl, &frame_target);
+    FLECS_TRACY_ZONE_END_N(__acquire);
     if (target_result > 0) {
         FLECS_TRACY_ZONE_END;
         return;
@@ -476,6 +480,7 @@ static void FlecsEngineRender(
         goto cleanup;
     }
 
+    FLECS_TRACY_ZONE_BEGIN_N(__submit, "SubmitFrame");
     wgpuQueueSubmit(impl->queue, 1, &cmd);
 
     if (flecsEngine_surfaceInterface_submitFrame(
@@ -483,6 +488,7 @@ static void FlecsEngineRender(
     {
         failed = true;
     }
+    FLECS_TRACY_ZONE_END_N(__submit);
 
 cleanup:
     if (cmd) {

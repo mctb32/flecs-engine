@@ -7,10 +7,16 @@
       TracyCZoneN(__tracy_zone_ctx, name, 1)
   #define FLECS_TRACY_ZONE_END \
       TracyCZoneEnd(__tracy_zone_ctx)
+  #define FLECS_TRACY_ZONE_BEGIN_N(id, name) \
+      TracyCZoneN(id, name, 1)
+  #define FLECS_TRACY_ZONE_END_N(id) \
+      TracyCZoneEnd(id)
   #define FLECS_TRACY_FRAME_MARK TracyCFrameMark
 #else
   #define FLECS_TRACY_ZONE_BEGIN(name) (void)0
   #define FLECS_TRACY_ZONE_END (void)0
+  #define FLECS_TRACY_ZONE_BEGIN_N(id, name) (void)0
+  #define FLECS_TRACY_ZONE_END_N(id) (void)0
   #define FLECS_TRACY_FRAME_MARK (void)0
 #endif
 
