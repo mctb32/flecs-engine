@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "../engine/engine.h"
+#include "../../tracy_hooks.h"
 
 #define FLECS_ENGINE_RENDERER_IMPL
 #define FLECS_ENGINE_RENDERER_IMPL_IMPL
@@ -355,18 +356,22 @@ error:
 static void FlecsEngineExtract(
     ecs_iter_t *it)
 {
+    FLECS_TRACY_ZONE_BEGIN("Extract");
     FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
 
     if (!impl->device || !impl->queue) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
     flecsEngine_renderView_extractAll(it->world, impl);
+    FLECS_TRACY_ZONE_END;
 }
 
 static void FlecsEngineRender(
     ecs_iter_t *it)
 {
+    FLECS_TRACY_ZONE_BEGIN("Render");
     FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
 
     const FlecsEngineSurfaceInterface *surface_impl = impl->surface_impl;
@@ -374,15 +379,18 @@ static void FlecsEngineRender(
     int prep_result = flecsEngine_surfaceInterface_prepareFrame(
         surface_impl, it->world, impl);
     if (prep_result > 0) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
     if (prep_result < 0) {
         flecsEngine_surfaceInterface_onFrameFailed(
             surface_impl, it->world, impl);
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
     if (!impl->width || !impl->height) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -399,6 +407,7 @@ static void FlecsEngineRender(
     if (flecsEngine_ensureDepthResources(impl)) {
         flecsEngine_surfaceInterface_onFrameFailed(
             surface_impl, it->world, impl);
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -411,6 +420,7 @@ static void FlecsEngineRender(
         if (flecsEngine_ensureMsaaResources(impl)) {
             flecsEngine_surfaceInterface_onFrameFailed(
                 surface_impl, it->world, impl);
+            FLECS_TRACY_ZONE_END;
             return;
         }
 
@@ -427,6 +437,7 @@ static void FlecsEngineRender(
     int target_result = flecsEngine_surfaceInterface_acquireFrame(
         surface_impl, impl, &frame_target);
     if (target_result > 0) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -487,6 +498,9 @@ cleanup:
         flecsEngine_surfaceInterface_onFrameFailed(
             surface_impl, it->world, impl);
     }
+
+    FLECS_TRACY_FRAME_MARK;
+    FLECS_TRACY_ZONE_END;
 }
 
 void FlecsEngineRendererImport(

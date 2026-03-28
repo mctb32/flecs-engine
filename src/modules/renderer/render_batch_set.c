@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 static WGPURenderPassEncoder flecsEngine_renderBatch_beginPass(
@@ -124,6 +125,7 @@ void flecsEngine_renderView_extractBatches(
     FlecsEngineImpl *engine,
     const FlecsRenderView *view)
 {
+    FLECS_TRACY_ZONE_BEGIN("ExtractBatches");
     (void)view;
 
     const FlecsRenderBatchSet *batch_set = ecs_get(
@@ -132,6 +134,7 @@ void flecsEngine_renderView_extractBatches(
 
     flecsEngine_renderBatch_visitSet(
         world, engine, batch_set, flecsEngine_renderBatch_extractVisitor, NULL);
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderView_renderShadow(
@@ -141,7 +144,9 @@ void flecsEngine_renderView_renderShadow(
     const FlecsRenderView *view,
     WGPUCommandEncoder encoder)
 {
+    FLECS_TRACY_ZONE_BEGIN("ShadowPass");
     if (!engine->shadow.texture_view || !view->light) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -230,6 +235,7 @@ void flecsEngine_renderView_renderShadow(
     }
 
     engine->shadow.in_pass = false;
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderView_renderBatches(
@@ -240,6 +246,7 @@ void flecsEngine_renderView_renderBatches(
     const FlecsRenderViewImpl *viewImpl,
     WGPUCommandEncoder encoder)
 {
+    FLECS_TRACY_ZONE_BEGIN("RenderBatches");
     const FlecsRenderBatchSet *batch_set = ecs_get(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
@@ -269,4 +276,5 @@ void flecsEngine_renderView_renderBatches(
 
     wgpuRenderPassEncoderEnd(batch_pass);
     wgpuRenderPassEncoderRelease(batch_pass);
+    FLECS_TRACY_ZONE_END;
 }

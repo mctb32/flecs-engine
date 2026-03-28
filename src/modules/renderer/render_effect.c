@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 static WGPURenderPipeline flecsEngine_renderEffect_createPipeline(
@@ -183,6 +184,7 @@ void flecsEngine_renderView_renderEffects(
     WGPUTextureView view_texture,
     WGPUCommandEncoder encoder)
 {
+    FLECS_TRACY_ZONE_BEGIN("RenderEffects");
     int32_t effect_count = ecs_vec_count(&view->effects);
     const flecs_render_view_effect_t *effects = NULL;
 
@@ -222,6 +224,7 @@ void flecsEngine_renderView_renderEffects(
         wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
         wgpuRenderPassEncoderEnd(pass);
         wgpuRenderPassEncoderRelease(pass);
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -274,6 +277,7 @@ void flecsEngine_renderView_renderEffects(
                 load_op);
             if (!render_ok) {
                 ecs_err("failed to render effect");
+                FLECS_TRACY_ZONE_END;
                 return;
             }
             continue;
@@ -326,6 +330,7 @@ void flecsEngine_renderView_renderEffects(
         wgpuRenderPassEncoderRelease(pass);
         wgpuBindGroupRelease(bg);
     }
+    FLECS_TRACY_ZONE_END;
 }
 
 static WGPURenderPipeline flecsEngine_renderEffect_createPipeline(

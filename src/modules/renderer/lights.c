@@ -2,12 +2,14 @@
 #include <string.h>
 
 #include "renderer.h"
+#include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 void flecsEngine_setupLights(
     const ecs_world_t *world,
     FlecsEngineImpl *engine)
 {
+    FLECS_TRACY_ZONE_BEGIN("SetupLights");
     int32_t count = 0;
 
     /* Point lights */
@@ -106,4 +108,5 @@ void flecsEngine_setupLights(
     }
 
     engine->lighting.light_count = count;
+    FLECS_TRACY_ZONE_END;
 }

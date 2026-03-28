@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "renderer.h"
+#include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 #define FLECS_ENGINE_CLUSTER_INITIAL_LIGHTS 32
@@ -319,7 +320,9 @@ void flecsEngine_cluster_build(
     FlecsEngineImpl *engine,
     const FlecsRenderView *view)
 {
+    FLECS_TRACY_ZONE_BEGIN("ClusterBuild");
     if (!engine->lighting.cluster_info_buffer || !view->camera) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -327,6 +330,7 @@ void flecsEngine_cluster_build(
     const FlecsCameraImpl *cam_impl = ecs_get(
         world, view->camera, FlecsCameraImpl);
     if (!cam || !cam_impl) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -338,7 +342,7 @@ void flecsEngine_cluster_build(
     float aspect = (engine->actual_width > 0 && engine->actual_height > 0)
         ? (float)engine->actual_width / (float)engine->actual_height : 1.0f;
     float log_ratio = logf(far / near);
-    if (log_ratio < 1e-6f) return;
+    if (log_ratio < 1e-6f) { FLECS_TRACY_ZONE_END; return; }
 
     const float (*view_mat)[4] = (const float (*)[4])cam_impl->view;
 
@@ -416,4 +420,5 @@ void flecsEngine_cluster_build(
             0, engine->lighting.cpu_lights,
             (uint64_t)light_count * sizeof(FlecsGpuLight));
     }
+    FLECS_TRACY_ZONE_END;
 }

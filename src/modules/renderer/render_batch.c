@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "renderer.h"
+#include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 ECS_COMPONENT_DECLARE(FlecsRenderBatch);
@@ -821,11 +822,13 @@ void flecsEngine_renderBatch_render(
     const FlecsRenderView *view,
     ecs_entity_t batch_entity)
 {
+    FLECS_TRACY_ZONE_BEGIN("BatchRender");
     const FlecsRenderBatch *batch = ecs_get(
         world, batch_entity, FlecsRenderBatch);
     FlecsRenderBatchImpl *impl = ecs_get_mut(
         world, batch_entity, FlecsRenderBatchImpl);
     if (!batch || !impl) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -875,6 +878,7 @@ void flecsEngine_renderBatch_render(
     }
 
     batch->callback(world, engine, pass, batch);
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderBatch_extract(
@@ -882,13 +886,16 @@ void flecsEngine_renderBatch_extract(
     FlecsEngineImpl *engine,
     ecs_entity_t batch_entity)
 {
+    FLECS_TRACY_ZONE_BEGIN("BatchExtract");
     const FlecsRenderBatch *batch = ecs_get(
         world, batch_entity, FlecsRenderBatch);
     if (!batch || !batch->extract_callback) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
     batch->extract_callback(world, engine, batch);
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderBatch_renderShadow(
@@ -897,11 +904,13 @@ void flecsEngine_renderBatch_renderShadow(
     const WGPURenderPassEncoder pass,
     ecs_entity_t batch_entity)
 {
+    FLECS_TRACY_ZONE_BEGIN("BatchShadow");
     const FlecsRenderBatch *batch = ecs_get(
         world, batch_entity, FlecsRenderBatch);
     const FlecsRenderBatchImpl *impl = ecs_get(
         world, batch_entity, FlecsRenderBatchImpl);
     if (!batch || !impl || !impl->pipeline_shadow || !impl->uses_shadow) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -917,6 +926,7 @@ void flecsEngine_renderBatch_renderShadow(
         0, NULL);
 
     batch->callback(world, engine, pass, batch);
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderBatch_register(

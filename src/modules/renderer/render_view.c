@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "frustum_cull.h"
+#include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 ECS_COMPONENT_DECLARE(flecs_engine_background_t);
@@ -196,6 +197,7 @@ static void flecsEngine_renderView_render(
     WGPUCommandEncoder encoder,
     WGPUTextureView view_texture)
 {
+    FLECS_TRACY_ZONE_BEGIN("RenderView");
     engine->last_pipeline = NULL;
 
     int32_t effect_count = ecs_vec_count(&view->effects);
@@ -206,6 +208,7 @@ static void flecsEngine_renderView_render(
     if (flecsEngine_renderView_ensureTargets(engine, impl, target_count))
     {
         ecs_err("failed to allocate effect render targets");
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -241,6 +244,7 @@ static void flecsEngine_renderView_render(
 
     flecsEngine_renderView_renderEffects(
         world, view_entity, engine, view, impl, view_texture, encoder);
+    FLECS_TRACY_ZONE_END;
 }
 
 static void flecsEngine_renderView_extract(
@@ -250,6 +254,7 @@ static void flecsEngine_renderView_extract(
     const FlecsRenderView *view,
     FlecsRenderViewImpl *impl)
 {
+    FLECS_TRACY_ZONE_BEGIN("ExtractView");
     (void)impl;
 
     /* Rebuild the sky background HDRI if the view's background colors
@@ -300,6 +305,7 @@ static void flecsEngine_renderView_extract(
     }
 
     flecsEngine_renderView_extractBatches(world, view_entity, engine, view);
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderView_extractAll(

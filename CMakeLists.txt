@@ -6,6 +6,8 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(FLECS_ENGINE_TRACY "Enable Tracy profiler integration" OFF)
+
 # Release build: highest optimization + link-time optimization
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" FORCE)
@@ -151,6 +153,12 @@ target_include_directories(flecs_engine PRIVATE
   ${tinyexr_SOURCE_DIR}/deps/miniz
   ${cgltf_SOURCE_DIR}
 )
+
+if(FLECS_ENGINE_TRACY AND NOT EMSCRIPTEN)
+  find_package(Tracy REQUIRED)
+  target_link_libraries(flecs_engine PRIVATE Tracy::TracyClient)
+  target_compile_definitions(flecs_engine PRIVATE TRACY_ENABLE FLECS_ENGINE_TRACY)
+endif()
 
 if(EMSCRIPTEN)
   target_link_libraries(flecs_engine PRIVATE cglm flecs_static)

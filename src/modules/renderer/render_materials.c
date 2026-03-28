@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "renderer.h"
+#include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 static void flecsEngine_material_ensureBufferCapacity(
@@ -73,12 +74,15 @@ void flecsEngine_material_uploadBuffer(
     const ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
+    FLECS_TRACY_ZONE_BEGIN("MaterialUpload");
     if (impl->materials.last_id == impl->materials.next_id) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
     impl->materials.count = 0;
     if (!impl->materials.query || !impl->queue) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -141,6 +145,7 @@ redo: {
         }
 
         if (!required_count) {
+            FLECS_TRACY_ZONE_END;
             return;
         }
 
@@ -153,4 +158,5 @@ redo: {
         impl->materials.count = required_count;
         impl->materials.last_id = impl->materials.next_id;
     }
+    FLECS_TRACY_ZONE_END;
 }
