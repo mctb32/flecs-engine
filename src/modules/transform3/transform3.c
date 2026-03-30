@@ -29,15 +29,15 @@ static void flecsEngine_transform3_rotationAndScale(
     if (r) {
         if (ecs_field_is_self(it, 2)) {
             for (i = 0; i < it->count; i ++) {
-                glm_rotate(t[i].m, r[i].x, (vec3){1.0, 0.0, 0.0});
-                glm_rotate(t[i].m, r[i].y, (vec3){0.0, 1.0, 0.0});
-                glm_rotate(t[i].m, r[i].z, (vec3){0.0, 0.0, 1.0});
+                CGLM_ALIGN_MAT mat4 rot;
+                glm_euler_xyz(*(vec3*)&r[i], rot);
+                glm_mul_rot(t[i].m, rot, t[i].m);
             }
         } else {
+            CGLM_ALIGN_MAT mat4 rot;
+            glm_euler_xyz(*(vec3*)r, rot);
             for (i = 0; i < it->count; i ++) {
-                glm_rotate(t[i].m, r->x, (vec3){1.0, 0.0, 0.0});
-                glm_rotate(t[i].m, r->y, (vec3){0.0, 1.0, 0.0});
-                glm_rotate(t[i].m, r->z, (vec3){0.0, 0.0, 1.0});
+                glm_mul_rot(t[i].m, rot, t[i].m);
             }
         }
     }
