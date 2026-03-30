@@ -254,6 +254,7 @@ void FlecsEngineImport(
     ECS_COMPONENT_DEFINE(world, FlecsEngineImpl);
 
     ecs_set_hooks(world, FlecsEngineImpl, {
+        .ctor = flecs_default_ctor,
         .on_remove = flecsEngine_destroy
     });
 
