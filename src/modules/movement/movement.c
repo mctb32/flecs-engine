@@ -53,6 +53,12 @@ void FlecsEngineMovementImport(
     ecs_add_pair(world,
         ecs_id(FlecsAngularVelocity3), EcsWith,
         ecs_id(FlecsRotation3));
+    ecs_add_pair(world, 
+        ecs_id(FlecsVelocity3), EcsWith,
+        ecs_id(FlecsDynamicTransform));
+    ecs_add_pair(world, 
+        ecs_id(FlecsAngularVelocity3), EcsWith,
+        ecs_id(FlecsDynamicTransform));
 
     ECS_SYSTEM(world, FlecsMove3, EcsPostUpdate,
         [inout] flecs.engine.transform3.Position3, [in] Velocity3);

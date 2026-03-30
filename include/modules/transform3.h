@@ -16,6 +16,8 @@ extern ECS_COMPONENT_DECLARE(FlecsRotation3);
 extern ECS_COMPONENT_DECLARE(FlecsScale3);
 extern ECS_COMPONENT_DECLARE(FlecsLookAt);
 
+extern ECS_TAG_DECLARE(FlecsDynamicTransform);
+
 ECS_STRUCT(FlecsWorldTransform3, {
     mat4 m;
 });
