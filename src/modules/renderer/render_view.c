@@ -14,7 +14,6 @@ ECS_CTOR(FlecsRenderView, ptr, {
     ptr->camera = 0;
     ptr->light = 0;
     ptr->hdri = 0;
-    ptr->ambient_light = (flecs_rgba_t){20, 20, 20, 255};
     ptr->background = (flecs_engine_background_t){
         .sky_color = {0},
         .ground_color = {0},
@@ -40,7 +39,6 @@ ECS_COPY(FlecsRenderView, dst, src, {
     dst->camera = src->camera;
     dst->light = src->light;
     dst->hdri = src->hdri;
-    dst->ambient_light = src->ambient_light;
     dst->background = src->background;
     dst->shadow = src->shadow;
     dst->screen_size_threshold = src->screen_size_threshold;
@@ -449,10 +447,9 @@ void flecsEngine_renderView_register(
             { .name = "camera", .type = ecs_id(ecs_entity_t) },
             { .name = "light", .type = ecs_id(ecs_entity_t) },
             { .name = "hdri", .type = ecs_id(ecs_entity_t) },
-            { .name = "ambient_light", .type = ecs_id(flecs_rgba_t) },
+            { .name = "screen_size_threshold", .type = ecs_id(ecs_f32_t) },
             { .name = "background", .type = ecs_id(flecs_engine_background_t) },
             { .name = "shadow", .type = ecs_id(flecs_engine_shadow_params_t) },
-            { .name = "screen_size_threshold", .type = ecs_id(ecs_f32_t) },
             { .name = "effects", .type = vec_view_effect }
         }
     });

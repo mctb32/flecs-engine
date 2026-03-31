@@ -130,14 +130,14 @@ void initEngine(
       .map_size = 4096,
       .max_range = 150
     },
-    .ambient_light = {0, 0, 0, 255},
     .background = {
       .sky_color = {5, 45, 100},
       .haze_color = {250, 130, 0},
       .horizon_color = {250, 255, 255},
       .ground_color = {50, 50, 50},
       .ambient_intensity = 0.2
-    }
+    },
+    .screen_size_threshold = 5.0
   };
 
   FlecsRenderBatchSet batch_set = {};

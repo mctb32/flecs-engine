@@ -793,9 +793,6 @@ static void flecsEngine_renderBatch_updateUniforms(
             : 1.0f;
     }
 
-    uniforms.ambient_light[0] = flecsEngine_colorChannelToFloat(view->ambient_light.r);
-    uniforms.ambient_light[1] = flecsEngine_colorChannelToFloat(view->ambient_light.g);
-    uniforms.ambient_light[2] = flecsEngine_colorChannelToFloat(view->ambient_light.b);
     uniforms.ambient_light[3] = view->background.ambient_intensity;
 
     uniforms.sky_color[0] = flecsEngine_colorChannelToFloat(view->background.sky_color.r);

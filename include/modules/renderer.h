@@ -121,10 +121,9 @@ ECS_STRUCT(FlecsRenderView, {
     ecs_entity_t camera;
     ecs_entity_t light;
     ecs_entity_t hdri;
-    flecs_rgba_t ambient_light;
+    ecs_f32_t screen_size_threshold;
     flecs_engine_background_t background;
     flecs_engine_shadow_params_t shadow;
-    ecs_f32_t screen_size_threshold;
     ecs_vec_t effects;
 });
 
