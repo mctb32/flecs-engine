@@ -132,10 +132,10 @@ void initEngine(
     },
     .background = {
       .sky_color = {5, 45, 100},
-      .haze_color = {250, 130, 0},
+      .haze_color = {255, 255, 255},
       .horizon_color = {250, 255, 255},
-      .ground_color = {50, 50, 50},
-      .ambient_intensity = 0.2
+      .ground_color = {50, 100, 70},
+      .ambient_intensity = 0.4
     },
     .screen_size_threshold = 5.0
   };
@@ -175,14 +175,14 @@ void initEngine(
 
   // Light
   view.light = ecs_entity(world, { .name = "light" });
-  ecs_set(world, view.light, FlecsPosition3, {1, 1, 1});
+  ecs_set(world, view.light, FlecsPosition3, {1, 2, 1});
   ecs_set(world, view.light, FlecsDirectionalLight, { .intensity = 2.0f });
   ecs_set(world, view.light, FlecsLookAt, { 0, 0, 0 });
-  ecs_set(world, view.light, FlecsRgba, {255, 160, 100, 255});
+  ecs_set(world, view.light, FlecsRgba, {255, 255, 255, 255});
 
   // HDRI (optional, for image based lighting)
-  view.hdri = flecsEngine_createHdri(
-    world, view_entity, "hdri", "etc/assets/hdri/industrial_sunset_puresky_4k.exr", 1024, 64);
+  // view.hdri = flecsEngine_createHdri(
+  //   world, view_entity, "hdri", "etc/assets/hdri/industrial_sunset_puresky_4k.exr", 1024, 64);
 
   // RenderBatches (what to render in scene)
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
@@ -268,8 +268,8 @@ int main(
   ecs_log_set_level(0);
 
   ecs_entity_t s = ecs_script(world, {
-    .filename = "etc/assets/scenes/kenney_city.flecs"
-    // .filename = "etc/assets/scenes/bistro.flecs"
+    // .filename = "etc/assets/scenes/kenney_city.flecs"
+    .filename = "etc/assets/scenes/bistro.flecs"
     // .filename = "etc/assets/scenes/sponza.flecs"
     // .filename = "etc/assets/scenes/a_beautiful_game.flecs"
     // .filename = "etc/assets/scenes/flight_helmet.flecs"

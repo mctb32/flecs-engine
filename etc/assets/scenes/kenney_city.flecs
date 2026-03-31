@@ -138,29 +138,29 @@ prefabs {
 template RandomSuburban {
   const p = rng.u(12)
   if p == 0 {
-    _ : prefabs.suburban_b {}
+    (IsA, prefabs.suburban_b)
   } else if p == 1 {
-    _ : prefabs.suburban_c {}
+    (IsA, prefabs.suburban_c)
   } else if p == 2 {
-    _ : prefabs.suburban_d {}
+    (IsA, prefabs.suburban_d)
   } else if p == 3 {
-    _ : prefabs.suburban_e {}
+    (IsA, prefabs.suburban_e)
   } else if p == 4 {
-    _ : prefabs.suburban_f {}
+    (IsA, prefabs.suburban_f)
   } else if p == 5 {
-    _ : prefabs.suburban_g {}
+    (IsA, prefabs.suburban_g)
   } else if p == 6 {
-    _ : prefabs.suburban_h {}
+    (IsA, prefabs.suburban_h)
   } else if p == 7 {
-    _ : prefabs.suburban_i {}
+    (IsA, prefabs.suburban_i)
   } else if p == 8 {
-    _ : prefabs.suburban_k {}
+    (IsA, prefabs.suburban_k)
   } else if p == 9 {
-    _ : prefabs.suburban_l {}
+    (IsA, prefabs.suburban_l)
   } else if p == 10 {
-    _ : prefabs.suburban_o {}
+    (IsA, prefabs.suburban_o)
   } else if p == 11 {
-    _ : prefabs.suburban_u {}
+    (IsA, prefabs.suburban_u)
   }
 }
 
@@ -168,19 +168,19 @@ template RandomSuburban {
 template RandomCommercial {
   const p = rng.u(7)
   if p == 0 {
-    _ : prefabs.commercial_a {}
+    (IsA, prefabs.commercial_a)
   } else if p == 1 {
-    _ : prefabs.commercial_b {}
+    (IsA, prefabs.commercial_b)
   } else if p == 2 {
-    _ : prefabs.commercial_c {}
+    (IsA, prefabs.commercial_c)
   } else if p == 3 {
-    _ : prefabs.commercial_d {}
+    (IsA, prefabs.commercial_d)
   } else if p == 4 {
-    _ : prefabs.commercial_f {}
+    (IsA, prefabs.commercial_f)
   } else if p == 5 {
-    _ : prefabs.commercial_g {}
+    (IsA, prefabs.commercial_g)
   } else if p == 6 {
-    _ : prefabs.commercial_h {}
+    (IsA, prefabs.commercial_h)
   }
 }
 
@@ -188,19 +188,19 @@ template RandomCommercial {
 template RandomSkyscraper {
   const p = rng.u(7)
   if p == 0 {
-    _ : prefabs.skyscraper_a {}
+    (IsA, prefabs.skyscraper_a)
   } else if p == 1 {
-    _ : prefabs.skyscraper_b {}
+    (IsA, prefabs.skyscraper_b)
   } else if p == 2 {
-    _ : prefabs.skyscraper_c {}
+    (IsA, prefabs.skyscraper_c)
   } else if p == 3 {
-    _ : prefabs.skyscraper_d {}
+    (IsA, prefabs.skyscraper_d)
   } else if p == 4 {
-    _ : prefabs.skyscraper_e {}
+    (IsA, prefabs.skyscraper_e)
   } else if p == 5 {
-    _ : prefabs.commercial_l {}
+    (IsA, prefabs.commercial_l)
   } else if p == 6 {
-    _ : prefabs.commercial_m {}
+    (IsA, prefabs.commercial_m)
   }
 }
 
@@ -208,21 +208,21 @@ template RandomSkyscraper {
 template RandomIndustrial {
   const p = rng.u(8)
   if p == 0 {
-    _ : prefabs.industrial_a {}
+    (IsA, prefabs.industrial_a)
   } else if p == 1 {
-    _ : prefabs.industrial_b {}
+    (IsA, prefabs.industrial_b)
   } else if p == 2 {
-    _ : prefabs.industrial_c {}
+    (IsA, prefabs.industrial_c)
   } else if p == 3 {
-    _ : prefabs.industrial_d {}
+    (IsA, prefabs.industrial_d)
   } else if p == 4 {
-    _ : prefabs.industrial_e {}
+    (IsA, prefabs.industrial_e)
   } else if p == 5 {
-    _ : prefabs.industrial_f {}
+    (IsA, prefabs.industrial_f)
   } else if p == 6 {
-    _ : prefabs.industrial_g {}
+    (IsA, prefabs.industrial_g)
   } else if p == 7 {
-    _ : prefabs.industrial_h {}
+    (IsA, prefabs.industrial_h)
   }
 }
 
@@ -351,7 +351,7 @@ template HighDensityBlock {
 }
 
 template KenneyCity {
-  prop gridSize: 120
+  prop gridSize: 10
 
   const gridSizeH = gridSize / 2
 
@@ -419,6 +419,6 @@ template KenneyCity {
   }
 }
 
-KenneyCity city() {
+KenneyCity city(10) {
   Position3: {}
 }
