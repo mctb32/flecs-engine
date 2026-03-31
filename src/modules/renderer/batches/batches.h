@@ -22,6 +22,12 @@ typedef struct {
     int32_t count;
     int32_t capacity;
     bool owns_material_data;
+
+    /* Per-cascade shadow transform buffers (only transforms needed) */
+    WGPUBuffer shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    FlecsInstanceTransform *cpu_shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    int32_t shadow_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    int32_t shadow_capacity;
 } flecsEngine_batch_buffers_t;
 
 /* Per-group lightweight descriptor. Points into shared buffers at `offset`. */
@@ -38,6 +44,10 @@ typedef struct {
 
     uint64_t group_id;
     bool owns_material_data;
+
+    /* Per-cascade shadow instance counts and offsets */
+    int32_t shadow_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    int32_t shadow_offset[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
 } flecsEngine_batch_t;
 
 /* --- Shared buffer lifecycle --- */
@@ -54,7 +64,16 @@ void flecsEngine_batch_buffers_ensureCapacity(
     flecsEngine_batch_buffers_t *buf,
     int32_t count);
 
+void flecsEngine_batch_buffers_ensureShadowCapacity(
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_buffers_t *buf,
+    int32_t count);
+
 void flecsEngine_batch_buffers_upload(
+    const FlecsEngineImpl *engine,
+    const flecsEngine_batch_buffers_t *buf);
+
+void flecsEngine_batch_buffers_uploadShadow(
     const FlecsEngineImpl *engine,
     const flecsEngine_batch_buffers_t *buf);
 
@@ -98,6 +117,13 @@ void flecsEngine_batch_draw(
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_t *ctx);
 
+/* Draw a single group for a specific shadow cascade using per-cascade
+ * shadow transform buffers populated during extraction. */
+void flecsEngine_batch_drawShadow(
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_t *ctx,
+    int cascade);
+
 void flecsEngine_batch_transformInstance(
     FlecsInstanceTransform *out,
     const FlecsWorldTransform3 *wt,
@@ -135,6 +161,12 @@ void flecsEngine_primitive_extract(
     const struct FlecsRenderBatch *batch);
 
 void flecsEngine_primitive_render(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const struct FlecsRenderBatch *batch);
+
+void flecsEngine_primitive_renderShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
@@ -272,6 +304,12 @@ void flecsEngine_mesh_extractGroup(
 void flecsEngine_mesh_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch);
+
+void flecsEngine_mesh_renderShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch);
 
 #endif

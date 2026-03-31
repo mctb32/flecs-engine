@@ -100,11 +100,15 @@ void flecsEngine_mesh_extract(
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
     if (!groups) {
         shared->count = 0;
+        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+            shared->shadow_count[c] = 0;
+        }
         return;
     }
 
 redo: {
         int32_t total = 0;
+        int32_t shadow_totals[FLECS_ENGINE_SHADOW_CASCADE_COUNT] = {0};
         ecs_map_iter_t git = ecs_map_iter(groups);
         while (ecs_map_next(&git)) {
             uint64_t group_id = ecs_map_key(&git);
@@ -115,20 +119,47 @@ redo: {
             if (!ctx) continue;
 
             ctx->offset = total;
+            for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+                ctx->shadow_offset[c] = shadow_totals[c];
+            }
             flecsEngine_mesh_extractGroup(
                 world, engine, batch, group_id, shared);
             total += ctx->count;
+            for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+                shadow_totals[c] += ctx->shadow_count[c];
+            }
         }
 
+        bool need_redo = false;
         if (total > shared->capacity) {
             flecsEngine_batch_buffers_ensureCapacity(engine, shared, total);
+            need_redo = true;
+        }
+
+        int32_t max_shadow = 0;
+        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+            if (shadow_totals[c] > max_shadow) {
+                max_shadow = shadow_totals[c];
+            }
+        }
+        if (max_shadow > shared->shadow_capacity) {
+            flecsEngine_batch_buffers_ensureShadowCapacity(
+                engine, shared, max_shadow);
+            need_redo = true;
+        }
+
+        if (need_redo) {
             goto redo;
         }
 
         shared->count = total;
+        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+            shared->shadow_count[c] = shadow_totals[c];
+        }
     }
 
     flecsEngine_batch_buffers_upload(engine, shared);
+    flecsEngine_batch_buffers_uploadShadow(engine, shared);
     FLECS_TRACY_ZONE_END;
 }
 
@@ -153,6 +184,31 @@ void flecsEngine_mesh_render(
             ecs_query_get_group_ctx(batch->query, group);
         ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
         flecsEngine_batch_draw(pass, ctx);
+    }
+}
+
+void flecsEngine_mesh_renderShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+
+    int cascade = engine->shadow.current_cascade;
+
+    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
+    ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    ecs_map_iter_t git = ecs_map_iter(groups);
+    while (ecs_map_next(&git)) {
+        uint64_t group = ecs_map_key(&git);
+        if (!group) continue;
+
+        flecsEngine_batch_t *ctx =
+            ecs_query_get_group_ctx(batch->query, group);
+        ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
+        flecsEngine_batch_drawShadow(pass, ctx, cascade);
     }
 }
 
@@ -212,6 +268,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
         },
         .extract_callback = flecsEngine_mesh_extract,
         .callback = flecsEngine_mesh_render,
+        .shadow_callback = flecsEngine_mesh_renderShadow,
         .ctx = flecsEngine_mesh_createCtx(false),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
@@ -261,6 +318,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
         },
         .extract_callback = flecsEngine_mesh_extract,
         .callback = flecsEngine_mesh_render,
+        .shadow_callback = flecsEngine_mesh_renderShadow,
         .ctx = flecsEngine_mesh_createCtx(true),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
@@ -346,6 +404,7 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
         },
         .extract_callback = flecsEngine_mesh_extract,
         .callback = flecsEngine_textured_mesh_render,
+        .shadow_callback = flecsEngine_mesh_renderShadow,
         .ctx = flecsEngine_mesh_createCtx(false),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });

@@ -69,6 +69,7 @@ ECS_STRUCT(FlecsRenderBatch, {
 ECS_PRIVATE
     flecs_render_batch_extract_callback extract_callback;
     flecs_render_batch_callback callback;
+    flecs_render_batch_callback shadow_callback;
     void *ctx;
     void (*free_ctx)(void *ctx);
 });

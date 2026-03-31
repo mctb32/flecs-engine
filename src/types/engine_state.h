@@ -137,6 +137,11 @@ typedef struct {
     float shadow_frustum_planes[6][4];
     bool frustum_valid;
     bool shadow_frustum_valid;
+
+    /* Per-cascade light frustum planes (computed during extract from
+     * cascade light VP matrices for per-cascade shadow culling) */
+    float cascade_frustum_planes[FLECS_ENGINE_SHADOW_CASCADE_COUNT][6][4];
+    bool cascade_frustum_valid;
 } FlecsEngineImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);

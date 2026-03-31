@@ -156,16 +156,9 @@ void flecsEngine_renderView_renderShadow(
         return;
     }
 
-    /* Compute all cascade light VP matrices and split distances */
-    flecsEngine_shadow_computeCascades(
-        world, view, engine->shadow.map_size,
-        engine->shadow.cascade_sizes,
-        view->shadow.max_range,
-        engine->shadow.current_light_vp, engine->shadow.cascade_splits);
-
-    /* Upload all cascade VP matrices to their own buffers upfront.
-     * This must happen before encoding any render passes because
-     * wgpuQueueWriteBuffer calls resolve before command buffer execution. */
+    /* Cascade light VP matrices and frustum planes were already computed
+     * during the extract phase. Upload VP matrices to GPU buffers before
+     * encoding any render passes. */
     for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
         wgpuQueueWriteBuffer(
             engine->queue,

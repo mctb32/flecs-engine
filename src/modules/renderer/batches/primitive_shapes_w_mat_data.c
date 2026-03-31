@@ -74,6 +74,7 @@ static ecs_entity_t flecsEngine_createBatch_primitive_materialIndex(
         },
         .extract_callback = flecsEngine_primitive_extract,
         .callback = flecsEngine_primitive_render,
+        .shadow_callback = flecsEngine_primitive_renderShadow,
         .ctx = flecsEngine_primitive_createCtx(
             world, mesh, false, component, scale_callback),
         .free_ctx = flecsEngine_primitive_deleteCtx
@@ -128,6 +129,7 @@ ecs_entity_t flecsEngine_createBatch_primitive(
         },
         .extract_callback = flecsEngine_primitive_extract,
         .callback = flecsEngine_primitive_render,
+        .shadow_callback = flecsEngine_primitive_renderShadow,
         .ctx = flecsEngine_primitive_createCtx(
             world, mesh, true, component, scale_callback),
         .free_ctx = flecsEngine_primitive_deleteCtx

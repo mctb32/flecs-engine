@@ -304,6 +304,25 @@ static void flecsEngine_renderView_extract(
         }
     }
 
+    /* Compute cascade light VP matrices before batch extraction so that
+     * per-cascade shadow frustum culling can run during extraction. */
+    engine->cascade_frustum_valid = false;
+    if (view->shadow.enabled && view->light) {
+        flecsEngine_shadow_computeCascades(
+            world, view, engine->shadow.map_size,
+            engine->shadow.cascade_sizes,
+            view->shadow.max_range,
+            engine->shadow.current_light_vp,
+            engine->shadow.cascade_splits);
+
+        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+            flecsEngine_frustum_extractPlanes(
+                engine->shadow.current_light_vp[c],
+                engine->cascade_frustum_planes[c]);
+        }
+        engine->cascade_frustum_valid = true;
+    }
+
     flecsEngine_renderView_extractBatches(world, view_entity, engine, view);
     FLECS_TRACY_ZONE_END;
 }
