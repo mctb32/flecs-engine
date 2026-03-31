@@ -614,6 +614,15 @@ static void flecsEngine_gltf_load(
 
         ecs_entity_t asset_node = node_entities[ni];
         const cgltf_mesh *mesh = node->mesh;
+
+        /* Count triangle primitives to decide layout */
+        int32_t tri_count = 0;
+        for (cgltf_size pi = 0; pi < mesh->primitives_count; pi++) {
+            if (mesh->primitives[pi].type == cgltf_primitive_type_triangles) {
+                tri_count++;
+            }
+        }
+
         for (cgltf_size pi = 0; pi < mesh->primitives_count; pi++) {
             if (mesh->primitives[pi].type != cgltf_primitive_type_triangles) {
                 continue;
@@ -624,10 +633,16 @@ static void flecsEngine_gltf_load(
                 meshes_e, path, image_entities);
             if (!mesh_prefab) continue;
 
-            /* Add (IsA, meshPrefab) child to asset node */
-            ecs_entity_t prim_e = ecs_entity(world, { .parent = asset_node });
-            ecs_add_id(world, prim_e, EcsPrefab);
-            ecs_add_pair(world, prim_e, EcsIsA, mesh_prefab);
+            if (tri_count == 1) {
+                /* Single primitive: node itself inherits from mesh */
+                ecs_add_pair(world, asset_node, EcsIsA, mesh_prefab);
+            } else {
+                /* Multiple primitives: create child per primitive */
+                ecs_entity_t prim_e = ecs_entity(world,
+                    { .parent = asset_node });
+                ecs_add_id(world, prim_e, EcsPrefab);
+                ecs_add_pair(world, prim_e, EcsIsA, mesh_prefab);
+            }
         }
     }
 
@@ -641,6 +656,15 @@ static void flecsEngine_gltf_load(
         if (!node->mesh) continue;
 
         const cgltf_mesh *mesh = node->mesh;
+
+        /* Count triangle primitives to decide layout */
+        int32_t tri_count = 0;
+        for (cgltf_size pi = 0; pi < mesh->primitives_count; pi++) {
+            if (mesh->primitives[pi].type == cgltf_primitive_type_triangles) {
+                tri_count++;
+            }
+        }
+
         for (cgltf_size pi = 0; pi < mesh->primitives_count; pi++) {
             if (mesh->primitives[pi].type != cgltf_primitive_type_triangles) {
                 continue;
@@ -650,9 +674,15 @@ static void flecsEngine_gltf_load(
             ecs_entity_t mesh_prefab = mesh_entities[mesh_idx][pi];
             if (!mesh_prefab) continue;
 
-            ecs_entity_t prim_inst = ecs_new_w_parent(world, inst, NULL);
-            ecs_add_pair(world, prim_inst, EcsIsA, mesh_prefab);
-            ecs_set(world, prim_inst, FlecsPosition3, {0, 0, 0});
+            if (tri_count == 1) {
+                /* Single primitive: instance itself inherits from mesh */
+                ecs_add_pair(world, inst, EcsIsA, mesh_prefab);
+            } else {
+                /* Multiple primitives: create child per primitive */
+                ecs_entity_t prim_inst = ecs_new_w_parent(world, inst, NULL);
+                ecs_add_pair(world, prim_inst, EcsIsA, mesh_prefab);
+                ecs_set(world, prim_inst, FlecsPosition3, {0, 0, 0});
+            }
         }
     }
 
