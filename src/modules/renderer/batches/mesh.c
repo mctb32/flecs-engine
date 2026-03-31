@@ -484,10 +484,10 @@ static void flecsEngine_transparent_mesh_render(
     const FlecsRenderBatch *batch)
 {
     if (engine->shadow.in_pass) {
-        return;
+        goto done;
     }
 
-    FLECS_TRACY_ZONE_BEGIN("TransparentMeshRender")
+    FLECS_TRACY_ZONE_BEGIN("TransparentMeshRender");
 
     flecsEngine_transparent_mesh_ctx_t *tctx = batch->ctx;
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
@@ -506,7 +506,7 @@ static void flecsEngine_transparent_mesh_render(
     }
 
     if (!total_instances) {
-        return;
+        goto done;
     }
 
     /* Collect every instance with its distance and GPU state metadata */
@@ -648,7 +648,8 @@ static void flecsEngine_transparent_mesh_render(
 
     ecs_os_free(sorted);
 
-    FLECS_TRACY_ZONE_END
+done:
+    FLECS_TRACY_ZONE_END;
 }
 
 ecs_entity_t flecsEngine_createBatch_mesh_transparent(
