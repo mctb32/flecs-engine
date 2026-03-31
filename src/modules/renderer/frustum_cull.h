@@ -27,4 +27,15 @@ bool flecsEngine_testAABBFrustum(
     const float world_min[3],
     const float world_max[3]);
 
+/* Test whether a world-space AABB is large enough on screen to be worth
+ * rendering.  Uses the bounding-sphere approximation:
+ *   screen_area ≈ r² * screen_cull_factor / d²
+ * Returns true if the projected area >= threshold (i.e. keep the object). */
+bool flecsEngine_testScreenSize(
+    const float camera_pos[3],
+    const float world_min[3],
+    const float world_max[3],
+    float screen_cull_factor,
+    float threshold);
+
 #endif

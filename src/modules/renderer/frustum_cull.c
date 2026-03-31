@@ -97,6 +97,38 @@ void flecsEngine_computeWorldAABB(
     }
 }
 
+/* Test whether a world-space AABB projects to at least `threshold` pixels²
+ * on screen, using a bounding-sphere approximation.
+ *   screen_area ≈ r² * screen_cull_factor / d²
+ * where r = AABB half-diagonal, d = distance from camera to AABB center,
+ * and screen_cull_factor = (viewport_height / tan(fov/2))².
+ * Returns true when the object is large enough to keep. */
+bool flecsEngine_testScreenSize(
+    const float camera_pos[3],
+    const float world_min[3],
+    const float world_max[3],
+    float screen_cull_factor,
+    float threshold)
+{
+    float cx = (world_min[0] + world_max[0]) * 0.5f;
+    float cy = (world_min[1] + world_max[1]) * 0.5f;
+    float cz = (world_min[2] + world_max[2]) * 0.5f;
+
+    float hx = (world_max[0] - world_min[0]) * 0.5f;
+    float hy = (world_max[1] - world_min[1]) * 0.5f;
+    float hz = (world_max[2] - world_min[2]) * 0.5f;
+
+    float r_sq = hx * hx + hy * hy + hz * hz;
+
+    float dx = cx - camera_pos[0];
+    float dy = cy - camera_pos[1];
+    float dz = cz - camera_pos[2];
+    float d_sq = dx * dx + dy * dy + dz * dz;
+
+    /* Cull when r_sq * factor < threshold * d_sq  (avoids division). */
+    return r_sq * screen_cull_factor >= threshold * d_sq;
+}
+
 /* Test a world-space AABB against 6 frustum planes (P-vertex approach).
  * For each plane, the corner most aligned with the plane normal is tested.
  * If that corner is behind the plane, the AABB is fully outside. */

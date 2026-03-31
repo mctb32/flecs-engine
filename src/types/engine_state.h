@@ -142,6 +142,13 @@ typedef struct {
      * cascade light VP matrices for per-cascade shadow culling) */
     float cascade_frustum_planes[FLECS_ENGINE_SHADOW_CASCADE_COUNT][6][4];
     bool cascade_frustum_valid;
+
+    /* Screen-size culling state (computed once per frame during extract).
+     * Objects whose projected screen area is below the threshold are culled.
+     * screen_cull_factor = (viewport_height / tan(fov/2))^2 */
+    float screen_cull_factor;
+    float screen_cull_threshold;
+    bool screen_cull_valid;
 } FlecsEngineImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);

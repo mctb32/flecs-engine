@@ -26,6 +26,7 @@ ECS_CTOR(FlecsRenderView, ptr, {
     ptr->shadow.map_size = FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT;
     ptr->shadow.bias = 0.0005f;
     ptr->shadow.max_range = 100.0f;
+    ptr->screen_size_threshold = 0.0f;
 })
 
 ECS_MOVE(FlecsRenderView, dst, src, {
@@ -42,6 +43,7 @@ ECS_COPY(FlecsRenderView, dst, src, {
     dst->ambient_light = src->ambient_light;
     dst->background = src->background;
     dst->shadow = src->shadow;
+    dst->screen_size_threshold = src->screen_size_threshold;
     dst->effects = ecs_vec_copy_t(NULL, &src->effects, flecs_render_view_effect_t);
 })
 
@@ -304,6 +306,23 @@ static void flecsEngine_renderView_extract(
         }
     }
 
+    /* Compute screen-size culling factor from camera FOV and viewport */
+    engine->screen_cull_valid = false;
+    if (view->screen_size_threshold > 0.0f && view->camera) {
+        const FlecsCamera *cam = ecs_get(
+            world, view->camera, FlecsCamera);
+        if (cam && !cam->orthographic && cam->fov > 0.0f) {
+            float half_tan = tanf(cam->fov * 0.5f);
+            if (half_tan > 1e-6f) {
+                float vh = (float)engine->actual_height;
+                float f = vh / half_tan;
+                engine->screen_cull_factor = f * f;
+                engine->screen_cull_threshold = view->screen_size_threshold;
+                engine->screen_cull_valid = true;
+            }
+        }
+    }
+
     /* Compute cascade light VP matrices before batch extraction so that
      * per-cascade shadow frustum culling can run during extraction. */
     engine->cascade_frustum_valid = false;
@@ -433,6 +452,7 @@ void flecsEngine_renderView_register(
             { .name = "ambient_light", .type = ecs_id(flecs_rgba_t) },
             { .name = "background", .type = ecs_id(flecs_engine_background_t) },
             { .name = "shadow", .type = ecs_id(flecs_engine_shadow_params_t) },
+            { .name = "screen_size_threshold", .type = ecs_id(ecs_f32_t) },
             { .name = "effects", .type = vec_view_effect }
         }
     });

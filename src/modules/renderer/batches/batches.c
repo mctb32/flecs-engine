@@ -440,6 +440,9 @@ void flecsEngine_batch_extractInstances(
     /* Frustum culling state */
     bool do_cull = engine->frustum_valid &&
         (ctx->mesh.aabb_min[0] <= ctx->mesh.aabb_max[0]);
+
+    /* Screen-size culling state (requires world AABB from do_cull) */
+    bool do_screen_cull = engine->screen_cull_valid && do_cull;
     const float *aabb_min = ctx->mesh.aabb_min;
     const float *aabb_max = ctx->mesh.aabb_max;
 
@@ -503,6 +506,23 @@ void flecsEngine_batch_extractInstances(
                         }
                         continue;
                     }
+
+                    if (do_screen_cull &&
+                        !flecsEngine_testScreenSize(
+                            engine->camera_pos, wmin, wmax,
+                            engine->screen_cull_factor,
+                            engine->screen_cull_threshold))
+                    {
+                        if (do_shadow_cull) {
+                            FlecsInstanceTransform t;
+                            flecsEngine_batch_transformInstance(
+                                &t, &wt[i],
+                                scale[0], scale[1], scale[2]);
+                            flecsEngine_batch_shadowCascadeWrite(
+                                engine, buf, ctx, &t, wmin, wmax, has_aabb);
+                        }
+                        continue;
+                    }
                 }
 
                 int32_t out = dst + added;
@@ -542,6 +562,22 @@ void flecsEngine_batch_extractInstances(
                         1.0f, 1.0f, 1.0f, wmin, wmax);
                     has_aabb = true;
                     if (!flecsEngine_isVisibleAABB(engine, wmin, wmax)) {
+                        if (do_shadow_cull) {
+                            FlecsInstanceTransform t;
+                            flecsEngine_batch_transformInstance(
+                                &t, &wt[i], 1.0f, 1.0f, 1.0f);
+                            flecsEngine_batch_shadowCascadeWrite(
+                                engine, buf, ctx, &t, wmin, wmax, has_aabb);
+                        }
+                        continue;
+                    }
+
+                    if (do_screen_cull &&
+                        !flecsEngine_testScreenSize(
+                            engine->camera_pos, wmin, wmax,
+                            engine->screen_cull_factor,
+                            engine->screen_cull_threshold))
+                    {
                         if (do_shadow_cull) {
                             FlecsInstanceTransform t;
                             flecsEngine_batch_transformInstance(
