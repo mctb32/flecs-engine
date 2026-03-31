@@ -61,6 +61,19 @@ typedef struct {
     WGPUTextureView fallback_normal_view;
     uint32_t next_id;
     uint32_t last_id;
+
+    ecs_query_t *texture_query;
+
+    /* Texture arrays: all PBR textures packed into 2D-array textures
+     * so the shader can index layers by material ID, enabling single
+     * instanced draw calls even when instances use different textures. */
+    WGPUTexture texture_arrays[4];       /* albedo, emissive, roughness, normal */
+    WGPUTextureView texture_array_views[4];
+    WGPUBindGroup texture_array_bind_group;
+    uint32_t texture_array_layer_count;
+    uint32_t texture_array_width;
+    uint32_t texture_array_height;
+    uint32_t texture_array_mip_count;
 } flecs_engine_materials_t;
 
 typedef struct {

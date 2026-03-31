@@ -94,6 +94,7 @@ void flecsEngine_mesh_extract(
     const FlecsRenderBatch *batch)
 {
     FLECS_TRACY_ZONE_BEGIN("MeshExtract");
+
     flecsEngine_mesh_ctx_t *mctx = batch->ctx;
     flecsEngine_batch_buffers_t *shared = &mctx->buffers;
 
@@ -160,6 +161,7 @@ redo: {
 
     flecsEngine_batch_buffers_upload(engine, shared);
     flecsEngine_batch_buffers_uploadShadow(engine, shared);
+
     FLECS_TRACY_ZONE_END;
 }
 
@@ -169,6 +171,8 @@ void flecsEngine_mesh_render(
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
+    FLECS_TRACY_ZONE_BEGIN("MeshRender");
+
     (void)world;
     (void)engine;
 
@@ -185,6 +189,8 @@ void flecsEngine_mesh_render(
         ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
         flecsEngine_batch_draw(pass, ctx);
     }
+
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_mesh_renderShadow(
@@ -193,6 +199,8 @@ void flecsEngine_mesh_renderShadow(
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
+    FLECS_TRACY_ZONE_BEGIN("MeshRenderShadow");
+
     (void)world;
 
     int cascade = engine->shadow.current_cascade;
@@ -210,6 +218,8 @@ void flecsEngine_mesh_renderShadow(
         ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
         flecsEngine_batch_drawShadow(pass, ctx, cascade);
     }
+
+    FLECS_TRACY_ZONE_END;
 }
 
 flecsEngine_mesh_ctx_t* flecsEngine_mesh_createCtx(
@@ -334,6 +344,19 @@ static void flecsEngine_textured_mesh_render(
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
+    FLECS_TRACY_ZONE_BEGIN("TexturedMeshRender");
+
+    (void)world;
+
+    /* Bind the texture array once for all textured mesh groups */
+    if (!engine->shadow.in_pass &&
+        engine->materials.texture_array_bind_group)
+    {
+        wgpuRenderPassEncoderSetBindGroup(
+            pass, 2,
+            engine->materials.texture_array_bind_group, 0, NULL);
+    }
+
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
     ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
 
@@ -352,18 +375,11 @@ static void flecsEngine_textured_mesh_render(
             continue;
         }
 
-        /* Look up texture bind group from the prefab entity */
-        const FlecsPbrTextures *pbr_tex = ecs_get(
-            world, (ecs_entity_t)group_id, FlecsPbrTextures);
-        if (!pbr_tex || !pbr_tex->_bind_group) {
-            continue;
-        }
-        wgpuRenderPassEncoderSetBindGroup(
-            pass, 2, (WGPUBindGroup)pbr_tex->_bind_group, 0, NULL);
-
         ctx->vertex_buffer = ctx->mesh.vertex_uv_buffer;
         flecsEngine_batch_draw(pass, ctx);
     }
+
+    FLECS_TRACY_ZONE_END;
 }
 
 ecs_entity_t flecsEngine_createBatch_textured_mesh(
@@ -470,6 +486,8 @@ static void flecsEngine_transparent_mesh_render(
     if (engine->shadow.in_pass) {
         return;
     }
+
+    FLECS_TRACY_ZONE_BEGIN("TransparentMeshRender")
 
     flecsEngine_transparent_mesh_ctx_t *tctx = batch->ctx;
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
@@ -629,6 +647,8 @@ static void flecsEngine_transparent_mesh_render(
     }
 
     ecs_os_free(sorted);
+
+    FLECS_TRACY_ZONE_END
 }
 
 ecs_entity_t flecsEngine_createBatch_mesh_transparent(

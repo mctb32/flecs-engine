@@ -27,202 +27,849 @@ prefabs {
     Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/path-stones-long.glb"}
   }
 
-  prefab suburban_b {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-b.glb"}
-  }
-  prefab suburban_c {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-c.glb"}
-  }
-  prefab suburban_d {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-d.glb"}
-  }
-  prefab suburban_e {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-e.glb"}
-  }
-  prefab suburban_f {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-f.glb"}
-  }
-  prefab suburban_g {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-g.glb"}
-  }
-  prefab suburban_h {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-h.glb"}
-  }
-  prefab suburban_i {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-i.glb"}
-  }
-  prefab suburban_k {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-k.glb"}
-  }
-  prefab suburban_l {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-l.glb"}
-  }
-  prefab suburban_o {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-o.glb"}
-  }
-  prefab suburban_u {
-    Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-u.glb"}
+  suburban {
+    prefab texture_a {
+      Texture: {"etc/assets/kenney/city-kit-suburban/Models/Textures/variation-a.png"}
+    }
+    prefab texture_b {
+      Texture: {"etc/assets/kenney/city-kit-suburban/Models/Textures/variation-b.png"}
+    }
+    prefab texture_c {
+      Texture: {"etc/assets/kenney/city-kit-suburban/Models/Textures/variation-c.png"}
+    }
+
+    building_b {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-b.glb"}
+      }
+
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_c {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-c.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_d {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-d.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_e {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-e.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_f {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-f.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_g {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-g.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_h {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-h.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_i {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-i.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_k {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-k.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_l {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-l.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_o {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-o.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_u {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-suburban/Models/GLB format/building-type-u.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
   }
 
-  prefab commercial_a {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-a.glb"}
-  }
-  prefab commercial_b {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-b.glb"}
-  }
-  prefab commercial_c {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-c.glb"}
-  }
-  prefab commercial_d {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-d.glb"}
-  }
-  prefab commercial_f {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-f.glb"}
-  }
-  prefab commercial_g {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-g.glb"}
-  }
-  prefab commercial_h {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-h.glb"}
+  commercial {
+    prefab texture_a {
+      Texture: {"etc/assets/kenney/city-kit-commercial/Models/Textures/variation-a.png"}
+    }
+    prefab texture_b {
+      Texture: {"etc/assets/kenney/city-kit-commercial/Models/Textures/variation-b.png"}
+    }
+
+    building_a {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-a.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    building_b {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-b.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    building_c {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-c.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    building_d {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-d.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    building_f {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-f.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    building_g {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-g.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    building_h {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-h.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    skyscraper_a {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-skyscraper-a.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    skyscraper_b {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-skyscraper-b.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    skyscraper_c {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-skyscraper-c.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    skyscraper_d {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-skyscraper-d.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    skyscraper_e {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-skyscraper-e.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    building_l {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-l.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
+
+    building_m {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-m.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+    }
   }
 
-  prefab skyscraper_a {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-skyscraper-a.glb"}
-  }
-  prefab skyscraper_b {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-skyscraper-b.glb"}
-  }
-  prefab skyscraper_c {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-skyscraper-c.glb"}
-  }
-  prefab skyscraper_d {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-skyscraper-d.glb"}
-  }
-  prefab skyscraper_e {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-skyscraper-e.glb"}
-  }
-  prefab commercial_l {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-l.glb"}
-  }
-  prefab commercial_m {
-    Gltf: {"etc/assets/kenney/city-kit-commercial/Models/GLB format/building-m.glb"}
-  }
+  industrial {
+    prefab texture_a {
+      Texture: {"etc/assets/kenney/city-kit-industrial/Models/Textures/variation-a.png"}
+    }
+    prefab texture_b {
+      Texture: {"etc/assets/kenney/city-kit-industrial/Models/Textures/variation-b.png"}
+    }
+    prefab texture_c {
+      Texture: {"etc/assets/kenney/city-kit-industrial/Models/Textures/variation-c.png"}
+    }
 
-  prefab industrial_a {
-    Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-a.glb"}
-  }
-  prefab industrial_b {
-    Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-b.glb"}
-  }
-  prefab industrial_c {
-    Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-c.glb"}
-  }
-  prefab industrial_d {
-    Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-d.glb"}
-  }
-  prefab industrial_e {
-    Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-e.glb"}
-  }
-  prefab industrial_f {
-    Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-f.glb"}
-  }
-  prefab industrial_g {
-    Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-g.glb"}
-  }
-  prefab industrial_h {
-    Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-h.glb"}
+    building_a {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-a.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_b {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-b.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_c {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-c.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_d {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-d.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_e {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-e.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_f {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-f.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_g {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-g.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
+
+    building_h {
+      prefab a {
+        Gltf: {"etc/assets/kenney/city-kit-industrial/Models/GLB format/building-h.glb"}
+      }
+      prefab b : a {
+        PbrTextures: {texture_a}
+      }
+      prefab c : a {
+        PbrTextures: {texture_b}
+      }
+      prefab d : a {
+        PbrTextures: {texture_c}
+      }
+    }
   }
 }
 
 @tree Parent
 template RandomSuburban {
   const p = rng.u(12)
+  const v = rng.u(4)
   if p == 0 {
-    (IsA, prefabs.suburban_b)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_b.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_b.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_b.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_b.d)
+    }
   } else if p == 1 {
-    (IsA, prefabs.suburban_c)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_c.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_c.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_c.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_c.d)
+    }
   } else if p == 2 {
-    (IsA, prefabs.suburban_d)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_d.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_d.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_d.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_d.d)
+    }
   } else if p == 3 {
-    (IsA, prefabs.suburban_e)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_e.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_e.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_e.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_e.d)
+    }
   } else if p == 4 {
-    (IsA, prefabs.suburban_f)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_f.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_f.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_f.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_f.d)
+    }
   } else if p == 5 {
-    (IsA, prefabs.suburban_g)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_g.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_g.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_g.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_g.d)
+    }
   } else if p == 6 {
-    (IsA, prefabs.suburban_h)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_h.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_h.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_h.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_h.d)
+    }
   } else if p == 7 {
-    (IsA, prefabs.suburban_i)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_i.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_i.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_i.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_i.d)
+    }
   } else if p == 8 {
-    (IsA, prefabs.suburban_k)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_k.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_k.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_k.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_k.d)
+    }
   } else if p == 9 {
-    (IsA, prefabs.suburban_l)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_l.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_l.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_l.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_l.d)
+    }
   } else if p == 10 {
-    (IsA, prefabs.suburban_o)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_o.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_o.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_o.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_o.d)
+    }
   } else if p == 11 {
-    (IsA, prefabs.suburban_u)
+    if v == 0 {
+      (IsA, prefabs.suburban.building_u.a)
+    } else if v == 1 {
+      (IsA, prefabs.suburban.building_u.b)
+    } else if v == 2 {
+      (IsA, prefabs.suburban.building_u.c)
+    } else if v == 3 {
+      (IsA, prefabs.suburban.building_u.d)
+    }
   }
 }
 
 @tree Parent
 template RandomCommercial {
   const p = rng.u(7)
+  const v = rng.u(3)
   if p == 0 {
-    (IsA, prefabs.commercial_a)
+    if v == 0 {
+      (IsA, prefabs.commercial.building_a.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.building_a.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.building_a.c)
+    }
   } else if p == 1 {
-    (IsA, prefabs.commercial_b)
+    if v == 0 {
+      (IsA, prefabs.commercial.building_b.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.building_b.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.building_b.c)
+    }
   } else if p == 2 {
-    (IsA, prefabs.commercial_c)
+    if v == 0 {
+      (IsA, prefabs.commercial.building_c.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.building_c.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.building_c.c)
+    }
   } else if p == 3 {
-    (IsA, prefabs.commercial_d)
+    if v == 0 {
+      (IsA, prefabs.commercial.building_d.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.building_d.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.building_d.c)
+    }
   } else if p == 4 {
-    (IsA, prefabs.commercial_f)
+    if v == 0 {
+      (IsA, prefabs.commercial.building_f.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.building_f.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.building_f.c)
+    }
   } else if p == 5 {
-    (IsA, prefabs.commercial_g)
+    if v == 0 {
+      (IsA, prefabs.commercial.building_g.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.building_g.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.building_g.c)
+    }
   } else if p == 6 {
-    (IsA, prefabs.commercial_h)
+    if v == 0 {
+      (IsA, prefabs.commercial.building_h.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.building_h.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.building_h.c)
+    }
   }
 }
 
 @tree Parent
 template RandomSkyscraper {
   const p = rng.u(7)
+  const v = rng.u(3)
   if p == 0 {
-    (IsA, prefabs.skyscraper_a)
+    if v == 0 {
+      (IsA, prefabs.commercial.skyscraper_a.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.skyscraper_a.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.skyscraper_a.c)
+    }
   } else if p == 1 {
-    (IsA, prefabs.skyscraper_b)
+    if v == 0 {
+      (IsA, prefabs.commercial.skyscraper_b.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.skyscraper_b.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.skyscraper_b.c)
+    }
   } else if p == 2 {
-    (IsA, prefabs.skyscraper_c)
+    if v == 0 {
+      (IsA, prefabs.commercial.skyscraper_c.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.skyscraper_c.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.skyscraper_c.c)
+    }
   } else if p == 3 {
-    (IsA, prefabs.skyscraper_d)
+    if v == 0 {
+      (IsA, prefabs.commercial.skyscraper_d.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.skyscraper_d.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.skyscraper_d.c)
+    }
   } else if p == 4 {
-    (IsA, prefabs.skyscraper_e)
+    if v == 0 {
+      (IsA, prefabs.commercial.skyscraper_e.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.skyscraper_e.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.skyscraper_e.c)
+    }
   } else if p == 5 {
-    (IsA, prefabs.commercial_l)
+    if v == 0 {
+      (IsA, prefabs.commercial.building_l.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.building_l.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.building_l.c)
+    }
   } else if p == 6 {
-    (IsA, prefabs.commercial_m)
+    if v == 0 {
+      (IsA, prefabs.commercial.building_m.a)
+    } else if v == 1 {
+      (IsA, prefabs.commercial.building_m.b)
+    } else if v == 2 {
+      (IsA, prefabs.commercial.building_m.c)
+    }
   }
 }
 
 @tree Parent
 template RandomIndustrial {
   const p = rng.u(8)
+  const v = rng.u(4)
   if p == 0 {
-    (IsA, prefabs.industrial_a)
+    if v == 0 {
+      (IsA, prefabs.industrial.building_a.a)
+    } else if v == 1 {
+      (IsA, prefabs.industrial.building_a.b)
+    } else if v == 2 {
+      (IsA, prefabs.industrial.building_a.c)
+    } else if v == 3 {
+      (IsA, prefabs.industrial.building_a.d)
+    }
   } else if p == 1 {
-    (IsA, prefabs.industrial_b)
+    if v == 0 {
+      (IsA, prefabs.industrial.building_b.a)
+    } else if v == 1 {
+      (IsA, prefabs.industrial.building_b.b)
+    } else if v == 2 {
+      (IsA, prefabs.industrial.building_b.c)
+    } else if v == 3 {
+      (IsA, prefabs.industrial.building_b.d)
+    }
   } else if p == 2 {
-    (IsA, prefabs.industrial_c)
+    if v == 0 {
+      (IsA, prefabs.industrial.building_c.a)
+    } else if v == 1 {
+      (IsA, prefabs.industrial.building_c.b)
+    } else if v == 2 {
+      (IsA, prefabs.industrial.building_c.c)
+    } else if v == 3 {
+      (IsA, prefabs.industrial.building_c.d)
+    }
   } else if p == 3 {
-    (IsA, prefabs.industrial_d)
+    if v == 0 {
+      (IsA, prefabs.industrial.building_d.a)
+    } else if v == 1 {
+      (IsA, prefabs.industrial.building_d.b)
+    } else if v == 2 {
+      (IsA, prefabs.industrial.building_d.c)
+    } else if v == 3 {
+      (IsA, prefabs.industrial.building_d.d)
+    }
   } else if p == 4 {
-    (IsA, prefabs.industrial_e)
+    if v == 0 {
+      (IsA, prefabs.industrial.building_e.a)
+    } else if v == 1 {
+      (IsA, prefabs.industrial.building_e.b)
+    } else if v == 2 {
+      (IsA, prefabs.industrial.building_e.c)
+    } else if v == 3 {
+      (IsA, prefabs.industrial.building_e.d)
+    }
   } else if p == 5 {
-    (IsA, prefabs.industrial_f)
+    if v == 0 {
+      (IsA, prefabs.industrial.building_f.a)
+    } else if v == 1 {
+      (IsA, prefabs.industrial.building_f.b)
+    } else if v == 2 {
+      (IsA, prefabs.industrial.building_f.c)
+    } else if v == 3 {
+      (IsA, prefabs.industrial.building_f.d)
+    }
   } else if p == 6 {
-    (IsA, prefabs.industrial_g)
+    if v == 0 {
+      (IsA, prefabs.industrial.building_g.a)
+    } else if v == 1 {
+      (IsA, prefabs.industrial.building_g.b)
+    } else if v == 2 {
+      (IsA, prefabs.industrial.building_g.c)
+    } else if v == 3 {
+      (IsA, prefabs.industrial.building_g.d)
+    }
   } else if p == 7 {
-    (IsA, prefabs.industrial_h)
+    if v == 0 {
+      (IsA, prefabs.industrial.building_h.a)
+    } else if v == 1 {
+      (IsA, prefabs.industrial.building_h.b)
+    } else if v == 2 {
+      (IsA, prefabs.industrial.building_h.c)
+    } else if v == 3 {
+      (IsA, prefabs.industrial.building_h.d)
+    }
   }
 }
 
@@ -419,6 +1066,6 @@ template KenneyCity {
   }
 }
 
-KenneyCity city(10) {
+KenneyCity city(120) {
   Position3: {}
 }

@@ -31,7 +31,8 @@ static WGPUTexture flecsEngine_texture_createFromPixels(
     uint32_t bytes_per_pixel = 4;
 
     WGPUTextureDescriptor tex_desc = {
-        .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+        .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+               | WGPUTextureUsage_CopySrc,
         .dimension = WGPUTextureDimension_2D,
         .size = { .width = width, .height = height, .depthOrArrayLayers = 1 },
         .format = format,
@@ -292,7 +293,7 @@ WGPUBindGroupLayout flecsEngine_pbr_texture_ensureBindLayout(
             .visibility = WGPUShaderStage_Fragment,
             .texture = {
                 .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
+                .viewDimension = WGPUTextureViewDimension_2DArray,
                 .multisampled = false
             }
         },
@@ -301,7 +302,7 @@ WGPUBindGroupLayout flecsEngine_pbr_texture_ensureBindLayout(
             .visibility = WGPUShaderStage_Fragment,
             .texture = {
                 .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
+                .viewDimension = WGPUTextureViewDimension_2DArray,
                 .multisampled = false
             }
         },
@@ -310,7 +311,7 @@ WGPUBindGroupLayout flecsEngine_pbr_texture_ensureBindLayout(
             .visibility = WGPUShaderStage_Fragment,
             .texture = {
                 .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
+                .viewDimension = WGPUTextureViewDimension_2DArray,
                 .multisampled = false
             }
         },
@@ -319,7 +320,7 @@ WGPUBindGroupLayout flecsEngine_pbr_texture_ensureBindLayout(
             .visibility = WGPUShaderStage_Fragment,
             .texture = {
                 .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
+                .viewDimension = WGPUTextureViewDimension_2DArray,
                 .multisampled = false
             }
         },
@@ -343,7 +344,21 @@ WGPUBindGroupLayout flecsEngine_pbr_texture_ensureBindLayout(
     return impl->materials.pbr_texture_bind_layout;
 }
 
-static void flecsEngine_pbr_texture_ensureFallbacks(
+static WGPUTextureView flecsEngine_texture_createArrayView(
+    WGPUTexture texture)
+{
+    WGPUTextureViewDescriptor vd = {
+        .format = wgpuTextureGetFormat(texture),
+        .dimension = WGPUTextureViewDimension_2DArray,
+        .baseMipLevel = 0,
+        .mipLevelCount = wgpuTextureGetMipLevelCount(texture),
+        .baseArrayLayer = 0,
+        .arrayLayerCount = wgpuTextureGetDepthOrArrayLayers(texture)
+    };
+    return wgpuTextureCreateView(texture, &vd);
+}
+
+void flecsEngine_pbr_texture_ensureFallbacks(
     FlecsEngineImpl *engine)
 {
     if (engine->materials.fallback_white_tex) {
@@ -355,22 +370,25 @@ static void flecsEngine_pbr_texture_ensureFallbacks(
 
     engine->materials.fallback_white_tex = flecsEngine_texture_create1x1(
         device, queue, 255, 255, 255, 255);
-    engine->materials.fallback_white_view = wgpuTextureCreateView(
-        engine->materials.fallback_white_tex, NULL);
+    engine->materials.fallback_white_view =
+        flecsEngine_texture_createArrayView(
+            engine->materials.fallback_white_tex);
 
     engine->materials.fallback_black_tex = flecsEngine_texture_create1x1(
         device, queue, 0, 0, 0, 255);
-    engine->materials.fallback_black_view = wgpuTextureCreateView(
-        engine->materials.fallback_black_tex, NULL);
+    engine->materials.fallback_black_view =
+        flecsEngine_texture_createArrayView(
+            engine->materials.fallback_black_tex);
 
     /* Default normal: (0.5, 0.5, 1.0) = flat surface pointing up */
     engine->materials.fallback_normal_tex = flecsEngine_texture_create1x1(
         device, queue, 128, 128, 255, 255);
-    engine->materials.fallback_normal_view = wgpuTextureCreateView(
-        engine->materials.fallback_normal_tex, NULL);
+    engine->materials.fallback_normal_view =
+        flecsEngine_texture_createArrayView(
+            engine->materials.fallback_normal_tex);
 }
 
-static WGPUSampler flecsEngine_pbr_texture_ensureSampler(
+WGPUSampler flecsEngine_pbr_texture_ensureSampler(
     FlecsEngineImpl *engine)
 {
     if (engine->materials.pbr_sampler) {
@@ -464,7 +482,8 @@ void flecsEngine_texture_onSet(
             FlecsTextureImpl *tex_impl = ecs_ensure(
                 world, it->entities[i], FlecsTextureImpl);
             tex_impl->texture = texture;
-            tex_impl->view = wgpuTextureCreateView(texture, NULL);
+            tex_impl->view =
+                flecsEngine_texture_createArrayView(texture);
         }
     }
 }

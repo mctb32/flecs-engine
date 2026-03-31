@@ -348,6 +348,12 @@ WGPUTexture flecsEngine_texture_create1x1(
     WGPUQueue queue,
     uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
+void flecsEngine_pbr_texture_ensureFallbacks(
+    FlecsEngineImpl *engine);
+
+WGPUSampler flecsEngine_pbr_texture_ensureSampler(
+    FlecsEngineImpl *engine);
+
 bool flecsEngine_pbr_texture_createBindGroup(
     FlecsEngineImpl *engine,
     WGPUTextureView albedo_view,
@@ -355,6 +361,10 @@ bool flecsEngine_pbr_texture_createBindGroup(
     WGPUTextureView roughness_view,
     WGPUTextureView normal_view,
     WGPUBindGroup *out_bind_group);
+
+void flecsEngine_material_buildTextureArrays(
+    const ecs_world_t *world,
+    FlecsEngineImpl *impl);
 
 ecs_entity_t flecsEngine_createBatch_textured_mesh(
     ecs_world_t *world,

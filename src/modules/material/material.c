@@ -16,7 +16,7 @@ static void FlecsMaterialIdOnAdd(
 
     for (int32_t i = 0; i < it->count; i ++) {
         ecs_entity_t e = it->entities[i];
-        if (ecs_has(world, e, FlecsMaterialId)) {
+        if (ecs_owns(world, e, FlecsMaterialId)) {
             continue;
         }
 
@@ -142,11 +142,38 @@ void FlecsEngineMaterialImport(
     ecs_observer(world, {
         .entity = ecs_entity(world, {
             .parent = ecs_lookup(world, "flecs.engine.material"),
-            .name = "MaterialIdOnAdd"
+            .name = "AddMaterialIdForRgba"
         }),
         .query.terms = {
             { .id = ecs_id(FlecsRgba), .src.id = EcsSelf },
+            { .id = EcsPrefab, .src.id = EcsSelf }
+        },
+        .events = {EcsOnAdd},
+        .yield_existing = true,
+        .callback = FlecsMaterialIdOnAdd
+    });
+
+    ecs_observer(world, {
+        .entity = ecs_entity(world, {
+            .parent = ecs_lookup(world, "flecs.engine.material"),
+            .name = "AddMaterialIdForPbrMaterial"
+        }),
+        .query.terms = {
             { .id = ecs_id(FlecsPbrMaterial), .src.id = EcsSelf },
+            { .id = EcsPrefab, .src.id = EcsSelf }
+        },
+        .events = {EcsOnAdd},
+        .yield_existing = true,
+        .callback = FlecsMaterialIdOnAdd
+    });
+
+    ecs_observer(world, {
+        .entity = ecs_entity(world, {
+            .parent = ecs_lookup(world, "flecs.engine.material"),
+            .name = "AddMaterialIdForPbrTextures"
+        }),
+        .query.terms = {
+            { .id = ecs_id(FlecsPbrTextures), .src.id = EcsSelf },
             { .id = EcsPrefab, .src.id = EcsSelf }
         },
         .events = {EcsOnAdd},

@@ -10,6 +10,8 @@ typedef struct {
     float roughness;
     float emissive_strength;
     flecs_rgba_t emissive_color;
+    uint32_t texture_layer;
+    uint32_t _pad;
 } FlecsGpuMaterial;
 
 typedef struct {

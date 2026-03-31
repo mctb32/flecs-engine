@@ -15,11 +15,11 @@ static const char *kShaderSource =
     FLECS_ENGINE_SHADER_COMMON_SHADOW_WGSL
     FLECS_ENGINE_SHADER_COMMON_CLUSTER_WGSL
 
-    /* PBR texture bindings at group 2 */
-    "@group(2) @binding(0) var albedo_tex : texture_2d<f32>;\n"
-    "@group(2) @binding(1) var emissive_tex : texture_2d<f32>;\n"
-    "@group(2) @binding(2) var roughness_tex : texture_2d<f32>;\n"
-    "@group(2) @binding(3) var normal_tex : texture_2d<f32>;\n"
+    /* PBR texture array bindings at group 2 */
+    "@group(2) @binding(0) var albedo_tex : texture_2d_array<f32>;\n"
+    "@group(2) @binding(1) var emissive_tex : texture_2d_array<f32>;\n"
+    "@group(2) @binding(2) var roughness_tex : texture_2d_array<f32>;\n"
+    "@group(2) @binding(3) var normal_tex : texture_2d_array<f32>;\n"
     "@group(2) @binding(4) var tex_sampler : sampler;\n"
 
     FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_WGSL
@@ -67,20 +67,21 @@ static const char *kShaderSource =
 
     "@fragment fn fs_main(input : VertexOutput) -> @location(0) vec4<f32> {\n"
     "  let material = materials[input.material_id];\n"
-    "  let base_color = textureSample(albedo_tex, tex_sampler, input.uv);\n"
+    "  let layer = material.texture_layer;\n"
+    "  let base_color = textureSample(albedo_tex, tex_sampler, input.uv, layer);\n"
     "  if (base_color.a < 0.5) { discard; }\n"
     "  let mat_color = unpack4x8unorm(material.color);\n"
     "  let albedo = base_color.rgb * mat_color.rgb;\n"
     "\n"
-    "  let mr = textureSample(roughness_tex, tex_sampler, input.uv);\n"
+    "  let mr = textureSample(roughness_tex, tex_sampler, input.uv, layer);\n"
     "  let roughness = mr.g * material.roughness;\n"
     "  let metallic = mr.b * material.metallic;\n"
     "\n"
-    "  let emissive_sample = textureSample(emissive_tex, tex_sampler, input.uv).rgb;\n"
+    "  let emissive_sample = textureSample(emissive_tex, tex_sampler, input.uv, layer).rgb;\n"
     "  let em_color = unpack4x8unorm(material.emissive_color).rgb;\n"
     "  let emissive = emissive_sample * em_color * max(material.emissive_strength, 0.0);\n"
     "\n"
-    "  let normal_sample = textureSample(normal_tex, tex_sampler, input.uv).rgb;\n"
+    "  let normal_sample = textureSample(normal_tex, tex_sampler, input.uv, layer).rgb;\n"
     "  let tangent_normal = normal_sample * 2.0 - 1.0;\n"
     "\n"
     "  let N = normalize(input.normal);\n"

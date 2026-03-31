@@ -7,7 +7,9 @@
     "  metallic : f32,\n" \
     "  roughness : f32,\n" \
     "  emissive_strength : f32,\n" \
-    "  emissive_color : u32\n" \
+    "  emissive_color : u32,\n" \
+    "  texture_layer : u32,\n" \
+    "  _pad : u32\n" \
     "};\n" \
     "@group(0) @binding(1) var<storage, read> materials : array<GpuMaterial>;\n"
 

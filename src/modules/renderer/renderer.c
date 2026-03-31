@@ -310,6 +310,18 @@ int flecsEngine_initRenderer(
         .cache_kind = EcsQueryCacheAuto
     });
 
+    impl->materials.texture_query = ecs_query(world, {
+        .entity = ecs_entity(world, {
+            .parent = engine_parent
+        }),
+        .terms = {
+            { .id = ecs_id(FlecsPbrTextures), .src.id = EcsSelf },
+            { .id = ecs_id(FlecsMaterialId), .src.id = EcsSelf },
+            { .id = EcsPrefab, .src.id = EcsSelf }
+        },
+        .cache_kind = EcsQueryCacheAuto
+    });
+
     impl->lighting.point_light_query = ecs_query(world, {
         .entity = ecs_entity(world, {
             .parent = engine_parent
@@ -460,6 +472,11 @@ static void FlecsEngineRender(
 
     // Sync materials
     flecsEngine_material_uploadBuffer(it->world, impl);
+
+    // Build texture arrays (only runs when materials change)
+    if (!impl->materials.texture_array_bind_group) {
+        flecsEngine_material_buildTextureArrays(it->world, impl);
+    }
 
     // Render all views
     flecsEngine_renderView_renderAll(
