@@ -327,7 +327,6 @@ static void flecsEngine_renderView_extract(
     if (view->shadow.enabled && view->light) {
         flecsEngine_shadow_computeCascades(
             world, view, engine->shadow.map_size,
-            engine->shadow.cascade_sizes,
             view->shadow.max_range,
             engine->shadow.current_light_vp,
             engine->shadow.cascade_splits);

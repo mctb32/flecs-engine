@@ -1035,29 +1035,19 @@ template KenneyCity {
         IndustrialBlock() {
           Position3: {xP, 0, zP}
         }
-      }
-      if density >= 0.25 {
-        if density < 0.4 {
-          ForestBlock() {
-            Position3: {xP, 0, zP}
-          }
+      } else if density < 0.4 {
+        ForestBlock() {
+          Position3: {xP, 0, zP}
         }
-      }
-      if density >= 0.4 {
-        if density < 0.6 {
-          LowDensityBlock() {
-            Position3: {xP, 0, zP}
-          }
+      } else if density < 0.6 {
+        LowDensityBlock() {
+          Position3: {xP, 0, zP}
         }
-      }
-      if density >= 0.6 {
-        if density < 0.7 {
-          MediumDensityBlock() {
-            Position3: {xP, 0, zP}
-          }
+      } else if density < 0.75 {
+        MediumDensityBlock() {
+          Position3: {xP, 0, zP}
         }
-      }
-      if density >= 0.7 {
+      } else {
         HighDensityBlock() {
           Position3: {xP, 0, zP}
         }
@@ -1067,5 +1057,6 @@ template KenneyCity {
 }
 
 KenneyCity city(120) {
-  Position3: {}
+  Position3: {y: 1}
+  Scale3: {3, 3, 3}
 }

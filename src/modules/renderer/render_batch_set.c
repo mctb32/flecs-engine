@@ -200,18 +200,12 @@ void flecsEngine_renderView_renderShadow(
         WGPURenderPassEncoder shadow_pass = wgpuCommandEncoderBeginRenderPass(
             encoder, &pass_desc);
 
-        /* Restrict rendering to the cascade's effective resolution.
-         * Distant cascades use smaller viewports to reduce rasterization
-         * cost while the full-size texture layer stores their depth in
-         * the top-left sub-region. */
-        {
-            uint32_t cs = engine->shadow.cascade_sizes[c];
-            wgpuRenderPassEncoderSetViewport(
-                shadow_pass,
-                0.0f, 0.0f,
-                (float)cs, (float)cs,
-                0.0f, 1.0f);
-        }
+        wgpuRenderPassEncoderSetViewport(
+            shadow_pass,
+            0.0f, 0.0f,
+            (float)engine->shadow.map_size,
+            (float)engine->shadow.map_size,
+            0.0f, 1.0f);
 
         engine->last_pipeline = NULL;
 

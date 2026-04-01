@@ -15,7 +15,6 @@ typedef struct {
     WGPUTextureView texture_view;
     WGPUTextureView layer_views[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     uint32_t map_size;
-    uint32_t cascade_sizes[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     WGPUShaderModule shader_module;
     WGPUBuffer vp_buffers[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     WGPUBindGroupLayout pass_bind_layout;
