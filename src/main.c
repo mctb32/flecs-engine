@@ -170,7 +170,7 @@ void initEngine(
       .aspect_ratio = options.width / (float)options.height
   });
   ecs_add(world, view.camera, FlecsCameraController);
-  ecs_set(world, view.camera, FlecsPosition3, {-4, 2.7, 3.65});
+  ecs_set(world, view.camera, FlecsPosition3, {-6, 2.7, 3.65});
   ecs_set(world, view.camera, FlecsLookAt, {-3.378, 2.216, 3.05});
 
   // Light
@@ -187,8 +187,8 @@ void initEngine(
   // RenderBatches (what to render in scene)
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
     flecsEngine_createBatch_skybox(world, view_entity, "skybox");
-  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-    flecsEngine_createBatch_infinitePlane(world, view_entity, "ground_plane");
+  // ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
+  //   flecsEngine_createBatch_infinitePlane(world, view_entity, "ground_plane");
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
     flecsEngine_createBatchSet_geometry(world, view_entity, "geometry");
 
@@ -197,10 +197,15 @@ void initEngine(
   ssao_settings.radius = 0.5;
   ssao_settings.blur = 0;
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
-  FlecsExponentialHeightFog fog_settings =
-    flecsEngine_exponentialHeightFogSettingsDefault();
+  FlecsHeightFog fog_settings =
+    flecsEngine_heightFogSettingsDefault();
   fog_settings.density = 0.3;
   fog_settings.falloff = 1.3;
+
+  FlecsDistanceFog dist_fog_settings = {
+    .density = 0.0005f,
+    .color = {100, 190, 255, 255}
+  };
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
@@ -211,9 +216,9 @@ void initEngine(
       flecsEngine_createEffect_bloom(world, view_entity,
         "bloom", 1, &bloom_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = false, .effect =
-      flecsEngine_createEffect_exponentialHeightFog(
-        world, view_entity, "heightFog", 2, &fog_settings) };
+    (flecs_render_view_effect_t){ .enabled = true, .effect =
+      flecsEngine_createEffect_distanceFog(world, view_entity,
+        "distanceFog", 2, &dist_fog_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_tonyMcMapFace(world, view_entity,

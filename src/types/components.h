@@ -91,9 +91,9 @@ extern ECS_COMPONENT_DECLARE(FlecsRenderEffectImpl);
 
 typedef struct {
     WGPUBuffer uniform_buffer;
-} FlecsExponentialHeightFogImpl;
+} FlecsHeightFogImpl;
 
-extern ECS_COMPONENT_DECLARE(FlecsExponentialHeightFogImpl);
+extern ECS_COMPONENT_DECLARE(FlecsHeightFogImpl);
 
 typedef struct {
     WGPUBuffer uniform_buffer;

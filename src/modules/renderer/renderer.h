@@ -128,7 +128,7 @@ void flecsEngine_tonyMcMapFace_register(
 void flecsEngine_bloom_register(
     ecs_world_t *world);
 
-void flecsEngine_exponentialHeightFog_register(
+void flecsEngine_heightFog_register(
     ecs_world_t *world);
 
 void flecsEngine_ssao_register(

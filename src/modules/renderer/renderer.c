@@ -606,7 +606,7 @@ void FlecsEngineRendererImport(
     flecsEngine_ibl_register(world);
     flecsEngine_tonyMcMapFace_register(world);
     flecsEngine_bloom_register(world);
-    flecsEngine_exponentialHeightFog_register(world);
+    flecsEngine_heightFog_register(world);
     flecsEngine_ssao_register(world);
 
     /* Register FlecsTextureImpl (renderer-side companion for FlecsTexture) */

@@ -19,7 +19,14 @@ typedef struct {
 
 extern ECS_COMPONENT_DECLARE(FlecsBloom);
 
-ECS_STRUCT(FlecsExponentialHeightFog, {
+ECS_STRUCT(FlecsDistanceFog, {
+    float density;
+    flecs_rgba_t color;
+});
+
+extern ECS_COMPONENT_DECLARE(FlecsDistanceFog);
+
+ECS_STRUCT(FlecsHeightFog, {
     float density;
     float falloff;
     float base_height;
@@ -27,7 +34,7 @@ ECS_STRUCT(FlecsExponentialHeightFog, {
     flecs_rgba_t color;
 });
 
-extern ECS_COMPONENT_DECLARE(FlecsExponentialHeightFog);
+extern ECS_COMPONENT_DECLARE(FlecsHeightFog);
 
 ECS_STRUCT(FlecsSSAO, {
     float radius;
@@ -59,14 +66,21 @@ ecs_entity_t flecsEngine_createEffect_bloom(
     int32_t input,
     const FlecsBloom *settings);
 
-FlecsExponentialHeightFog flecsEngine_exponentialHeightFogSettingsDefault(void);
+FlecsHeightFog flecsEngine_heightFogSettingsDefault(void);
 
-ecs_entity_t flecsEngine_createEffect_exponentialHeightFog(
+ecs_entity_t flecsEngine_createEffect_heightFog(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name,
     int32_t input,
-    const FlecsExponentialHeightFog *settings);
+    const FlecsHeightFog *settings);
+
+ecs_entity_t flecsEngine_createEffect_distanceFog(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name,
+    int32_t input,
+    const FlecsDistanceFog *settings);
 
 FlecsSSAO flecsEngine_ssaoSettingsDefault(void);
 
