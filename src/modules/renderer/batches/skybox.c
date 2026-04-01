@@ -85,13 +85,14 @@ ecs_entity_t flecsEngine_createBatch_skybox(
         .uniforms = {
             ecs_id(FlecsUniform)
         },
+        .depth_test = WGPUCompareFunction_LessEqual,
+        .cull_mode = WGPUCullMode_None,
+        .depth_write = false,
         .extract_callback = flecsEngine_skybox_extractCallback,
         .callback = flecsEngine_skybox_renderCallback,
         .ctx = flecsEngine_skybox_createCtx((ecs_world_t*)world),
         .free_ctx = flecsEngine_skybox_deleteCtx
     });
-
-    ecs_add(world, batch, FlecsSkyboxBatch);
 
     return batch;
 }

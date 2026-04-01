@@ -665,7 +665,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
      * FlecsRenderBatch on_set hook creates a pipeline we can reference. */
     ecs_entity_t textured_helper = ecs_entity(world, {
         .parent = batch });
-    ecs_add(world, textured_helper, FlecsTransparentBatch);
     ecs_set(world, textured_helper, FlecsRenderBatch, {
         .shader = flecsEngine_shader_pbrTextured(world),
         .vertex_type = ecs_id(FlecsLitVertexUv),
@@ -675,7 +674,22 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
         },
         .uniforms = {
             ecs_id(FlecsUniform)
-        }
+        },
+        .depth_test = WGPUCompareFunction_Less,
+        .cull_mode = WGPUCullMode_None,
+        .blend = {
+            .color = {
+                .operation = WGPUBlendOperation_Add,
+                .srcFactor = WGPUBlendFactor_SrcAlpha,
+                .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha
+            },
+            .alpha = {
+                .operation = WGPUBlendOperation_Add,
+                .srcFactor = WGPUBlendFactor_One,
+                .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha
+            }
+        },
+        .depth_write = false
     });
 
     /* Unified query matches all transparent meshes regardless of textures */
@@ -696,8 +710,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
         .on_group_delete = flecsEngine_mesh_onGroupDelete
     });
 
-    ecs_add(world, batch, FlecsTransparentBatch);
-
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
@@ -709,6 +721,21 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
         .uniforms = {
             ecs_id(FlecsUniform)
         },
+        .depth_test = WGPUCompareFunction_Less,
+        .cull_mode = WGPUCullMode_None,
+        .blend = {
+            .color = {
+                .operation = WGPUBlendOperation_Add,
+                .srcFactor = WGPUBlendFactor_SrcAlpha,
+                .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha
+            },
+            .alpha = {
+                .operation = WGPUBlendOperation_Add,
+                .srcFactor = WGPUBlendFactor_One,
+                .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha
+            }
+        },
+        .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
         .callback = flecsEngine_transparent_mesh_render,
         .ctx = flecsEngine_transparent_mesh_createCtx(batch, textured_helper),

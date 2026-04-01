@@ -1063,5 +1063,5 @@ template KenneyCity {
 
 KenneyCity city(40) {
   Position3: {y: 1}
-  Scale3: {3, 3, 3}
+  Scale3: {2, 2, 2}
 }

@@ -13,9 +13,7 @@
 
 struct FlecsRenderBatch;
 struct FlecsRenderEffect;
-extern ECS_TAG_DECLARE(FlecsSkyboxBatch);
-extern ECS_TAG_DECLARE(FlecsTransparentBatch);
-extern ECS_TAG_DECLARE(FlecsGroundPlaneBatch);
+
 
 typedef void (*flecs_render_batch_callback)(
     const ecs_world_t *world,
@@ -66,6 +64,10 @@ ECS_STRUCT(FlecsRenderBatch, {
     ecs_entity_t vertex_type;
     ecs_entity_t instance_types[FLECS_ENGINE_INSTANCE_TYPES_MAX];
     ecs_entity_t uniforms[FLECS_ENGINE_UNIFORMS_MAX];
+    WGPUCompareFunction depth_test;
+    WGPUCullMode cull_mode;
+    WGPUBlendState blend;
+    bool depth_write;
 ECS_PRIVATE
     flecs_render_batch_extract_callback extract_callback;
     flecs_render_batch_callback callback;

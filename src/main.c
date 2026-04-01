@@ -128,14 +128,15 @@ void initEngine(
     .shadow = {
       .enabled = true,
       .map_size = 4096,
-      .max_range = 150
+      .max_range = 300,
+      .bias = 0.0001
     },
     .background = {
       .sky_color = {5, 45, 100},
       .haze_color = {255, 255, 255},
       .horizon_color = {250, 255, 255},
       .ground_color = {50, 100, 70},
-      .ambient_intensity = 0.4
+      .ambient_intensity = 0.2
     },
     .screen_size_threshold = 5.0
   };
@@ -170,8 +171,8 @@ void initEngine(
       .aspect_ratio = options.width / (float)options.height
   });
   ecs_add(world, view.camera, FlecsCameraController);
-  ecs_set(world, view.camera, FlecsPosition3, {-6, 2.7, 3.65});
-  ecs_set(world, view.camera, FlecsLookAt, {-3.378, 2.216, 3.05});
+  ecs_set(world, view.camera, FlecsPosition3, {-6, 4.7, 3.65});
+  ecs_set(world, view.camera, FlecsLookAt, {-3.378, 4.216, 3.05});
 
   // Light
   view.light = ecs_entity(world, { .name = "light" });
@@ -186,11 +187,9 @@ void initEngine(
 
   // RenderBatches (what to render in scene)
   ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-    flecsEngine_createBatch_skybox(world, view_entity, "skybox");
-  // ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-  //   flecsEngine_createBatch_infinitePlane(world, view_entity, "ground_plane");
-  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
     flecsEngine_createBatchSet_geometry(world, view_entity, "geometry");
+  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
+    flecsEngine_createBatch_skybox(world, view_entity, "skybox");
 
   // Post process effects
   FlecsSSAO ssao_settings = flecsEngine_ssaoSettingsDefault();

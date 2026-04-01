@@ -7,9 +7,6 @@
 
 ECS_COMPONENT_DECLARE(FlecsRenderBatch);
 ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);
-ECS_TAG_DECLARE(FlecsSkyboxBatch);
-ECS_TAG_DECLARE(FlecsTransparentBatch);
-ECS_TAG_DECLARE(FlecsGroundPlaneBatch);
 
 ECS_DTOR(FlecsRenderBatch, ptr, {
     if (ptr->ctx && ptr->free_ctx) {
@@ -301,9 +298,10 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     bool use_shadow,
     bool use_cluster,
     bool use_textures,
-    bool is_skybox,
-    bool is_transparent,
-    bool is_ground_plane,
+    const WGPUBlendState *blend,
+    WGPUCullMode cull_mode,
+    WGPUCompareFunction depth_test,
+    bool depth_write,
     const WGPUVertexBufferLayout *vertex_buffers,
     uint32_t vertex_buffer_count,
     WGPUTextureFormat color_format,
@@ -335,38 +333,20 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
         return NULL;
     }
 
-    WGPUBlendState blend_state = {
-        .color = {
-            .operation = WGPUBlendOperation_Add,
-            .srcFactor = WGPUBlendFactor_SrcAlpha,
-            .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha
-        },
-        .alpha = {
-            .operation = WGPUBlendOperation_Add,
-            .srcFactor = WGPUBlendFactor_One,
-            .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha
-        }
-    };
-
     WGPUColorTargetState color_target = {
         .format = color_format,
         .writeMask = WGPUColorWriteMask_All,
-        .blend = is_transparent ? &blend_state : NULL
+        .blend = blend
     };
 
     WGPUDepthStencilState depth_state = {
         .format = WGPUTextureFormat_Depth24Plus,
-        .depthWriteEnabled = is_transparent
-            ? WGPUOptionalBool_False : WGPUOptionalBool_True,
-        .depthCompare = WGPUCompareFunction_Less,
+        .depthWriteEnabled = depth_write
+            ? WGPUOptionalBool_True : WGPUOptionalBool_False,
+        .depthCompare = depth_test,
         .stencilReadMask = 0xFFFFFFFF,
         .stencilWriteMask = 0xFFFFFFFF
     };
-
-    if (is_skybox) {
-        depth_state.depthWriteEnabled = WGPUOptionalBool_False;
-        depth_state.depthCompare = WGPUCompareFunction_LessEqual;
-    }
 
 
     WGPUVertexState vertex_state = {
@@ -390,15 +370,11 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
         .depthStencil = &depth_state,
         .primitive = {
             .topology = WGPUPrimitiveTopology_TriangleList,
-            .cullMode = WGPUCullMode_Back,
+            .cullMode = cull_mode,
             .frontFace = WGPUFrontFace_CCW
         },
         .multisample = WGPU_MULTISAMPLE(sample_count)
     };
-
-    if (is_skybox || is_transparent || is_ground_plane) {
-        pipeline_desc.primitive.cullMode = WGPUCullMode_None;
-    }
 
     WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
         engine->device, &pipeline_desc);
@@ -420,9 +396,7 @@ static void flecsEngine_renderBatch_logErr(
 static bool flecsEngine_renderBatch_validate(
     const ecs_world_t *world,
     ecs_entity_t e,
-    const FlecsRenderBatch *rb,
-    const FlecsShader **shader_out,
-    const FlecsShaderImpl **shader_impl_out)
+    const FlecsRenderBatch *rb)
 {
     if (!rb->vertex_type) {
         flecsEngine_renderBatch_logErr(world, e,
@@ -437,18 +411,6 @@ static bool flecsEngine_renderBatch_validate(
     if (!rb->shader) {
         flecsEngine_renderBatch_logErr(world, e,
             "missing shader asset for render batch %s");
-        return false;
-    }
-
-    *shader_out = ecs_get(world, rb->shader, FlecsShader);
-    if (!*shader_out) {
-        flecsEngine_renderBatch_logErr(world, e,
-            "invalid shader asset for render batch %s");
-        return false;
-    }
-
-    *shader_impl_out = flecsEngine_shader_ensureImpl(world, rb->shader);
-    if (!*shader_impl_out || !(*shader_impl_out)->shader_module) {
         return false;
     }
 
@@ -511,21 +473,27 @@ static void FlecsRenderBatch_on_set(
     WGPUVertexAttribute instance_attrs[256] = {0};
     WGPUVertexBufferLayout vertex_buffers[1 + FLECS_ENGINE_INSTANCE_TYPES_MAX] = {0};
     FlecsEngineImpl *engine = ecs_singleton_get_mut(world, FlecsEngineImpl);
-    if (!engine) {
-        ecs_err("cannot build render batches: engine is not initialized");
-        return;
-    }
+    ecs_assert(engine != NULL, ECS_INTERNAL_ERROR, NULL);
+
     for (int i = 0; i < it->count; i ++) {
         ecs_entity_t e = it->entities[i];
         int32_t vertex_buffer_count = 0;
-
         FlecsRenderBatchImpl impl = {};
-        const FlecsShader *shader;
-        const FlecsShaderImpl *shader_impl;
+        
+        if (!flecsEngine_renderBatch_validate(world, e, &rb[i])) {
+            continue;
+        }
 
-        if (!flecsEngine_renderBatch_validate(
-            world, e, &rb[i], &shader, &shader_impl))
-        {
+        const FlecsShader *shader = ecs_get(world, rb->shader, FlecsShader);
+        if (!shader) {
+            flecsEngine_renderBatch_logErr(world, e,
+                "invalid shader asset for render batch %s");
+            continue;
+        }
+
+        const FlecsShaderImpl *shader_impl = flecsEngine_shader_ensureImpl(
+            world, rb->shader);
+        if (!shader_impl || !shader_impl->shader_module) {
             continue;
         }
 
@@ -556,9 +524,20 @@ static void FlecsRenderBatch_on_set(
         impl.uses_shadow = shader_impl->uses_shadow;
         impl.uses_cluster = shader_impl->uses_cluster;
         impl.uses_textures = shader_impl->uses_textures;
-        bool is_skybox = ecs_has(world, e, FlecsSkyboxBatch);
-        bool is_transparent = ecs_has(world, e, FlecsTransparentBatch);
-        bool is_ground_plane = ecs_has(world, e, FlecsGroundPlaneBatch);
+        bool has_blend = rb[i].blend.color.operation != 0;
+        const WGPUBlendState *blend = has_blend ? &rb[i].blend : NULL;
+        WGPUCullMode cull_mode = rb[i].cull_mode;
+        if (!cull_mode) {
+            cull_mode = WGPUCullMode_Back;
+        }
+
+        /* Default depth settings when not explicitly configured */
+        WGPUCompareFunction depth_test = rb[i].depth_test;
+        bool depth_write = rb[i].depth_write;
+        if (!depth_test) {
+            depth_test = WGPUCompareFunction_Less;
+            depth_write = true;
+        }
 
         if ((impl.uses_ibl || impl.uses_shadow || impl.uses_cluster) &&
             !flecsEngine_ibl_ensureBindLayout(engine))
@@ -595,9 +574,10 @@ static void FlecsRenderBatch_on_set(
             impl.uses_shadow,
             impl.uses_cluster,
             impl.uses_textures,
-            is_skybox,
-            is_transparent,
-            is_ground_plane,
+            blend,
+            cull_mode,
+            depth_test,
+            depth_write,
             vertex_buffers,
             (uint32_t)vertex_buffer_count,
             hdr_format,
@@ -607,7 +587,7 @@ static void FlecsRenderBatch_on_set(
             continue;
         }
 
-        if (!is_transparent && !is_ground_plane) {
+        if (!has_blend) {
             flecsEngine_renderBatch_setupShadowPipeline(
                 world, engine, &rb[i], &impl,
                 vertex_buffers, vertex_buffer_count);
@@ -843,14 +823,9 @@ void flecsEngine_renderBatch_render(
     wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
 
     if (impl->uses_ibl || impl->uses_shadow || impl->uses_cluster) {
-        bool is_skybox = ecs_has(world, batch_entity, FlecsSkyboxBatch);
-        bool is_ground = ecs_has(world, batch_entity, FlecsGroundPlaneBatch);
         ecs_entity_t hdri = view->hdri;
         if (!hdri) {
             hdri = engine->sky_background_hdri;
-        }
-        if (view->background.ambient_intensity == 0 && !is_skybox && !is_ground) {
-            hdri = engine->black_hdri;
         }
 
         FlecsHdriImpl *ibl = ecs_get_mut(world, hdri, FlecsHdriImpl);
@@ -927,9 +902,6 @@ void flecsEngine_renderBatch_register(
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatch);
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchImpl);
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchSet);
-    ECS_TAG_DEFINE(world, FlecsSkyboxBatch);
-    ECS_TAG_DEFINE(world, FlecsTransparentBatch);
-    ECS_TAG_DEFINE(world, FlecsGroundPlaneBatch);
 
     ecs_set_hooks(world, FlecsRenderBatch, {
         .ctor = flecs_default_ctor,
