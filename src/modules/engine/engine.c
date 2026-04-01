@@ -11,6 +11,7 @@
 #include "../input/input.h"
 #include "../camera/camera.h"
 #include "../light/light.h"
+#include "../texture/texture.h"
 #include "../material/material.h"
 #include "../gltf/gltf.h"
 
@@ -261,6 +262,7 @@ void FlecsEngineImport(
     ECS_IMPORT(world, FlecsEngineWindow);
     ECS_IMPORT(world, FlecsEngineFrameCapture);
     ECS_IMPORT(world, FlecsEngineLight);
+    ECS_IMPORT(world, FlecsEngineTexture);
     ECS_IMPORT(world, FlecsEngineMaterial);
     ECS_IMPORT(world, FlecsEngineRenderer);
     ECS_IMPORT(world, FlecsEngineGeometry3);

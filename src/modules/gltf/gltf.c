@@ -306,31 +306,42 @@ static ecs_entity_t flecsEngine_gltf_getImageEntity(
     return e;
 }
 
-static void flecsEngine_gltf_setupMaterial(
+typedef struct {
+    bool has_rgba;
+    FlecsRgba rgba;
+    bool has_pbr;
+    FlecsPbrMaterial pbr;
+    bool has_emissive;
+    FlecsEmissive emissive;
+    bool has_textures;
+    FlecsPbrTextures textures;
+    bool alpha_blend;
+} flecsEngine_gltf_materialDesc;
+
+static void flecsEngine_gltf_computeMaterial(
+    flecsEngine_gltf_materialDesc *desc,
     ecs_world_t *world,
-    ecs_entity_t entity,
     const cgltf_material *mat,
     const char *gltf_path,
     ecs_entity_t *image_entities,
     const cgltf_data *data)
 {
+    memset(desc, 0, sizeof(*desc));
+
     float em_r = mat->emissive_factor[0];
     float em_g = mat->emissive_factor[1];
     float em_b = mat->emissive_factor[2];
     float em_max = fmaxf(em_r, fmaxf(em_g, em_b));
-    flecs_rgba_t em_color = {0};
     if (em_max > 0.0f) {
-        em_color.r = (uint8_t)(em_r / em_max * 255.0f);
-        em_color.g = (uint8_t)(em_g / em_max * 255.0f);
-        em_color.b = (uint8_t)(em_b / em_max * 255.0f);
-        em_color.a = 255;
+        desc->has_emissive = true;
+        desc->emissive.strength = em_max;
+        desc->emissive.color = (flecs_rgba_t){
+            .r = (uint8_t)(em_r / em_max * 255.0f),
+            .g = (uint8_t)(em_g / em_max * 255.0f),
+            .b = (uint8_t)(em_b / em_max * 255.0f),
+            .a = 255
+        };
     }
-    ecs_set(world, entity, FlecsEmissive, {
-        .strength = em_max,
-        .color = em_color
-    });
-
-    FlecsPbrTextures tex = {0};
 
     const cgltf_texture_view *albedo_tv = NULL;
     const cgltf_texture_view *roughness_tv = NULL;
@@ -339,11 +350,13 @@ static void flecsEngine_gltf_setupMaterial(
         const cgltf_pbr_specular_glossiness *sg =
             &mat->pbr_specular_glossiness;
 
-        uint8_t r = (uint8_t)(sg->diffuse_factor[0] * 255.0f);
-        uint8_t g = (uint8_t)(sg->diffuse_factor[1] * 255.0f);
-        uint8_t b = (uint8_t)(sg->diffuse_factor[2] * 255.0f);
-        uint8_t a = (uint8_t)(sg->diffuse_factor[3] * 255.0f);
-        ecs_set(world, entity, FlecsRgba, { r, g, b, a });
+        desc->has_rgba = true;
+        desc->rgba = (FlecsRgba){
+            (uint8_t)(sg->diffuse_factor[0] * 255.0f),
+            (uint8_t)(sg->diffuse_factor[1] * 255.0f),
+            (uint8_t)(sg->diffuse_factor[2] * 255.0f),
+            (uint8_t)(sg->diffuse_factor[3] * 255.0f)
+        };
 
         /* Scale glossiness by sqrt of specular intensity to approximate the
          * spec-gloss model in metal-rough. Without this, low-specular
@@ -353,52 +366,53 @@ static void flecsEngine_gltf_setupMaterial(
         float max_spec = fmaxf(fmaxf(
             sg->specular_factor[0], sg->specular_factor[1]),
             sg->specular_factor[2]);
-        ecs_set(world, entity, FlecsPbrMaterial, {
+        desc->has_pbr = true;
+        desc->pbr = (FlecsPbrMaterial){
             .metallic = 0.0f,
             .roughness = 1.0f - sg->glossiness_factor * sqrtf(max_spec)
-        });
+        };
 
         albedo_tv = &sg->diffuse_texture;
         /* Don't use the specular-glossiness texture as roughness texture.
          * The shader expects metal-rough layout (G=roughness, B=metallic)
          * but spec-gloss textures store specular in RGB and glossiness in
          * A, so the channels don't match. */
-    } else {
+    } else if (mat->has_pbr_metallic_roughness) {
         const cgltf_pbr_metallic_roughness *pbr =
             &mat->pbr_metallic_roughness;
 
-        uint8_t r = (uint8_t)(pbr->base_color_factor[0] * 255.0f);
-        uint8_t g = (uint8_t)(pbr->base_color_factor[1] * 255.0f);
-        uint8_t b = (uint8_t)(pbr->base_color_factor[2] * 255.0f);
-        uint8_t a = (uint8_t)(pbr->base_color_factor[3] * 255.0f);
-        ecs_set(world, entity, FlecsRgba, { r, g, b, a });
+        desc->has_rgba = true;
+        desc->rgba = (FlecsRgba){
+            (uint8_t)(pbr->base_color_factor[0] * 255.0f),
+            (uint8_t)(pbr->base_color_factor[1] * 255.0f),
+            (uint8_t)(pbr->base_color_factor[2] * 255.0f),
+            (uint8_t)(pbr->base_color_factor[3] * 255.0f)
+        };
 
-        ecs_set(world, entity, FlecsPbrMaterial, {
+        desc->has_pbr = true;
+        desc->pbr = (FlecsPbrMaterial){
             .metallic = pbr->metallic_factor,
             .roughness = pbr->roughness_factor
-        });
+        };
 
         albedo_tv = &pbr->base_color_texture;
         roughness_tv = &pbr->metallic_roughness_texture;
     }
 
-    tex.albedo = flecsEngine_gltf_getImageEntity(
+    desc->textures.albedo = flecsEngine_gltf_getImageEntity(
         world, image_entities, data, albedo_tv, gltf_path);
-    tex.emissive = flecsEngine_gltf_getImageEntity(
+    desc->textures.emissive = flecsEngine_gltf_getImageEntity(
         world, image_entities, data, &mat->emissive_texture, gltf_path);
-    tex.roughness = flecsEngine_gltf_getImageEntity(
+    desc->textures.roughness = flecsEngine_gltf_getImageEntity(
         world, image_entities, data, roughness_tv, gltf_path);
-    tex.normal = flecsEngine_gltf_getImageEntity(
+    desc->textures.normal = flecsEngine_gltf_getImageEntity(
         world, image_entities, data, &mat->normal_texture, gltf_path);
 
-    bool has_textures = tex.albedo || tex.emissive ||
-                        tex.roughness || tex.normal;
-    if (has_textures) {
-        ecs_set_ptr(world, entity, FlecsPbrTextures, &tex);
-    }
+    desc->has_textures = desc->textures.albedo || desc->textures.emissive ||
+                         desc->textures.roughness || desc->textures.normal;
 
     if (mat->alpha_mode == cgltf_alpha_mode_blend) {
-        ecs_add(world, entity, FlecsAlphaBlend);
+        desc->alpha_blend = true;
     }
 
     /* Approximate KHR_materials_transmission as alpha blending */
@@ -406,9 +420,107 @@ static void flecsEngine_gltf_setupMaterial(
         mat->transmission.transmission_factor > 0.0f)
     {
         float alpha = 1.0f - mat->transmission.transmission_factor;
-        FlecsRgba *rgba = ecs_ensure(world, entity, FlecsRgba);
-        rgba->a = (uint8_t)(alpha * 255.0f);
-        ecs_modified(world, entity, FlecsRgba);
+        if (!desc->has_rgba) {
+            desc->has_rgba = true;
+        }
+        desc->rgba.a = (uint8_t)(alpha * 255.0f);
+        desc->alpha_blend = true;
+    }
+}
+
+static bool flecsEngine_gltf_matchMaterial(
+    ecs_world_t *world,
+    ecs_entity_t entity,
+    const flecsEngine_gltf_materialDesc *desc)
+{
+    const FlecsRgba *rgba = ecs_get(world, entity, FlecsRgba);
+    if (desc->has_rgba) {
+        if (!rgba) return false;
+        if (rgba->r != desc->rgba.r || rgba->g != desc->rgba.g ||
+            rgba->b != desc->rgba.b || rgba->a != desc->rgba.a) return false;
+    } else {
+        if (rgba) return false;
+    }
+
+    const FlecsPbrMaterial *pbr = ecs_get(world, entity, FlecsPbrMaterial);
+    if (desc->has_pbr) {
+        if (!pbr) return false;
+        if (pbr->metallic != desc->pbr.metallic ||
+            pbr->roughness != desc->pbr.roughness) return false;
+    } else {
+        if (pbr) return false;
+    }
+
+    const FlecsEmissive *em = ecs_get(world, entity, FlecsEmissive);
+    if (desc->has_emissive) {
+        if (!em) return false;
+        if (em->strength != desc->emissive.strength) return false;
+        if (em->color.r != desc->emissive.color.r ||
+            em->color.g != desc->emissive.color.g ||
+            em->color.b != desc->emissive.color.b ||
+            em->color.a != desc->emissive.color.a) return false;
+    } else {
+        if (em) return false;
+    }
+
+    const FlecsPbrTextures *tex = ecs_get(world, entity, FlecsPbrTextures);
+    if (desc->has_textures) {
+        if (!tex) return false;
+        if (tex->albedo != desc->textures.albedo ||
+            tex->emissive != desc->textures.emissive ||
+            tex->roughness != desc->textures.roughness ||
+            tex->normal != desc->textures.normal) return false;
+    } else {
+        if (tex) return false;
+    }
+
+    bool has_alpha = ecs_has(world, entity, FlecsAlphaBlend);
+    if (desc->alpha_blend != has_alpha) return false;
+
+    return true;
+}
+
+static ecs_entity_t flecsEngine_gltf_findMaterial(
+    ecs_world_t *world,
+    ecs_entity_t materials_parent,
+    const flecsEngine_gltf_materialDesc *desc)
+{
+    ecs_entity_t result = 0;
+    ecs_iter_t it = ecs_children(world, materials_parent);
+    while (ecs_children_next(&it)) {
+        for (int i = 0; i < it.count; i++) {
+            if (flecsEngine_gltf_matchMaterial(world, it.entities[i], desc)) {
+                result = it.entities[i];
+                ecs_iter_fini(&it);
+                return result;
+            }
+        }
+    }
+    return 0;
+}
+
+static void flecsEngine_gltf_applyMaterial(
+    ecs_world_t *world,
+    ecs_entity_t entity,
+    const flecsEngine_gltf_materialDesc *desc)
+{
+    if (desc->has_emissive) {
+        ecs_set_ptr(world, entity, FlecsEmissive, &desc->emissive);
+    }
+
+    if (desc->has_rgba) {
+        ecs_set_ptr(world, entity, FlecsRgba, &desc->rgba);
+    }
+
+    if (desc->has_pbr) {
+        ecs_set_ptr(world, entity, FlecsPbrMaterial, &desc->pbr);
+    }
+
+    if (desc->has_textures) {
+        ecs_set_ptr(world, entity, FlecsPbrTextures, &desc->textures);
+    }
+
+    if (desc->alpha_blend) {
         ecs_add(world, entity, FlecsAlphaBlend);
     }
 }
@@ -444,6 +556,41 @@ static ecs_entity_t flecsEngine_gltf_getNodeEntity(
     return e;
 }
 
+static ecs_entity_t flecsEngine_gltf_getMaterialEntity(
+    ecs_world_t *world,
+    ecs_entity_t *material_entities,
+    const cgltf_data *data,
+    const cgltf_material *mat,
+    ecs_entity_t materials_parent,
+    const char *gltf_path,
+    ecs_entity_t *image_entities)
+{
+    ptrdiff_t mat_idx = mat - data->materials;
+    if (material_entities[mat_idx]) {
+        return material_entities[mat_idx];
+    }
+
+    flecsEngine_gltf_materialDesc desc;
+    flecsEngine_gltf_computeMaterial(
+        &desc, world, mat, gltf_path, image_entities, data);
+
+    /* Check for existing duplicate in the materials scope */
+    ecs_entity_t e = flecsEngine_gltf_findMaterial(
+        world, materials_parent, &desc);
+
+    if (!e) {
+        e = ecs_entity(world, { .parent = materials_parent });
+        ecs_add_id(world, e, EcsPrefab);
+        if (mat->name) {
+            ecs_doc_set_name(world, e, mat->name);
+        }
+        flecsEngine_gltf_applyMaterial(world, e, &desc);
+    }
+
+    material_entities[mat_idx] = e;
+    return e;
+}
+
 static ecs_entity_t flecsEngine_gltf_getMeshEntity(
     ecs_world_t *world,
     ecs_entity_t **mesh_entities,
@@ -452,7 +599,9 @@ static ecs_entity_t flecsEngine_gltf_getMeshEntity(
     cgltf_size prim_index,
     ecs_entity_t meshes_parent,
     const char *gltf_path,
-    ecs_entity_t *image_entities)
+    ecs_entity_t *image_entities,
+    ecs_entity_t *material_entities,
+    ecs_entity_t materials_parent)
 {
     ptrdiff_t mesh_idx = mesh - data->meshes;
     if (mesh_entities[mesh_idx][prim_index]) {
@@ -468,12 +617,16 @@ static ecs_entity_t flecsEngine_gltf_getMeshEntity(
 
     ecs_entity_t e = ecs_entity(world, { .parent = meshes_parent });
     ecs_add_id(world, e, EcsPrefab);
+    if (mesh->name) {
+        ecs_doc_set_name(world, e, mesh->name);
+    }
     ecs_set_ptr(world, e, FlecsMesh3, &mesh3);
 
     if (prim->material) {
-        flecsEngine_gltf_setupMaterial(
-            world, e, prim->material, gltf_path,
-            image_entities, data);
+        ecs_entity_t mat_e = flecsEngine_gltf_getMaterialEntity(
+            world, material_entities, data, prim->material,
+            materials_parent, gltf_path, image_entities);
+        ecs_add_pair(world, e, EcsIsA, mat_e);
     }
 
     mesh_entities[mesh_idx][prim_index] = e;
@@ -534,11 +687,23 @@ static void flecsEngine_gltf_load(
     });
     ecs_add_id(world, meshes_e, EcsPrefab);
 
+    ecs_entity_t materials_e = ecs_entity(world, {
+        .parent = gltf_e,
+        .name = "materials"
+    });
+    ecs_add_id(world, materials_e, EcsPrefab);
+
     /* Pre-allocate lookup tables */
     ecs_entity_t *image_entities = NULL;
     if (data->images_count) {
         image_entities = ecs_os_calloc_n(
             ecs_entity_t, (int32_t)data->images_count);
+    }
+
+    ecs_entity_t *material_entities = NULL;
+    if (data->materials_count) {
+        material_entities = ecs_os_calloc_n(
+            ecs_entity_t, (int32_t)data->materials_count);
     }
 
     ecs_entity_t **mesh_entities = NULL;
@@ -598,7 +763,8 @@ static void flecsEngine_gltf_load(
             }
             ecs_entity_t mesh_prefab = flecsEngine_gltf_getMeshEntity(
                 world, mesh_entities, data, mesh, pi,
-                meshes_e, path, image_entities);
+                meshes_e, path, image_entities,
+                material_entities, materials_e);
             if (mesh_prefab) {
                 ecs_add_pair(world, root, EcsIsA, mesh_prefab);
             }
@@ -643,7 +809,8 @@ static void flecsEngine_gltf_load(
 
                 ecs_entity_t mesh_prefab = flecsEngine_gltf_getMeshEntity(
                     world, mesh_entities, data, mesh, pi,
-                    meshes_e, path, image_entities);
+                    meshes_e, path, image_entities,
+                    material_entities, materials_e);
                 if (!mesh_prefab) continue;
 
                 if (tri_count == 1) {
@@ -660,6 +827,7 @@ static void flecsEngine_gltf_load(
     }
 
     ecs_os_free(image_entities);
+    ecs_os_free(material_entities);
     if (mesh_entities) {
         for (cgltf_size mi = 0; mi < data->meshes_count; mi++) {
             ecs_os_free(mesh_entities[mi]);

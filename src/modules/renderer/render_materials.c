@@ -102,7 +102,8 @@ void flecsEngine_material_uploadBuffer(
         return;
     }
 
-    ecs_trace("upload materials buffer");
+    ecs_trace("upload materials buffer (last material id = %u)",
+        impl->materials.next_id);
 
 redo: {
         uint32_t required_count = 0;
@@ -123,6 +124,10 @@ redo: {
             const FlecsEmissive *emissives =
                 ecs_field(&it, FlecsEmissive, 3);
 
+            bool colors_self = ecs_field_is_self(&it, 0);
+            bool materials_self = ecs_field_is_self(&it, 1);
+            bool emissives_self = ecs_field_is_self(&it, 3);
+
             for (int32_t i = 0; i < it.count; i ++) {
                 uint32_t index = material_ids[i].value;
                 if ((index + 1u) > required_count) {
@@ -133,9 +138,13 @@ redo: {
                     continue;
                 }
 
+                int32_t ci = colors_self ? i : 0;
+                int32_t mi = materials_self ? i : 0;
+                int32_t ei = emissives_self ? i : 0;
+
                 FlecsEmissive emissive = {0};
                 if (emissives) {
-                    emissive = emissives[i];
+                    emissive = emissives[ei];
                 }
 
                 flecs_rgba_t em_color = emissive.color;
@@ -146,9 +155,9 @@ redo: {
                 }
 
                 impl->materials.cpu_materials[index] = (FlecsGpuMaterial){
-                    .color = colors[i],
-                    .metallic = materials[i].metallic,
-                    .roughness = materials[i].roughness,
+                    .color = colors[ci],
+                    .metallic = materials[mi].metallic,
+                    .roughness = materials[mi].roughness,
                     .emissive_strength = emissive.strength,
                     .emissive_color = em_color
                 };
@@ -165,29 +174,6 @@ redo: {
             return;
         }
 
-        /* Extend required_count to also cover material IDs from texture
-         * variant prefabs that may not match the main materials query
-         * (they inherit FlecsRgba/FlecsPbrMaterial instead of owning them). */
-        if (impl->materials.texture_query) {
-            ecs_iter_t tex_it = ecs_query_iter(
-                world, impl->materials.texture_query);
-            while (ecs_query_next(&tex_it)) {
-                const FlecsMaterialId *mat_ids =
-                    ecs_field(&tex_it, FlecsMaterialId, 1);
-                for (int32_t ti = 0; ti < tex_it.count; ti++) {
-                    if ((mat_ids[ti].value + 1u) > required_count) {
-                        required_count = mat_ids[ti].value + 1u;
-                    }
-                }
-            }
-
-            if (required_count > capacity) {
-                flecsEngine_material_ensureBufferCapacity(
-                    impl, required_count);
-                goto redo;
-            }
-        }
-
         wgpuQueueWriteBuffer(
             impl->queue,
             impl->materials.buffer,
@@ -195,67 +181,6 @@ redo: {
             impl->materials.cpu_materials,
             (uint64_t)required_count * sizeof(FlecsGpuMaterial));
         impl->materials.count = required_count;
-
-        /* Populate material properties and texture layer indices for
-         * texture variant prefabs (they inherit FlecsRgba/FlecsPbrMaterial
-         * instead of owning them, so the main query misses them). */
-        if (impl->materials.texture_query) {
-            ecs_iter_t tex_it = ecs_query_iter(
-                world, impl->materials.texture_query);
-            while (ecs_query_next(&tex_it)) {
-                const FlecsMaterialId *mat_ids =
-                    ecs_field(&tex_it, FlecsMaterialId, 1);
-                for (int32_t ti = 0; ti < tex_it.count; ti++) {
-                    uint32_t idx = mat_ids[ti].value;
-                    if (idx >= required_count) continue;
-
-                    FlecsGpuMaterial *gpu_mat =
-                        &impl->materials.cpu_materials[idx];
-
-                    /* Fill inherited material properties if missing */
-                    if (!gpu_mat->color.r && !gpu_mat->color.g &&
-                        !gpu_mat->color.b && !gpu_mat->color.a)
-                    {
-                        ecs_entity_t e = tex_it.entities[ti];
-                        const FlecsRgba *color =
-                            ecs_get(world, e, FlecsRgba);
-                        const FlecsPbrMaterial *mat =
-                            ecs_get(world, e, FlecsPbrMaterial);
-                        const FlecsEmissive *em =
-                            ecs_get(world, e, FlecsEmissive);
-                        if (color && mat) {
-                            flecs_rgba_t em_color = {0};
-                            float em_str = 0.0f;
-                            if (em) {
-                                em_str = em->strength;
-                                em_color = em->color;
-                                if (!em_color.r && !em_color.g &&
-                                    !em_color.b && em_str > 0.0f)
-                                {
-                                    em_color = (flecs_rgba_t){
-                                        255, 255, 255, 255};
-                                }
-                            }
-                            *gpu_mat = (FlecsGpuMaterial){
-                                .color = *color,
-                                .metallic = mat->metallic,
-                                .roughness = mat->roughness,
-                                .emissive_strength = em_str,
-                                .emissive_color = em_color
-                            };
-                        }
-                    }
-                }
-            }
-
-            /* Re-upload with newly-filled material slots */
-            wgpuQueueWriteBuffer(
-                impl->queue,
-                impl->materials.buffer,
-                0,
-                impl->materials.cpu_materials,
-                (uint64_t)required_count * sizeof(FlecsGpuMaterial));
-        }
 
         impl->materials.last_id = impl->materials.next_id;
     }

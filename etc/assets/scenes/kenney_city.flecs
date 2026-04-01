@@ -1034,27 +1034,27 @@ template KenneyCity {
       if density < 0.25 {
         @name Industrial block
         IndustrialBlock() {
-          Position3: {xP, 0, zP}
+          Position3: {xP, 0.01, zP}
         }
       } else if density < 0.4 {
         @name Forest block
         ForestBlock() {
-          Position3: {xP, 0, zP}
+          Position3: {xP, 0.01, zP}
         }
       } else if density < 0.6 {
         @name Low density block
         LowDensityBlock() {
-          Position3: {xP, 0, zP}
+          Position3: {xP, 0.01, zP}
         }
       } else if density < 0.75 {
         @name Medium density block
         MediumDensityBlock() {
-          Position3: {xP, 0, zP}
+          Position3: {xP, 0.01, zP}
         }
       } else {
         @name High density block
         HighDensityBlock() {
-          Position3: {xP, 0, zP}
+          Position3: {xP, 0.01, zP}
         }
       }
     }

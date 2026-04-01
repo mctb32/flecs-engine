@@ -301,10 +301,10 @@ int flecsEngine_initRenderer(
             .parent = engine_parent
         }),
         .terms = {
-            { .id = ecs_id(FlecsRgba), .src.id = EcsSelf },
-            { .id = ecs_id(FlecsPbrMaterial), .src.id = EcsSelf },
+            { .id = ecs_id(FlecsRgba) },
+            { .id = ecs_id(FlecsPbrMaterial) },
             { .id = ecs_id(FlecsMaterialId), .src.id = EcsSelf },
-            { .id = ecs_id(FlecsEmissive), .src.id = EcsSelf, .oper = EcsOptional },
+            { .id = ecs_id(FlecsEmissive), .oper = EcsOptional },
             { .id = EcsPrefab, .src.id = EcsSelf }
         },
         .cache_kind = EcsQueryCacheAuto
