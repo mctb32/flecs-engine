@@ -346,12 +346,11 @@ static void flecsEngine_textured_mesh_render(
 {
     FLECS_TRACY_ZONE_BEGIN("TexturedMeshRender");
 
-    (void)world;
+    bool use_array = !engine->shadow.in_pass &&
+        engine->materials.texture_array_bind_group;
 
-    /* Bind the texture array once for all textured mesh groups */
-    if (!engine->shadow.in_pass &&
-        engine->materials.texture_array_bind_group)
-    {
+    /* When a texture array is available, bind it once for all groups */
+    if (use_array) {
         wgpuRenderPassEncoderSetBindGroup(
             pass, 2,
             engine->materials.texture_array_bind_group, 0, NULL);
@@ -373,6 +372,17 @@ static void flecsEngine_textured_mesh_render(
         if (engine->shadow.in_pass) {
             flecsEngine_batch_draw(pass, ctx);
             continue;
+        }
+
+        /* Fall back to per-group texture binding when no array */
+        if (!use_array) {
+            const FlecsPbrTextures *pbr_tex = ecs_get(
+                world, (ecs_entity_t)group_id, FlecsPbrTextures);
+            if (!pbr_tex || !pbr_tex->_bind_group) {
+                continue;
+            }
+            wgpuRenderPassEncoderSetBindGroup(
+                pass, 2, (WGPUBindGroup)pbr_tex->_bind_group, 0, NULL);
         }
 
         ctx->vertex_buffer = ctx->mesh.vertex_uv_buffer;

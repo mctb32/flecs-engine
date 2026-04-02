@@ -818,6 +818,7 @@ static void flecsEngine_gltf_load(
                 } else {
                     ecs_entity_t prim_e = ecs_entity(world,
                         { .parent = node_e });
+                    ecs_set(world, prim_e, FlecsPosition3, {0, 0, 0});
                     ecs_add_pair(world, prim_e, EcsIsA, mesh_prefab);
                 }
             }

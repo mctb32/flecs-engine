@@ -171,8 +171,8 @@ void initEngine(
       .aspect_ratio = options.width / (float)options.height
   });
   ecs_add(world, view.camera, FlecsCameraController);
-  ecs_set(world, view.camera, FlecsPosition3, {-6, 4.7, 3.65});
-  ecs_set(world, view.camera, FlecsLookAt, {-3.378, 4.216, 3.05});
+  ecs_set(world, view.camera, FlecsPosition3, {-20.106, 1.9, 14.93});
+  ecs_set(world, view.camera, FlecsLookAt, {-19.244, 1.919, 14.423});
 
   // Light
   view.light = ecs_entity(world, { .name = "light" });
@@ -272,8 +272,8 @@ int main(
   ecs_log_set_level(0);
 
   ecs_entity_t s = ecs_script(world, {
-    // .filename = "etc/assets/scenes/kenney_city.flecs"
-    .filename = "etc/assets/scenes/bistro.flecs"
+    .filename = "etc/assets/scenes/kenney_city.flecs"
+    // .filename = "etc/assets/scenes/bistro.flecs"
     // .filename = "etc/assets/scenes/sponza.flecs"
     // .filename = "etc/assets/scenes/a_beautiful_game.flecs"
     // .filename = "etc/assets/scenes/flight_helmet.flecs"
