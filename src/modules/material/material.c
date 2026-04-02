@@ -7,6 +7,12 @@ ECS_COMPONENT_DECLARE(FlecsMaterialId);
 ECS_COMPONENT_DECLARE(FlecsPbrTextures);
 ECS_TAG_DECLARE(FlecsAlphaBlend);
 
+ECS_DTOR(FlecsPbrTextures, ptr, {
+    if (ptr->_bind_group) {
+        wgpuBindGroupRelease(ptr->_bind_group);
+    }
+})
+
 static void FlecsMaterialIdInit(
     ecs_iter_t *it)
 {
@@ -37,7 +43,8 @@ void FlecsEngineMaterialImport(
     ECS_TAG_DEFINE(world, FlecsAlphaBlend);
 
     ecs_set_hooks(world, FlecsPbrTextures, {
-        .ctor = flecs_default_ctor
+        .ctor = flecs_default_ctor,
+        .dtor = ecs_dtor(FlecsPbrTextures)
     });
 
     ecs_struct(world, {

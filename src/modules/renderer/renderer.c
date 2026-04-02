@@ -526,6 +526,15 @@ cleanup:
     FLECS_TRACY_ZONE_END;
 }
 
+ECS_DTOR(FlecsTextureImpl, ptr, {
+    if (ptr->view) {
+        wgpuTextureViewRelease(ptr->view);
+    }
+    if (ptr->texture) {
+        wgpuTextureRelease(ptr->texture);
+    }
+})
+
 void FlecsEngineRendererImport(
     ecs_world_t *world)
 {
@@ -612,7 +621,8 @@ void FlecsEngineRendererImport(
     /* Register FlecsTextureImpl (renderer-side companion for FlecsTexture) */
     ECS_COMPONENT_DEFINE(world, FlecsTextureImpl);
     ecs_set_hooks(world, FlecsTextureImpl, {
-        .ctor = flecs_default_ctor
+        .ctor = flecs_default_ctor,
+        .dtor = ecs_dtor(FlecsTextureImpl)
     });
     ecs_add_pair(world, ecs_id(FlecsTexture), EcsWith, ecs_id(FlecsTextureImpl));
 

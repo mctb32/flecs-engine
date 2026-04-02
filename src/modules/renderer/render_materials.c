@@ -7,6 +7,8 @@
 
 /* ---- Material buffer management ---- */
 
+static void flecsEngine_textureArray_release(FlecsEngineImpl *impl);
+
 static void flecsEngine_material_ensureBufferCapacity(
     FlecsEngineImpl *impl,
     uint32_t required_count)
@@ -38,6 +40,13 @@ static void flecsEngine_material_ensureBufferCapacity(
     FlecsGpuMaterial *new_cpu_materials =
         ecs_os_malloc_n(FlecsGpuMaterial, new_capacity);
     ecs_assert(new_cpu_materials != NULL, ECS_OUT_OF_MEMORY, NULL);
+
+    /* Preserve existing data so that texture_layer values (and any other
+     * fields written by buildTextureArrays) survive a reallocation. */
+    if (impl->materials.cpu_materials && impl->materials.buffer_capacity) {
+        ecs_os_memcpy_n(new_cpu_materials, impl->materials.cpu_materials,
+            FlecsGpuMaterial, (int32_t)impl->materials.buffer_capacity);
+    }
 
     WGPUBuffer new_material_buffer = wgpuDeviceCreateBuffer(
         impl->device, &(WGPUBufferDescriptor){
@@ -184,12 +193,31 @@ redo: {
             (uint64_t)required_count * sizeof(FlecsGpuMaterial));
         impl->materials.count = required_count;
 
+        /* Materials changed — invalidate texture arrays so they are
+         * rebuilt on the next check with up-to-date layer assignments. */
+        flecsEngine_textureArray_release(impl);
+
         impl->materials.last_id = impl->materials.next_id;
     }
     FLECS_TRACY_ZONE_END;
 }
 
 /* ---- Texture array building ---- */
+
+static bool flecsEngine_isCompressedFormat(
+    WGPUTextureFormat fmt)
+{
+    uint32_t f = (uint32_t)fmt;
+    /* BC1–BC7: 0x2C–0x39, ETC2: 0x3A–0x43, ASTC: 0x44–0x67 */
+    if (f >= 0x2Cu && f <= 0x67u) {
+        return true;
+    }
+    /* Guard against unknown formats outside any known range */
+    if (f > 0x67u || (f > 0x1Du && f < 0x2Cu)) {
+        ecs_err("texture array: unrecognized texture format 0x%x", f);
+    }
+    return false;
+}
 
 /* Candidate entry used during the survey pass to find the best array
  * format and dimensions across all PBR textures. */
@@ -248,9 +276,15 @@ static bool flecsEngine_textureArray_survey(
                     break;
                 }
             }
-            if (ci == candidate_count && candidate_count < 32) {
-                candidates[candidate_count++] =
-                    (flecs_tex_candidate_t){ tw, th, tf, 1 };
+            if (ci == candidate_count) {
+                if (candidate_count >= 32) {
+                    ecs_err("texture array survey: more than 32 unique "
+                        "dimension/format combinations, results may be "
+                        "suboptimal");
+                } else {
+                    candidates[candidate_count++] =
+                        (flecs_tex_candidate_t){ tw, th, tf, 1 };
+                }
             }
         }
     }
@@ -284,7 +318,7 @@ static bool flecsEngine_textureArray_survey(
     if (!arr_w) {
         for (int32_t ci = 0; ci < candidate_count; ci++) {
             uint32_t cw = candidates[ci].w, ch = candidates[ci].h;
-            if (cw * ch > arr_w * arr_h) {
+            if ((uint64_t)cw * ch > (uint64_t)arr_w * arr_h) {
                 arr_w = cw;
                 arr_h = ch;
             }
@@ -323,8 +357,8 @@ static void flecsEngine_textureArray_release(
 }
 
 /* Create the four channel array textures (albedo, emissive, roughness,
- * normal) at the given dimensions and format. */
-static void flecsEngine_textureArray_create(
+ * normal) at the given dimensions and format.  Returns false on failure. */
+static bool flecsEngine_textureArray_create(
     FlecsEngineImpl *impl,
     uint32_t arr_w,
     uint32_t arr_h,
@@ -349,7 +383,14 @@ static void flecsEngine_textureArray_create(
         };
         impl->materials.texture_arrays[ch] =
             wgpuDeviceCreateTexture(impl->device, &desc);
+        if (!impl->materials.texture_arrays[ch]) {
+            ecs_err("failed to create texture array (channel %d, "
+                "%ux%u, %u layers)", ch, arr_w, arr_h, layer_count);
+            flecsEngine_textureArray_release(impl);
+            return false;
+        }
     }
+    return true;
 }
 
 /* Fill every layer of uncompressed arrays with a solid fallback colour
@@ -360,11 +401,10 @@ static void flecsEngine_textureArray_fillFallback(
     uint32_t arr_w,
     uint32_t arr_h,
     uint32_t layer_count,
+    uint32_t mip_count,
     WGPUTextureFormat arr_format)
 {
-    bool compressed = (uint32_t)arr_format >= 0x2Cu
-                   && (uint32_t)arr_format <= 0x39u;
-    if (compressed) {
+    if (flecsEngine_isCompressedFormat(arr_format)) {
         return;
     }
 
@@ -380,24 +420,31 @@ static void flecsEngine_textureArray_fillFallback(
     uint8_t *fill = ecs_os_malloc((ecs_size_t)layer_bytes);
 
     for (int ch = 0; ch < 4; ch++) {
-        for (uint32_t p = 0; p < arr_w * arr_h; p++) {
-            memcpy(fill + p * 4, fallback_rgba[ch], 4);
-        }
+        for (uint32_t mip = 0; mip < mip_count; mip++) {
+            uint32_t mw = arr_w >> mip; if (!mw) mw = 1;
+            uint32_t mh = arr_h >> mip; if (!mh) mh = 1;
+            uint32_t mip_row_bytes = mw * 4;
+            uint32_t mip_layer_bytes = mip_row_bytes * mh;
 
-        for (uint32_t layer = 0; layer < layer_count; layer++) {
-            WGPUTexelCopyTextureInfo dst = {
-                .texture = impl->materials.texture_arrays[ch],
-                .mipLevel = 0,
-                .origin = { 0, 0, layer }
-            };
-            WGPUTexelCopyBufferLayout src_layout = {
-                .bytesPerRow = row_bytes,
-                .rowsPerImage = arr_h
-            };
-            WGPUExtent3D size = { arr_w, arr_h, 1 };
-            wgpuQueueWriteTexture(
-                impl->queue, &dst, fill,
-                layer_bytes, &src_layout, &size);
+            for (uint32_t p = 0; p < mw * mh; p++) {
+                memcpy(fill + p * 4, fallback_rgba[ch], 4);
+            }
+
+            for (uint32_t layer = 0; layer < layer_count; layer++) {
+                WGPUTexelCopyTextureInfo dst = {
+                    .texture = impl->materials.texture_arrays[ch],
+                    .mipLevel = mip,
+                    .origin = { 0, 0, layer }
+                };
+                WGPUTexelCopyBufferLayout src_layout = {
+                    .bytesPerRow = mip_row_bytes,
+                    .rowsPerImage = mh
+                };
+                WGPUExtent3D size = { mw, mh, 1 };
+                wgpuQueueWriteTexture(
+                    impl->queue, &dst, fill,
+                    mip_layer_bytes, &src_layout, &size);
+            }
         }
     }
 
@@ -440,8 +487,7 @@ static void flecsEngine_textureArray_copyTextures(
     uint32_t mip_count,
     WGPUTextureFormat arr_format)
 {
-    bool compressed = (uint32_t)arr_format >= 0x2Cu
-                   && (uint32_t)arr_format <= 0x39u;
+    bool compressed = flecsEngine_isCompressedFormat(arr_format);
 
     bool *layer_populated = ecs_os_calloc_n(bool, (int32_t)layer_count);
     uint32_t first_populated = UINT32_MAX;
@@ -640,11 +686,14 @@ void flecsEngine_material_buildTextureArrays(
         while (dim > 1) { dim >>= 1; mip_count++; }
     }
 
-    flecsEngine_textureArray_create(
-        impl, arr_w, arr_h, layer_count, mip_count, arr_format);
+    if (!flecsEngine_textureArray_create(
+            impl, arr_w, arr_h, layer_count, mip_count, arr_format))
+    {
+        return;
+    }
 
     flecsEngine_textureArray_fillFallback(
-        impl, arr_w, arr_h, layer_count, arr_format);
+        impl, arr_w, arr_h, layer_count, mip_count, arr_format);
 
     flecsEngine_textureArray_copyTextures(
         world, impl, arr_w, arr_h, layer_count, mip_count, arr_format);

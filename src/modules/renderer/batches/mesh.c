@@ -494,7 +494,7 @@ static void flecsEngine_transparent_mesh_render(
     const FlecsRenderBatch *batch)
 {
     if (engine->shadow.in_pass) {
-        goto done;
+        return;
     }
 
     FLECS_TRACY_ZONE_BEGIN("TransparentMeshRender");

@@ -484,7 +484,7 @@ static void FlecsRenderBatch_on_set(
             continue;
         }
 
-        const FlecsShader *shader = ecs_get(world, rb->shader, FlecsShader);
+        const FlecsShader *shader = ecs_get(world, rb[i].shader, FlecsShader);
         if (!shader) {
             flecsEngine_renderBatch_logErr(world, e,
                 "invalid shader asset for render batch %s");
@@ -492,7 +492,7 @@ static void FlecsRenderBatch_on_set(
         }
 
         const FlecsShaderImpl *shader_impl = flecsEngine_shader_ensureImpl(
-            world, rb->shader);
+            world, rb[i].shader);
         if (!shader_impl || !shader_impl->shader_module) {
             continue;
         }

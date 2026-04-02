@@ -144,6 +144,7 @@ static bool flecsEngine_gltf_readMesh(
         flecs_vec2_t *uvs = ecs_vec_first_t(&mesh3->uvs, flecs_vec2_t);
         uint32_t *indices = ecs_vec_first_t(&mesh3->indices, uint32_t);
         const float eps = 1.0f / 4096.0f;
+        bool *perturbed = ecs_os_calloc_n(bool, vert_count);
 
         for (int32_t t = 0; t + 2 < idx_count; t += 3) {
             uint32_t i0 = indices[t], i1 = indices[t + 1], i2 = indices[t + 2];
@@ -153,10 +154,18 @@ static bool flecsEngine_gltf_readMesh(
             float dv2 = uvs[i2].y - uvs[i0].y;
             float cross = du1 * dv2 - dv1 * du2;
             if (fabsf(cross) < 1e-6f) {
-                uvs[i1].x += eps;
-                uvs[i2].y += eps;
+                if (!perturbed[i1]) {
+                    uvs[i1].x += eps;
+                    perturbed[i1] = true;
+                }
+                if (!perturbed[i2]) {
+                    uvs[i2].y += eps;
+                    perturbed[i2] = true;
+                }
             }
         }
+
+        ecs_os_free(perturbed);
     }
 
     return true;
