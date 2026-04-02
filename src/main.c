@@ -158,7 +158,7 @@ void initEngine(
       .height = options.height,
       .resolution_scale = 1,
       .vsync = true,
-      .msaa = false
+      .msaa = true
     });
   }
 
@@ -186,10 +186,15 @@ void initEngine(
   //   world, view_entity, "hdri", "etc/assets/hdri/industrial_sunset_puresky_4k.exr", 1024, 64);
 
   // RenderBatches (what to render in scene)
-  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-    flecsEngine_createBatchSet_geometry(world, view_entity, "geometry");
-  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-    flecsEngine_createBatch_skybox(world, view_entity, "skybox");
+  ecs_entity_t geometry = ecs_entity(world, {
+    .parent = view_entity, .name = "geometry" });
+  ecs_add(world, geometry, FlecsGeometryBatch);
+  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] = geometry;
+
+  ecs_entity_t skybox = ecs_entity(world, {
+    .parent = view_entity, .name = "skybox" });
+  ecs_add(world, skybox, FlecsSkyBoxBatch);
+  ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] = skybox;
 
   // Post process effects
   FlecsSSAO ssao_settings = flecsEngine_ssaoSettingsDefault();

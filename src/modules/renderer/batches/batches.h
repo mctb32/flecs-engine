@@ -3,4 +3,7 @@
 
 #include "../render_batch.h"
 
+void FlecsOnAddSkyBoxBatch(
+    ecs_iter_t *it);
+
 #endif

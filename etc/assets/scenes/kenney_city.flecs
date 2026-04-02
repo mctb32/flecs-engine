@@ -1061,7 +1061,7 @@ template KenneyCity {
   }
 }
 
-KenneyCity city(40) {
+KenneyCity city(100) {
   Position3: {y: 1}
   Scale3: {2, 2, 2}
 }

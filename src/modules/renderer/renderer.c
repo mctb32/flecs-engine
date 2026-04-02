@@ -612,6 +612,7 @@ void FlecsEngineRendererImport(
     flecsEngine_renderBatch_register(world);
     flecsEngine_renderEffect_register(world);
     flecsEngine_renderView_register(world);
+    flecsEngine_batchSets_register(world);
     flecsEngine_ibl_register(world);
     flecsEngine_tonyMcMapFace_register(world);
     flecsEngine_bloom_register(world);

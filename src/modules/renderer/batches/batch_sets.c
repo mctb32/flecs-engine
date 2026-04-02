@@ -2,7 +2,10 @@
 #include "batches.h"
 #include "flecs_engine.h"
 
-ecs_entity_t flecsEngine_createBatchSet_geometry_materialData(
+ECS_TAG_DECLARE(FlecsSkyBoxBatch);
+ECS_TAG_DECLARE(FlecsGeometryBatch);
+
+static ecs_entity_t flecsEngine_createBatchSet_geometry_materialData(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name)
@@ -33,7 +36,7 @@ ecs_entity_t flecsEngine_createBatchSet_geometry_materialData(
     return batch_set_entity;
 }
 
-ecs_entity_t flecsEngine_createBatchSet_geometry_materialIndex(
+static ecs_entity_t flecsEngine_createBatchSet_geometry_materialIndex(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name)
@@ -68,30 +71,50 @@ ecs_entity_t flecsEngine_createBatchSet_geometry_materialIndex(
     return batch_set_entity;
 }
 
-ecs_entity_t flecsEngine_createBatchSet_geometry(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name)
+static void FlecsOnAddGeometryBatch(
+    ecs_iter_t *it)
 {
-    ecs_entity_t batch_set_entity = ecs_entity(world, { .parent = parent, .name = name });
-    FlecsRenderBatchSet batch_set = *ecs_ensure(
-        world, batch_set_entity, FlecsRenderBatchSet);
+    for (int32_t i = 0; i < it->count; i ++) {
+        ecs_entity_t batch_set_entity = it->entities[i];
+        FlecsRenderBatchSet batch_set = *ecs_ensure(
+            it->world, batch_set_entity, FlecsRenderBatchSet);
 
-    ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatchSet_geometry_materialData(
-            world, batch_set_entity, NULL);
-    ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatchSet_geometry_materialIndex(
-            world, batch_set_entity, NULL);
-    ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_textured_mesh(
-            world, batch_set_entity, NULL);
+        ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
+            flecsEngine_createBatchSet_geometry_materialData(
+                it->world, batch_set_entity, NULL);
+        ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
+            flecsEngine_createBatchSet_geometry_materialIndex(
+                it->world, batch_set_entity, NULL);
+        ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
+            flecsEngine_createBatch_textured_mesh(
+                it->world, batch_set_entity, NULL);
 
-    /* Transparent batches must render last (after all opaques) */
-    ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_mesh_transparent(
-            world, batch_set_entity, NULL);
+        /* Transparent batches must render last (after all opaques) */
+        ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
+            flecsEngine_createBatch_mesh_transparent(
+                it->world, batch_set_entity, NULL);
 
-    ecs_set_ptr(world, batch_set_entity, FlecsRenderBatchSet, &batch_set);
-    return batch_set_entity;
+        ecs_set_ptr(it->world, batch_set_entity, FlecsRenderBatchSet,
+            &batch_set);
+    }
+}
+
+void flecsEngine_batchSets_register(
+    ecs_world_t *world)
+{
+    ecs_set_name_prefix(world, "Flecs");
+    ECS_TAG_DEFINE(world, FlecsSkyBoxBatch);
+    ECS_TAG_DEFINE(world, FlecsGeometryBatch);
+
+    ecs_observer(world, {
+        .query.terms = {{ FlecsSkyBoxBatch }},
+        .events = { EcsOnAdd },
+        .callback = FlecsOnAddSkyBoxBatch
+    });
+
+    ecs_observer(world, {
+        .query.terms = {{ FlecsGeometryBatch }},
+        .events = { EcsOnAdd },
+        .callback = FlecsOnAddGeometryBatch
+    });
 }

@@ -67,32 +67,30 @@ static void flecsEngine_skybox_renderCallback(
     flecsEngine_batch_draw(pass, &ctx->batch);
 }
 
-ecs_entity_t flecsEngine_createBatch_skybox(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name)
+void FlecsOnAddSkyBoxBatch(
+    ecs_iter_t *it)
 {
-    ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngine_shader_skybox(world);
+    for (int32_t i = 0; i < it->count; i ++) {
+        ecs_entity_t batch = it->entities[i];
+        ecs_entity_t shader = flecsEngine_shader_skybox(it->world);
 
-    ecs_set(world, batch, FlecsRenderBatch, {
-        .shader = shader,
-        .vertex_type = ecs_id(FlecsLitVertex),
-        .instance_types = {
-            ecs_id(FlecsInstanceTransform),
-            ecs_id(FlecsRgba)
-        },
-        .uniforms = {
-            ecs_id(FlecsUniform)
-        },
-        .depth_test = WGPUCompareFunction_LessEqual,
-        .cull_mode = WGPUCullMode_None,
-        .depth_write = false,
-        .extract_callback = flecsEngine_skybox_extractCallback,
-        .callback = flecsEngine_skybox_renderCallback,
-        .ctx = flecsEngine_skybox_createCtx((ecs_world_t*)world),
-        .free_ctx = flecsEngine_skybox_deleteCtx
-    });
-
-    return batch;
+        ecs_set(it->world, batch, FlecsRenderBatch, {
+            .shader = shader,
+            .vertex_type = ecs_id(FlecsLitVertex),
+            .instance_types = {
+                ecs_id(FlecsInstanceTransform),
+                ecs_id(FlecsRgba)
+            },
+            .uniforms = {
+                ecs_id(FlecsUniform)
+            },
+            .depth_test = WGPUCompareFunction_LessEqual,
+            .cull_mode = WGPUCullMode_None,
+            .depth_write = false,
+            .extract_callback = flecsEngine_skybox_extractCallback,
+            .callback = flecsEngine_skybox_renderCallback,
+            .ctx = flecsEngine_skybox_createCtx((ecs_world_t*)it->world),
+            .free_ctx = flecsEngine_skybox_deleteCtx
+        });
+    }
 }
