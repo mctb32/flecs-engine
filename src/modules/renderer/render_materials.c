@@ -220,6 +220,7 @@ void flecsEngine_material_buildTextureArrays(
      * and count the total number of layers needed. We use one layer per
      * material that has FlecsPbrTextures. */
     uint32_t arr_w = 0, arr_h = 0;
+    WGPUTextureFormat arr_format = WGPUTextureFormat_RGBA8Unorm;
     uint32_t layer_count = 0;
 
     ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
@@ -235,7 +236,7 @@ void flecsEngine_material_buildTextureArrays(
             }
 
             if (!arr_w) {
-                /* Probe texture dimensions from albedo */
+                /* Probe texture dimensions and format from albedo */
                 ecs_entity_t alb = textures[i].albedo;
                 if (alb) {
                     const FlecsTextureImpl *ti_impl =
@@ -243,6 +244,7 @@ void flecsEngine_material_buildTextureArrays(
                     if (ti_impl && ti_impl->texture) {
                         arr_w = wgpuTextureGetWidth(ti_impl->texture);
                         arr_h = wgpuTextureGetHeight(ti_impl->texture);
+                        arr_format = wgpuTextureGetFormat(ti_impl->texture);
                     }
                 }
             }
@@ -278,7 +280,7 @@ void flecsEngine_material_buildTextureArrays(
                 .height = arr_h,
                 .depthOrArrayLayers = layer_count
             },
-            .format = WGPUTextureFormat_RGBA8Unorm,
+            .format = arr_format,
             .mipLevelCount = mip_count,
             .sampleCount = 1
         };
@@ -288,8 +290,12 @@ void flecsEngine_material_buildTextureArrays(
 
     /* Fill every layer with the fallback colour (white for albedo /
      * emissive / roughness, flat normal for the normal channel). Real
-     * textures overwrite individual layers via GPU copy below. */
-    {
+     * textures overwrite individual layers via GPU copy below.
+     * Only possible for uncompressed formats — compressed arrays start
+     * zeroed and rely on the GPU copy to populate every layer. */
+    bool arr_compressed = (uint32_t)arr_format >= 0x2Cu
+                       && (uint32_t)arr_format <= 0x39u;
+    if (!arr_compressed) {
         uint8_t fallback_rgba[4][4] = {
             { 255, 255, 255, 255 }, /* albedo    */
             { 255, 255, 255, 255 }, /* emissive  */
@@ -361,6 +367,14 @@ void flecsEngine_material_buildTextureArrays(
                 uint32_t th = wgpuTextureGetHeight(ti_impl->texture);
                 if (tw != arr_w || th != arr_h) continue;
 
+                /* Skip textures with incompatible formats. Formats
+                 * are copy-compatible only if they differ in sRGB-ness
+                 * (adjacent enum values in wgpu). */
+                WGPUTextureFormat src_fmt =
+                    wgpuTextureGetFormat(ti_impl->texture);
+                if (((uint32_t)src_fmt & ~1u) !=
+                    ((uint32_t)arr_format & ~1u)) continue;
+
                 uint32_t src_mips =
                     wgpuTextureGetMipLevelCount(ti_impl->texture);
                 uint32_t copy_mips =
@@ -406,7 +420,7 @@ void flecsEngine_material_buildTextureArrays(
     /* Create array views and bind group */
     for (int ch = 0; ch < 4; ch++) {
         WGPUTextureViewDescriptor vd = {
-            .format = WGPUTextureFormat_RGBA8Unorm,
+            .format = arr_format,
             .dimension = WGPUTextureViewDimension_2DArray,
             .baseMipLevel = 0,
             .mipLevelCount = mip_count,

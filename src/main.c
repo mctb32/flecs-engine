@@ -272,8 +272,8 @@ int main(
   ecs_log_set_level(0);
 
   ecs_entity_t s = ecs_script(world, {
-    .filename = "etc/assets/scenes/kenney_city.flecs"
-    // .filename = "etc/assets/scenes/bistro.flecs"
+    // .filename = "etc/assets/scenes/kenney_city.flecs"
+    .filename = "etc/assets/scenes/bistro.flecs"
     // .filename = "etc/assets/scenes/sponza.flecs"
     // .filename = "etc/assets/scenes/a_beautiful_game.flecs"
     // .filename = "etc/assets/scenes/flight_helmet.flecs"

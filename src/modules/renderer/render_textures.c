@@ -176,7 +176,8 @@ static WGPUTexture flecsEngine_texture_loadDds(
     uint32_t block_size = flecs_dds_block_size(info.dxgi_format);
 
     WGPUTextureDescriptor tex_desc = {
-        .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+        .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
+               | WGPUTextureUsage_CopySrc,
         .dimension = WGPUTextureDimension_2D,
         .size = { .width = info.width, .height = info.height,
                   .depthOrArrayLayers = 1 },
