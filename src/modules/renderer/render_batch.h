@@ -171,6 +171,11 @@ void flecsEngine_primitive_extract(
     const FlecsEngineImpl *engine,
     const struct FlecsRenderBatch *batch);
 
+void flecsEngine_primitive_extractShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const struct FlecsRenderBatch *batch);
+
 void flecsEngine_primitive_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
@@ -303,6 +308,11 @@ void flecsEngine_mesh_extractGroup(
     flecsEngine_batch_buffers_t *shared);
 
 void flecsEngine_mesh_extract(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch);
+
+void flecsEngine_mesh_extractShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch);

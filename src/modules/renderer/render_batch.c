@@ -861,6 +861,23 @@ void flecsEngine_renderBatch_extract(
     FLECS_TRACY_ZONE_END;
 }
 
+void flecsEngine_renderBatch_extractShadow(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    ecs_entity_t batch_entity)
+{
+    FLECS_TRACY_ZONE_BEGIN("BatchExtractShadow");
+    const FlecsRenderBatch *batch = ecs_get(
+        world, batch_entity, FlecsRenderBatch);
+    if (!batch || !batch->shadow_extract_callback) {
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
+    batch->shadow_extract_callback(world, engine, batch);
+    FLECS_TRACY_ZONE_END;
+}
+
 void flecsEngine_renderBatch_renderShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,

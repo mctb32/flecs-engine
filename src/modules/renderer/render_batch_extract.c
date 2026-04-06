@@ -187,7 +187,6 @@ void flecsEngine_primitive_extract(
     flecsEngine_batch_t *ctx = batch->ctx;
     flecsEngine_batch_buffers_t *buf = ctx->buffers;
 
-    /* Extract main rendering instances */
 redo:
     ctx->offset = 0;
     flecsEngine_batch_extractInstances(world, engine, batch, ctx);
@@ -199,8 +198,16 @@ redo:
 
     buf->count = ctx->count;
     flecsEngine_batch_buffers_upload(engine, buf);
+}
 
-    /* Extract shadow instances */
+void flecsEngine_primitive_extractShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch)
+{
+    flecsEngine_batch_t *ctx = batch->ctx;
+    flecsEngine_batch_buffers_t *buf = ctx->buffers;
+
 redo_shadow:
     for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
         ctx->shadow_offset[c] = 0;

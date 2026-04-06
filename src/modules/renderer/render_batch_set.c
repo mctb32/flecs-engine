@@ -108,6 +108,16 @@ static void flecsEngine_renderBatch_extractVisitor(
     flecsEngine_renderBatch_extract(world, engine, batch_entity);
 }
 
+static void flecsEngine_renderBatch_shadowExtractVisitor(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    ecs_entity_t batch_entity,
+    void *ctx)
+{
+    (void)ctx;
+    flecsEngine_renderBatch_extractShadow(world, engine, batch_entity);
+}
+
 static void flecsEngine_renderBatch_shadowVisitor(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
@@ -134,6 +144,25 @@ void flecsEngine_renderView_extractBatches(
 
     flecsEngine_renderBatch_visitSet(
         world, engine, batch_set, flecsEngine_renderBatch_extractVisitor, NULL);
+    FLECS_TRACY_ZONE_END;
+}
+
+void flecsEngine_renderView_extractShadowBatches(
+    ecs_world_t *world,
+    ecs_entity_t view_entity,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view)
+{
+    FLECS_TRACY_ZONE_BEGIN("ExtractShadowBatches");
+    (void)view;
+
+    const FlecsRenderBatchSet *batch_set = ecs_get(
+        world, view_entity, FlecsRenderBatchSet);
+    ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    flecsEngine_renderBatch_visitSet(
+        world, engine, batch_set,
+        flecsEngine_renderBatch_shadowExtractVisitor, NULL);
     FLECS_TRACY_ZONE_END;
 }
 

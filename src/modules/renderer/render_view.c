@@ -321,8 +321,19 @@ static void flecsEngine_renderView_extract(
         }
     }
 
-    /* Compute cascade light VP matrices before batch extraction so that
-     * per-cascade shadow frustum culling can run during extraction. */
+    flecsEngine_renderView_extractBatches(world, view_entity, engine, view);
+    FLECS_TRACY_ZONE_END;
+}
+
+static void flecsEngine_renderView_extractShadow(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    ecs_entity_t view_entity,
+    const FlecsRenderView *view)
+{
+    FLECS_TRACY_ZONE_BEGIN("ExtractShadowView");
+
+    /* Compute cascade light VP matrices and per-cascade frustum planes. */
     engine->cascade_frustum_valid = false;
     if (view->shadow.enabled && view->light) {
         flecsEngine_shadow_computeCascades(
@@ -339,7 +350,8 @@ static void flecsEngine_renderView_extract(
         engine->cascade_frustum_valid = true;
     }
 
-    flecsEngine_renderView_extractBatches(world, view_entity, engine, view);
+    flecsEngine_renderView_extractShadowBatches(
+        world, view_entity, engine, view);
     FLECS_TRACY_ZONE_END;
 }
 
@@ -358,6 +370,23 @@ void flecsEngine_renderView_extractAll(
                 it.entities[i],
                 &views[i],
                 &viewImpls[i]);
+        }
+    }
+}
+
+void flecsEngine_renderView_extractShadowsAll(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine)
+{
+    ecs_iter_t it = ecs_query_iter(world, engine->view_query);
+    while (ecs_query_next(&it)) {
+        FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
+        for (int32_t i = 0; i < it.count; i ++) {
+            flecsEngine_renderView_extractShadow(
+                world,
+                engine,
+                it.entities[i],
+                &views[i]);
         }
     }
 }

@@ -127,13 +127,9 @@ void flecsEngine_mesh_extract(
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
     if (!groups) {
         shared->count = 0;
-        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
-            shared->shadow_count[c] = 0;
-        }
         return;
     }
 
-    /* Extract main rendering instances */
 redo: {
         int32_t total = 0;
         ecs_map_iter_t git = ecs_map_iter(groups);
@@ -160,8 +156,27 @@ redo: {
     }
 
     flecsEngine_batch_buffers_upload(engine, shared);
+    FLECS_TRACY_ZONE_END;
+}
 
-    /* Extract shadow instances */
+void flecsEngine_mesh_extractShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch)
+{
+    FLECS_TRACY_ZONE_BEGIN("MeshExtractShadow");
+
+    flecsEngine_mesh_ctx_t *mctx = batch->ctx;
+    flecsEngine_batch_buffers_t *shared = &mctx->buffers;
+
+    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
+    if (!groups) {
+        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+            shared->shadow_count[c] = 0;
+        }
+        return;
+    }
+
 redo_shadow: {
         int32_t shadow_totals[FLECS_ENGINE_SHADOW_CASCADE_COUNT] = {0};
         ecs_map_iter_t git = ecs_map_iter(groups);
@@ -201,7 +216,6 @@ redo_shadow: {
     }
 
     flecsEngine_batch_buffers_uploadShadow(engine, shared);
-
     FLECS_TRACY_ZONE_END;
 }
 
@@ -317,6 +331,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
             ecs_id(FlecsUniform)
         },
         .extract_callback = flecsEngine_mesh_extract,
+        .shadow_extract_callback = flecsEngine_mesh_extractShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .ctx = flecsEngine_mesh_createCtx(false),
@@ -367,6 +382,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
             ecs_id(FlecsUniform)
         },
         .extract_callback = flecsEngine_mesh_extract,
+        .shadow_extract_callback = flecsEngine_mesh_extractShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .ctx = flecsEngine_mesh_createCtx(true),
@@ -469,6 +485,7 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
             ecs_id(FlecsUniform)
         },
         .extract_callback = flecsEngine_mesh_extract,
+        .shadow_extract_callback = flecsEngine_mesh_extractShadow,
         .callback = flecsEngine_textured_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .ctx = flecsEngine_mesh_createCtx(false),
