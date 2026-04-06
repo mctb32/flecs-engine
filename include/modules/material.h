@@ -43,9 +43,6 @@ ECS_STRUCT(FlecsPbrTextures, {
     ecs_entity_t emissive;
     ecs_entity_t roughness;
     ecs_entity_t normal;
-ECS_PRIVATE
-    void *_sampler;
-    void *_bind_group;
 });
 
 extern ECS_COMPONENT_DECLARE(FlecsPbrTextures);

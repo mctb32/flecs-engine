@@ -33,6 +33,145 @@ static void flecsEngine_primitive_deleteCtx(void *ptr)
     ecs_os_free(ctx);
 }
 
+static void flecsEngine_primitive_extract(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch)
+{
+    flecsEngine_batch_t *ctx = batch->ctx;
+    flecsEngine_batch_buffers_t *buf = ctx->buffers;
+
+redo:
+    ctx->offset = 0;
+    flecsEngine_batch_extractInstances(world, engine, batch, ctx);
+
+    if (ctx->count > buf->capacity) {
+        flecsEngine_batch_buffers_ensureCapacity(engine, buf, ctx->count);
+        goto redo;
+    }
+
+    buf->count = ctx->count;
+    flecsEngine_batch_buffers_upload(engine, buf);
+}
+
+static void flecsEngine_primitive_extractShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch)
+{
+    flecsEngine_batch_t *ctx = batch->ctx;
+    flecsEngine_batch_buffers_t *buf = ctx->buffers;
+
+redo_shadow:
+    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+        ctx->shadow_offset[c] = 0;
+    }
+    flecsEngine_batch_extractShadowInstances(world, engine, batch, ctx);
+
+    {
+        int32_t max_shadow = 0;
+        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+            if (ctx->shadow_count[c] > max_shadow) {
+                max_shadow = ctx->shadow_count[c];
+            }
+        }
+        if (max_shadow > buf->shadow_capacity) {
+            flecsEngine_batch_buffers_ensureShadowCapacity(
+                engine, buf, max_shadow);
+            goto redo_shadow;
+        }
+    }
+
+    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+        buf->shadow_count[c] = ctx->shadow_count[c];
+    }
+    flecsEngine_batch_buffers_uploadShadow(engine, buf);
+}
+
+static void flecsEngine_primitive_render(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+
+    flecsEngine_batch_t *ctx = batch->ctx;
+    flecsEngine_batch_draw(engine, pass, ctx);
+}
+
+static void flecsEngine_primitive_renderShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+
+    flecsEngine_batch_t *ctx = batch->ctx;
+    flecsEngine_batch_drawShadow(engine, pass, ctx);
+}
+
+static void flecsEngine_box_scale(
+    const void *ptr,
+    float *scale)
+{
+    const FlecsBox *prim = ptr;
+    scale[0] = prim->x;
+    scale[1] = prim->y;
+    scale[2] = prim->z;
+}
+
+static void flecsEngine_quad_scale(
+    const void *ptr,
+    float *scale)
+{
+    const FlecsQuad *prim = ptr;
+    scale[0] = prim->x;
+    scale[1] = prim->y;
+    scale[2] = 1.0f;
+}
+
+static void flecsEngine_triangle_scale(
+    const void *ptr,
+    float *scale)
+{
+    const FlecsTriangle *prim = ptr;
+    scale[0] = prim->x;
+    scale[1] = prim->y;
+    scale[2] = 1.0f;
+}
+
+static void flecsEngine_right_triangle_scale(
+    const void *ptr,
+    float *scale)
+{
+    const FlecsRightTriangle *prim = ptr;
+    scale[0] = prim->x;
+    scale[1] = prim->y;
+    scale[2] = 1.0f;
+}
+
+static void flecsEngine_triangle_prism_scale(
+    const void *ptr,
+    float *scale)
+{
+    const FlecsTrianglePrism *prim = ptr;
+    scale[0] = prim->x;
+    scale[1] = prim->y;
+    scale[2] = prim->z;
+}
+
+static void flecsEngine_right_triangle_prism_scale(
+    const void *ptr,
+    float *scale)
+{
+    const FlecsRightTrianglePrism *prim = ptr;
+    scale[0] = prim->x;
+    scale[1] = prim->y;
+    scale[2] = prim->z;
+}
+
 static ecs_entity_t flecsEngine_createBatch_primitive_materialIndex(
     ecs_world_t *world,
     ecs_entity_t parent,

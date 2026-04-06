@@ -76,12 +76,11 @@ bool flecsIblBuildDefaultImage(
             px[1] = sky_g + (haze_tg - sky_g) * h;
             px[2] = sky_b + (haze_tb - sky_b) * h;
         } else {
-            /* Ground: configured color at the horizon, fading darker
-             * toward the nadir.  t=0 at horizon, t=1 at nadir. */
+            /* Ground: configured color at the horizon, fading quickly to
+             * black below.  t=0 at horizon, t=1 at nadir. */
             float t = (v - 0.5f) / 0.5f;
-            float darken = t * t;            /* ease-in: gradual near horizon */
-            float darken_strength = 0.55f;   /* how much darker at nadir */
-            float d = 1.0f - darken * darken_strength;
+            float one_minus_t = 1.0f - t;
+            float d = one_minus_t * one_minus_t; /* ease-out: fast falloff */
             px[0] = gnd_r * d;
             px[1] = gnd_g * d;
             px[2] = gnd_b * d;

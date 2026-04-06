@@ -5,13 +5,11 @@
 #include "../../../tracy_hooks.h"
 #include "flecs_engine.h"
 
-/* --- Shared grouped-mesh infrastructure (used by textured_mesh.c too) --- */
-
 typedef struct {
     flecsEngine_batch_buffers_t buffers;
 } flecsEngine_mesh_ctx_t;
 
-uint64_t flecsEngine_mesh_groupByMesh(
+static uint64_t flecsEngine_mesh_groupByMesh(
     ecs_world_t *world,
     ecs_table_t *table,
     ecs_id_t id,
@@ -38,7 +36,7 @@ uint64_t flecsEngine_mesh_groupByMesh(
     return tgt;
 }
 
-void* flecsEngine_mesh_onGroupCreate(
+static void* flecsEngine_mesh_onGroupCreate(
     ecs_world_t *world,
     uint64_t group_id,
     void *ptr)
@@ -47,7 +45,7 @@ void* flecsEngine_mesh_onGroupCreate(
     return flecsEngine_batch_create(world, NULL, group_id, false, 0, NULL);
 }
 
-void flecsEngine_mesh_onGroupDelete(
+static void flecsEngine_mesh_onGroupDelete(
     ecs_world_t *world,
     uint64_t group_id,
     void *group_ptr,
@@ -59,7 +57,7 @@ void flecsEngine_mesh_onGroupDelete(
     flecsEngine_batch_delete(group_ptr);
 }
 
-void flecsEngine_mesh_extractGroup(
+static void flecsEngine_mesh_extractGroup(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch,
@@ -114,7 +112,7 @@ static void flecsEngine_mesh_extractShadowGroup(
     flecsEngine_batch_extractShadowInstances(world, engine, batch, ctx);
 }
 
-void flecsEngine_mesh_extract(
+static void flecsEngine_mesh_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch)
@@ -159,7 +157,7 @@ redo: {
     FLECS_TRACY_ZONE_END;
 }
 
-void flecsEngine_mesh_extractShadow(
+static void flecsEngine_mesh_extractShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch)
@@ -228,7 +226,6 @@ void flecsEngine_mesh_render(
     FLECS_TRACY_ZONE_BEGIN("MeshRender");
 
     (void)world;
-    (void)engine;
 
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
     ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
@@ -241,13 +238,13 @@ void flecsEngine_mesh_render(
         flecsEngine_batch_t *ctx =
             ecs_query_get_group_ctx(batch->query, group);
         ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
-        flecsEngine_batch_draw(pass, ctx);
+        flecsEngine_batch_draw(engine, pass, ctx);
     }
 
     FLECS_TRACY_ZONE_END;
 }
 
-void flecsEngine_mesh_renderShadow(
+static void flecsEngine_mesh_renderShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
@@ -257,8 +254,6 @@ void flecsEngine_mesh_renderShadow(
 
     (void)world;
 
-    int cascade = engine->shadow.current_cascade;
-
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
     ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
 
@@ -270,7 +265,7 @@ void flecsEngine_mesh_renderShadow(
         flecsEngine_batch_t *ctx =
             ecs_query_get_group_ctx(batch->query, group);
         ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
-        flecsEngine_batch_drawShadow(pass, ctx, cascade);
+        flecsEngine_batch_drawShadow(engine, pass, ctx);
     }
 
     FLECS_TRACY_ZONE_END;
@@ -402,8 +397,7 @@ static void flecsEngine_textured_mesh_render(
 {
     FLECS_TRACY_ZONE_BEGIN("TexturedMeshRender");
 
-    bool use_array = !engine->shadow.in_pass &&
-        engine->materials.texture_array_bind_group;
+    bool use_array = engine->materials.texture_array_bind_group;
 
     /* When a texture array is available, bind it once for all groups */
     if (use_array) {
@@ -424,25 +418,19 @@ static void flecsEngine_textured_mesh_render(
             ecs_query_get_group_ctx(batch->query, group_id);
         ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
-        /* During shadow pass, use the non-UV vertex buffer */
-        if (engine->shadow.in_pass) {
-            flecsEngine_batch_draw(pass, ctx);
-            continue;
-        }
-
         /* Fall back to per-group texture binding when no array */
         if (!use_array) {
-            const FlecsPbrTextures *pbr_tex = ecs_get(
-                world, (ecs_entity_t)group_id, FlecsPbrTextures);
-            if (!pbr_tex || !pbr_tex->_bind_group) {
+            const FlecsPbrTexturesImpl *tex_impl = ecs_get(
+                world, (ecs_entity_t)group_id, FlecsPbrTexturesImpl);
+            if (!tex_impl || !tex_impl->bind_group) {
                 continue;
             }
             wgpuRenderPassEncoderSetBindGroup(
-                pass, 2, (WGPUBindGroup)pbr_tex->_bind_group, 0, NULL);
+                pass, 2, tex_impl->bind_group, 0, NULL);
         }
 
         ctx->vertex_buffer = ctx->mesh.vertex_uv_buffer;
-        flecsEngine_batch_draw(pass, ctx);
+        flecsEngine_batch_draw(engine, pass, ctx);
     }
 
     FLECS_TRACY_ZONE_END;
@@ -653,13 +641,13 @@ static void flecsEngine_transparent_mesh_render(
                     active_pipeline = tex_pipeline;
                 }
 
-                const FlecsPbrTextures *pbr_tex = ecs_get(
-                    world, (ecs_entity_t)group_id, FlecsPbrTextures);
-                if (!pbr_tex || !pbr_tex->_bind_group) {
+                const FlecsPbrTexturesImpl *tex_impl = ecs_get(
+                    world, (ecs_entity_t)group_id, FlecsPbrTexturesImpl);
+                if (!tex_impl || !tex_impl->bind_group) {
                     continue;
                 }
                 wgpuRenderPassEncoderSetBindGroup(
-                    pass, 2, (WGPUBindGroup)pbr_tex->_bind_group,
+                    pass, 2, tex_impl->bind_group,
                     0, NULL);
 
                 if (!ctx->mesh.vertex_uv_buffer) {

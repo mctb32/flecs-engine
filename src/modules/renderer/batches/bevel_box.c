@@ -316,15 +316,14 @@ static void flecsEngine_bevel_box_render(
     const FlecsRenderBatch *batch)
 {
     (void)world;
-    (void)engine;
 
     flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
-    flecsEngine_batch_draw(pass, &ctx->quad_batch);
+    flecsEngine_batch_draw(engine, pass, &ctx->quad_batch);
     for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
-        flecsEngine_batch_draw(pass, &ctx->bevel_batches[s][0]);
-        flecsEngine_batch_draw(pass, &ctx->bevel_batches[s][1]);
-        flecsEngine_batch_draw(pass, &ctx->corner_batches[s][0]);
-        flecsEngine_batch_draw(pass, &ctx->corner_batches[s][1]);
+        flecsEngine_batch_draw(engine, pass, &ctx->bevel_batches[s][0]);
+        flecsEngine_batch_draw(engine, pass, &ctx->bevel_batches[s][1]);
+        flecsEngine_batch_draw(engine, pass, &ctx->corner_batches[s][0]);
+        flecsEngine_batch_draw(engine, pass, &ctx->corner_batches[s][1]);
     }
 }
 

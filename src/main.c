@@ -135,7 +135,7 @@ void initEngine(
       .sky_color = {5, 45, 100},
       .haze_color = {255, 255, 255},
       .horizon_color = {250, 255, 255},
-      .ground_color = {50, 100, 70},
+      .ground_color = {30, 50, 35},
       .ambient_intensity = 0.2
     },
     .screen_size_threshold = 5.0
@@ -277,8 +277,8 @@ int main(
   ecs_log_set_level(0);
 
   ecs_entity_t s = ecs_script(world, {
-    .filename = "etc/assets/scenes/kenney_city.flecs"
-    // .filename = "etc/assets/scenes/bistro.flecs"
+    // .filename = "etc/assets/scenes/kenney_city.flecs"
+    .filename = "etc/assets/scenes/bistro.flecs"
     // .filename = "etc/assets/scenes/sponza.flecs"
     // .filename = "etc/assets/scenes/a_beautiful_game.flecs"
     // .filename = "etc/assets/scenes/flight_helmet.flecs"

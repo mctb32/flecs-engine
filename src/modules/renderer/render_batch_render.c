@@ -1,9 +1,12 @@
 #include "render_batch.h"
 
 void flecsEngine_batch_draw(
+    const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_t *ctx)
 {
+    (void)engine;
+
     if (!ctx->count) {
         return;
     }
@@ -68,10 +71,11 @@ void flecsEngine_batch_draw(
 }
 
 void flecsEngine_batch_drawShadow(
+    const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_t *ctx,
-    int cascade)
+    const flecsEngine_batch_t *ctx)
 {
+    int cascade = engine->shadow.current_cascade;
     int32_t count = ctx->shadow_count[cascade];
     if (!count) {
         return;
@@ -126,29 +130,4 @@ void flecsEngine_batch_drawShadow(
         WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDrawIndexed(
         pass, ctx->mesh.index_count, count, 0, 0, 0);
-}
-
-void flecsEngine_primitive_render(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const WGPURenderPassEncoder pass,
-    const FlecsRenderBatch *batch)
-{
-    (void)world;
-    (void)engine;
-
-    flecsEngine_batch_t *ctx = batch->ctx;
-    flecsEngine_batch_draw(pass, ctx);
-}
-
-void flecsEngine_primitive_renderShadow(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const WGPURenderPassEncoder pass,
-    const FlecsRenderBatch *batch)
-{
-    (void)world;
-
-    flecsEngine_batch_t *ctx = batch->ctx;
-    flecsEngine_batch_drawShadow(pass, ctx, engine->shadow.current_cascade);
 }

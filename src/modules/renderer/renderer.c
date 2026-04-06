@@ -12,6 +12,7 @@ ECS_COMPONENT_DECLARE(FlecsLitVertex);
 ECS_COMPONENT_DECLARE(FlecsLitVertexUv);
 ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
 ECS_COMPONENT_DECLARE(FlecsTextureImpl);
+ECS_COMPONENT_DECLARE(FlecsPbrTexturesImpl);
 extern ECS_COMPONENT_DECLARE(FlecsPbrTextures);
 extern ECS_COMPONENT_DECLARE(FlecsRgba);
 extern ECS_COMPONENT_DECLARE(FlecsPbrMaterial);
@@ -550,6 +551,12 @@ ECS_DTOR(FlecsTextureImpl, ptr, {
     }
 })
 
+ECS_DTOR(FlecsPbrTexturesImpl, ptr, {
+    if (ptr->bind_group) {
+        wgpuBindGroupRelease(ptr->bind_group);
+    }
+})
+
 void FlecsEngineRendererImport(
     ecs_world_t *world)
 {
@@ -641,6 +648,15 @@ void FlecsEngineRendererImport(
         .dtor = ecs_dtor(FlecsTextureImpl)
     });
     ecs_add_pair(world, ecs_id(FlecsTexture), EcsWith, ecs_id(FlecsTextureImpl));
+
+    ECS_COMPONENT_DEFINE(world, FlecsPbrTexturesImpl);
+    ecs_set_hooks(world, FlecsPbrTexturesImpl, {
+        .ctor = flecs_default_ctor,
+        .dtor = ecs_dtor(FlecsPbrTexturesImpl)
+    });
+    ecs_add_pair(world, ecs_id(FlecsPbrTexturesImpl), EcsOnInstantiate, EcsInherit);
+    ecs_add_pair(world, ecs_id(FlecsPbrTextures), EcsWith,
+        ecs_id(FlecsPbrTexturesImpl));
 
     /* Augment material component hooks with renderer-side on_set callbacks.
      * Hooks fire immediately (even inside deferred contexts like GLTF loading),

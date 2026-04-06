@@ -61,10 +61,9 @@ static void flecsEngine_skybox_renderCallback(
     const FlecsRenderBatch *batch)
 {
     (void)world;
-    (void)engine;
 
     flecs_engine_skybox_ctx_t *ctx = batch->ctx;
-    flecsEngine_batch_draw(pass, &ctx->batch);
+    flecsEngine_batch_draw(engine, pass, &ctx->batch);
 }
 
 void FlecsOnAddSkyBoxBatch(

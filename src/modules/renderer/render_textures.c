@@ -534,7 +534,9 @@ void flecsEngine_pbrTextures_onSet(
             engine, albedo_view, emissive_view,
             roughness_view, normal_view, &bind_group))
         {
-            tex[i]._bind_group = bind_group;
+            FlecsPbrTexturesImpl *tex_impl = ecs_ensure(
+                world, it->entities[i], FlecsPbrTexturesImpl);
+            tex_impl->bind_group = bind_group;
         }
     }
 }
