@@ -88,6 +88,32 @@ void flecsEngine_mesh_extractGroup(
     flecsEngine_batch_extractInstances(world, engine, batch, ctx);
 }
 
+static void flecsEngine_mesh_extractShadowGroup(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch,
+    uint64_t group_id,
+    flecsEngine_batch_buffers_t *shared)
+{
+    if (!group_id) {
+        return;
+    }
+
+    flecsEngine_batch_t *ctx =
+        ecs_query_get_group_ctx(batch->query, group_id);
+    ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    if (!ctx->mesh.index_buffer || !ctx->mesh.index_count) {
+        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+            ctx->shadow_count[c] = 0;
+        }
+        return;
+    }
+
+    ctx->buffers = shared;
+    flecsEngine_batch_extractShadowInstances(world, engine, batch, ctx);
+}
+
 void flecsEngine_mesh_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
@@ -107,9 +133,9 @@ void flecsEngine_mesh_extract(
         return;
     }
 
+    /* Extract main rendering instances */
 redo: {
         int32_t total = 0;
-        int32_t shadow_totals[FLECS_ENGINE_SHADOW_CASCADE_COUNT] = {0};
         ecs_map_iter_t git = ecs_map_iter(groups);
         while (ecs_map_next(&git)) {
             uint64_t group_id = ecs_map_key(&git);
@@ -120,21 +146,41 @@ redo: {
             if (!ctx) continue;
 
             ctx->offset = total;
-            for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
-                ctx->shadow_offset[c] = shadow_totals[c];
-            }
             flecsEngine_mesh_extractGroup(
                 world, engine, batch, group_id, shared);
             total += ctx->count;
+        }
+
+        if (total > shared->capacity) {
+            flecsEngine_batch_buffers_ensureCapacity(engine, shared, total);
+            goto redo;
+        }
+
+        shared->count = total;
+    }
+
+    flecsEngine_batch_buffers_upload(engine, shared);
+
+    /* Extract shadow instances */
+redo_shadow: {
+        int32_t shadow_totals[FLECS_ENGINE_SHADOW_CASCADE_COUNT] = {0};
+        ecs_map_iter_t git = ecs_map_iter(groups);
+        while (ecs_map_next(&git)) {
+            uint64_t group_id = ecs_map_key(&git);
+            if (!group_id) continue;
+
+            flecsEngine_batch_t *ctx =
+                ecs_query_get_group_ctx(batch->query, group_id);
+            if (!ctx) continue;
+
+            for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+                ctx->shadow_offset[c] = shadow_totals[c];
+            }
+            flecsEngine_mesh_extractShadowGroup(
+                world, engine, batch, group_id, shared);
             for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
                 shadow_totals[c] += ctx->shadow_count[c];
             }
-        }
-
-        bool need_redo = false;
-        if (total > shared->capacity) {
-            flecsEngine_batch_buffers_ensureCapacity(engine, shared, total);
-            need_redo = true;
         }
 
         int32_t max_shadow = 0;
@@ -146,20 +192,14 @@ redo: {
         if (max_shadow > shared->shadow_capacity) {
             flecsEngine_batch_buffers_ensureShadowCapacity(
                 engine, shared, max_shadow);
-            need_redo = true;
+            goto redo_shadow;
         }
 
-        if (need_redo) {
-            goto redo;
-        }
-
-        shared->count = total;
         for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
             shared->shadow_count[c] = shadow_totals[c];
         }
     }
 
-    flecsEngine_batch_buffers_upload(engine, shared);
     flecsEngine_batch_buffers_uploadShadow(engine, shared);
 
     FLECS_TRACY_ZONE_END;

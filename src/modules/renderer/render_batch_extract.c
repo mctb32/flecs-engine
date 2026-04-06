@@ -2,51 +2,6 @@
 #include "frustum_cull.h"
 #include "../../tracy_hooks.h"
 
-/* Test a world-space AABB against the camera frustum and the shadow
- * frustum. Returns true if the AABB is inside either. */
-static bool flecsEngine_isVisibleAABB(
-    const FlecsEngineImpl *engine,
-    const float wmin[3],
-    const float wmax[3])
-{
-    if (flecsEngine_testAABBFrustum(engine->frustum_planes, wmin, wmax)) {
-        return true;
-    }
-
-    if (engine->shadow_frustum_valid) {
-        return flecsEngine_testAABBFrustum(
-            engine->shadow_frustum_planes, wmin, wmax);
-    }
-
-    return false;
-}
-
-/* Write a visible instance's transform into each cascade's shadow buffer
- * that the instance's AABB intersects. */
-static void flecsEngine_batch_shadowCascadeWrite(
-    const FlecsEngineImpl *engine,
-    flecsEngine_batch_buffers_t *buf,
-    flecsEngine_batch_t *ctx,
-    const FlecsInstanceTransform *transform,
-    const float wmin[3],
-    const float wmax[3])
-{
-    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
-        int32_t sdst = ctx->shadow_offset[c] + ctx->shadow_count[c];
-        if (sdst >= buf->shadow_capacity) {
-            ctx->shadow_count[c]++;
-            continue;
-        }
-        if (!flecsEngine_testAABBFrustum(
-                engine->cascade_frustum_planes[c], wmin, wmax))
-        {
-            continue;
-        }
-        buf->cpu_shadow_transforms[c][sdst] = *transform;
-        ctx->shadow_count[c]++;
-    }
-}
-
 void flecsEngine_batch_extractInstances(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
@@ -61,11 +16,6 @@ void flecsEngine_batch_extractInstances(
     ctx->count = 0;
 
     ecs_assert(engine->frustum_valid, ECS_INTERNAL_ERROR, NULL);
-
-    bool do_shadow_cull = engine->cascade_frustum_valid;
-    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
-        ctx->shadow_count[c] = 0;
-    }
 
     bool do_screen_cull = engine->screen_cull_valid;
     const float *aabb_min = ctx->mesh.aabb_min;
@@ -119,22 +69,17 @@ void flecsEngine_batch_extractInstances(
             flecsEngine_computeWorldAABB(
                 &wt[i], aabb_min, aabb_max, sx, sy, sz, wmin, wmax);
 
-            bool visible = flecsEngine_isVisibleAABB(engine, wmin, wmax);
-            if (visible && do_screen_cull) {
-                visible = flecsEngine_testScreenSize(
-                    engine->camera_pos, wmin, wmax,
-                    engine->screen_cull_factor,
-                    engine->screen_cull_threshold);
+            if (!flecsEngine_testAABBFrustum(
+                    engine->frustum_planes, wmin, wmax))
+            {
+                continue;
             }
 
-            if (!visible) {
-                if (do_shadow_cull) {
-                    FlecsInstanceTransform t;
-                    flecsEngine_batch_transformInstance(
-                        &t, &wt[i], sx, sy, sz);
-                    flecsEngine_batch_shadowCascadeWrite(
-                        engine, buf, ctx, &t, wmin, wmax);
-                }
+            if (do_screen_cull && !flecsEngine_testScreenSize(
+                    engine->camera_pos, wmin, wmax,
+                    engine->screen_cull_factor,
+                    engine->screen_cull_threshold))
+            {
                 continue;
             }
 
@@ -156,16 +101,79 @@ void flecsEngine_batch_extractInstances(
                 buf->cpu_material_ids[out] = material_id[0];
             }
 
-            if (do_shadow_cull) {
-                flecsEngine_batch_shadowCascadeWrite(
-                    engine, buf, ctx, &buf->cpu_transforms[out],
-                    wmin, wmax);
-            }
-
             added ++;
         }
 
         ctx->count += added;
+    }
+
+    FLECS_TRACY_ZONE_END;
+}
+
+void flecsEngine_batch_extractShadowInstances(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch,
+    flecsEngine_batch_t *ctx)
+{
+    FLECS_TRACY_ZONE_BEGIN("ExtractShadowInstances");
+    flecsEngine_batch_buffers_t *buf = ctx->buffers;
+    ecs_assert(buf != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+        ctx->shadow_count[c] = 0;
+    }
+
+    if (!engine->cascade_frustum_valid) {
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
+    const float *aabb_min = ctx->mesh.aabb_min;
+    const float *aabb_max = ctx->mesh.aabb_max;
+
+    ecs_iter_t it = ecs_query_iter(world, batch->query);
+    ecs_iter_set_group(&it, ctx->group_id);
+    while (ecs_query_next(&it)) {
+        const FlecsWorldTransform3 *wt = ecs_field(
+            &it, FlecsWorldTransform3, 1);
+
+        const void *scale_data = ctx->scale_callback
+            ? ecs_field_w_size(&it, ctx->component_size, 0) : NULL;
+
+        for (int32_t i = 0; i < it.count; i ++) {
+            float sx, sy, sz;
+            if (scale_data) {
+                vec3 scale;
+                ctx->scale_callback(
+                    ECS_ELEM(scale_data, ctx->component_size, i), scale);
+                sx = scale[0]; sy = scale[1]; sz = scale[2];
+            } else {
+                sx = sy = sz = 1.0f;
+            }
+
+            float wmin[3], wmax[3];
+            flecsEngine_computeWorldAABB(
+                &wt[i], aabb_min, aabb_max, sx, sy, sz, wmin, wmax);
+
+            FlecsInstanceTransform t;
+            flecsEngine_batch_transformInstance(&t, &wt[i], sx, sy, sz);
+
+            for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+                int32_t sdst = ctx->shadow_offset[c] + ctx->shadow_count[c];
+                if (sdst >= buf->shadow_capacity) {
+                    ctx->shadow_count[c]++;
+                    continue;
+                }
+                if (!flecsEngine_testAABBFrustum(
+                        engine->cascade_frustum_planes[c], wmin, wmax))
+                {
+                    continue;
+                }
+                buf->cpu_shadow_transforms[c][sdst] = t;
+                ctx->shadow_count[c]++;
+            }
+        }
     }
 
     FLECS_TRACY_ZONE_END;
@@ -179,39 +187,42 @@ void flecsEngine_primitive_extract(
     flecsEngine_batch_t *ctx = batch->ctx;
     flecsEngine_batch_buffers_t *buf = ctx->buffers;
 
+    /* Extract main rendering instances */
 redo:
     ctx->offset = 0;
-    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
-        ctx->shadow_offset[c] = 0;
-    }
     flecsEngine_batch_extractInstances(world, engine, batch, ctx);
 
-    /* Check if main buffers or shadow buffers need a resize */
-    int32_t max_shadow = 0;
-    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
-        if (ctx->shadow_count[c] > max_shadow) {
-            max_shadow = ctx->shadow_count[c];
-        }
-    }
-
-    bool need_redo = false;
     if (ctx->count > buf->capacity) {
         flecsEngine_batch_buffers_ensureCapacity(engine, buf, ctx->count);
-        need_redo = true;
-    }
-    if (max_shadow > buf->shadow_capacity) {
-        flecsEngine_batch_buffers_ensureShadowCapacity(
-            engine, buf, max_shadow);
-        need_redo = true;
-    }
-    if (need_redo) {
         goto redo;
     }
 
     buf->count = ctx->count;
-    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
+    flecsEngine_batch_buffers_upload(engine, buf);
+
+    /* Extract shadow instances */
+redo_shadow:
+    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+        ctx->shadow_offset[c] = 0;
+    }
+    flecsEngine_batch_extractShadowInstances(world, engine, batch, ctx);
+
+    {
+        int32_t max_shadow = 0;
+        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+            if (ctx->shadow_count[c] > max_shadow) {
+                max_shadow = ctx->shadow_count[c];
+            }
+        }
+        if (max_shadow > buf->shadow_capacity) {
+            flecsEngine_batch_buffers_ensureShadowCapacity(
+                engine, buf, max_shadow);
+            goto redo_shadow;
+        }
+    }
+
+    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
         buf->shadow_count[c] = ctx->shadow_count[c];
     }
-    flecsEngine_batch_buffers_upload(engine, buf);
     flecsEngine_batch_buffers_uploadShadow(engine, buf);
 }

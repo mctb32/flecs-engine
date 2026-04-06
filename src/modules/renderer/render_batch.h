@@ -102,10 +102,21 @@ void flecsEngine_batch_fini(
 void flecsEngine_batch_delete(
     void *ptr);
 
-/* Extract instances for a single group into shared buffers at ctx->offset.
- * Does NOT upload — caller must call flecsEngine_batch_buffers_upload after
- * all groups are extracted. */
+/* Extract visible instances for a single group into shared buffers at
+ * ctx->offset. Tests against the camera frustum only. Does NOT upload —
+ * caller must call flecsEngine_batch_buffers_upload after all groups are
+ * extracted. */
 void flecsEngine_batch_extractInstances(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch,
+    flecsEngine_batch_t *ctx);
+
+/* Extract shadow instances for a single group into per-cascade shadow
+ * buffers at ctx->shadow_offset. Tests against each cascade frustum.
+ * Does NOT upload — caller must call flecsEngine_batch_buffers_uploadShadow
+ * after all groups are extracted. */
+void flecsEngine_batch_extractShadowInstances(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch,
