@@ -57,7 +57,6 @@ static void flecsEngine_batch_buffers_releaseGpu(
         wgpuBufferRelease(buf->instance_material_id);
         buf->instance_material_id = NULL;
     }
-    flecsEngine_batch_buffers_releaseShadowGpu(buf);
 }
 
 static void flecsEngine_batch_buffers_freeCpu(
@@ -73,7 +72,6 @@ static void flecsEngine_batch_buffers_freeCpu(
     buf->cpu_emissives = NULL;
     ecs_os_free(buf->cpu_material_ids);
     buf->cpu_material_ids = NULL;
-    flecsEngine_batch_buffers_freeShadowCpu(buf);
 }
 
 void flecsEngine_batch_buffers_fini(
@@ -81,6 +79,8 @@ void flecsEngine_batch_buffers_fini(
 {
     flecsEngine_batch_buffers_releaseGpu(buf);
     flecsEngine_batch_buffers_freeCpu(buf);
+    flecsEngine_batch_buffers_releaseShadowGpu(buf);
+    flecsEngine_batch_buffers_freeShadowCpu(buf);
     buf->count = 0;
     buf->capacity = 0;
     buf->shadow_capacity = 0;
