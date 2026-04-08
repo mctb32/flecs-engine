@@ -10,6 +10,8 @@ typedef struct {
     WGPUTextureView ibl_equirect_texture_view;
     WGPUTexture ibl_prefiltered_cubemap;
     WGPUTextureView ibl_prefiltered_cubemap_view;
+    WGPUTexture ibl_irradiance_cubemap;
+    WGPUTextureView ibl_irradiance_cubemap_view;
     WGPUTexture ibl_brdf_lut_texture;
     WGPUTextureView ibl_brdf_lut_texture_view;
     WGPUSampler ibl_sampler;

@@ -138,12 +138,47 @@ static bool flecsEngine_gltf_readMesh(
     /* glTF tangents are stored as vec4 (xyz = tangent, w = bitangent sign).
      * Read them when present so the textured PBR shader can build a stable
      * TBN frame instead of relying on screen-space derivatives, which break
-     * down at close camera distances. */
+     * down at close camera distances.
+     *
+     * Some exporters (notably the Kenney asset toolchain for low-poly palette
+     * models) emit tangents that are zero-length or parallel to the vertex
+     * normal on faces where MikkTSpace cannot derive a meaningful tangent.
+     * Loading those values leads to NaN-normals in the shader because the
+     * per-fragment Gram-Schmidt step collapses to zero. Detect that case and
+     * drop the accessor, so geometry3.c falls back to its own Lengyel
+     * computation (whose own degenerate-case fallback picks a stable
+     * arbitrary axis perpendicular to N, which is what we actually want). */
     if (tan_acc && (int32_t)tan_acc->count == vert_count) {
         ecs_vec_set_count_t(NULL, &mesh3->tangents, flecs_vec4_t, vert_count);
         flecsEngine_gltf_readAccessor_f32(
             tan_acc,
             (float*)ecs_vec_first_t(&mesh3->tangents, flecs_vec4_t), 4);
+
+        const flecs_vec4_t *tans =
+            ecs_vec_first_t(&mesh3->tangents, flecs_vec4_t);
+        const flecs_vec3_t *nrms =
+            ecs_vec_first_t(&mesh3->normals, flecs_vec3_t);
+        bool tangents_ok = true;
+        for (int32_t v = 0; v < vert_count; v ++) {
+            float tx = tans[v].x, ty = tans[v].y, tz = tans[v].z;
+            float t_len2 = tx*tx + ty*ty + tz*tz;
+            if (t_len2 < 1e-12f) {
+                tangents_ok = false;
+                break;
+            }
+            float nx = nrms[v].x, ny = nrms[v].y, nz = nrms[v].z;
+            float dotnt = nx*tx + ny*ty + nz*tz;
+            /* cos²(angle) > 0.99 means angle < ~5.7°: tangent is parallel
+             * enough to N that the shader Gram-Schmidt will collapse. */
+            if ((dotnt * dotnt) > 0.99f * t_len2) {
+                tangents_ok = false;
+                break;
+            }
+        }
+
+        if (!tangents_ok) {
+            ecs_vec_set_count_t(NULL, &mesh3->tangents, flecs_vec4_t, 0);
+        }
     } else {
         ecs_vec_set_count_t(NULL, &mesh3->tangents, flecs_vec4_t, 0);
     }

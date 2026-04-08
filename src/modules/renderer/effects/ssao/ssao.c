@@ -34,6 +34,17 @@ static const char *kShaderSource =
     "  return view_h.xyz / view_h.w;\n"
     "}\n"
 
+    /* Fast path: recover only view-space Z from depth.
+     * Equivalent to (inv_proj * vec4(0,0,depth,1)).z / .w, but precomputes
+     * the constant matrix entries so the per-sample cost is 4 muls +
+     * 2 adds + 1 div. p_z = (inv_proj[2].z, inv_proj[3].z),
+     * p_w = (inv_proj[2].w, inv_proj[3].w). */
+    "fn fast_view_z(depth : f32, p_z : vec2<f32>, p_w : vec2<f32>) -> f32 {\n"
+    "  let z = p_z.x * depth + p_z.y;\n"
+    "  let w = p_w.x * depth + p_w.y;\n"
+    "  return z / w;\n"
+    "}\n"
+
     "fn hash22(p : vec2<f32>) -> vec2<f32> {\n"
     "  var p3 = fract(vec3<f32>(p.xyx) * vec3<f32>(0.1031, 0.1030, 0.0973));\n"
     "  p3 += dot(p3, p3.yzx + 33.33);\n"
@@ -76,13 +87,17 @@ static const char *kShaderSource =
 
     "  let view_pos = reconstruct_view_pos(in.uv, depth);\n"
 
-    "  let px = uniforms.viewport.z;\n"
-    "  let py = uniforms.viewport.w;\n"
+    /* Reconstruct neighbour view positions on the depth-texel grid so the
+     * finite-difference stride matches the depth lookup, even when SSAO
+     * runs at a lower resolution than the depth buffer. */
+    "  let inv_dims = vec2<f32>(1.0) / dims_f;\n"
+    "  let uv_r = (vec2<f32>(texel + vec2<i32>(1, 0)) + vec2<f32>(0.5)) * inv_dims;\n"
+    "  let uv_u = (vec2<f32>(texel + vec2<i32>(0, -1)) + vec2<f32>(0.5)) * inv_dims;\n"
     "  let vp_r = reconstruct_view_pos(\n"
-    "    in.uv + vec2<f32>(px, 0.0),\n"
+    "    uv_r,\n"
     "    textureLoad(depth_texture, texel + vec2<i32>(1, 0), 0));\n"
     "  let vp_u = reconstruct_view_pos(\n"
-    "    in.uv + vec2<f32>(0.0, -py),\n"
+    "    uv_u,\n"
     "    textureLoad(depth_texture, texel + vec2<i32>(0, -1), 0));\n"
     "  let normal = normalize(cross(vp_r - view_pos, vp_u - view_pos));\n"
     "  let noise = hash22(vec2<f32>(f32(texel.x), f32(texel.y)));\n"
@@ -94,6 +109,13 @@ static const char *kShaderSource =
     "  let radius = uniforms.params.x;\n"
     "  let bias = uniforms.params.y;\n"
     "  let intensity = uniforms.params.z;\n"
+
+    /* Hoist the constant inv_proj entries used by fast_view_z out of the
+     * inner loop. inv_proj is column-major; column [2] is NDC z's column
+     * and column [3] is the constant (w=1) column. We need their row 2
+     * (view z) and row 3 (view w) entries. */
+    "  let inv_p_z_zw = vec2<f32>(uniforms.inv_proj[2].z, uniforms.inv_proj[3].z);\n"
+    "  let inv_p_w_zw = vec2<f32>(uniforms.inv_proj[2].w, uniforms.inv_proj[3].w);\n"
 
     "  var occlusion = 0.0;\n"
     "  for (var i = 0u; i < SAMPLE_COUNT; i++) {\n"
@@ -112,12 +134,12 @@ static const char *kShaderSource =
 
     "    let s_texel = vec2<i32>(sample_uv * dims_f);\n"
     "    let s_depth = textureLoad(depth_texture, s_texel, 0);\n"
-    "    let sample_view = reconstruct_view_pos(sample_uv, s_depth);\n"
+    "    let sample_view_z = fast_view_z(s_depth, inv_p_z_zw, inv_p_w_zw);\n"
 
     "    let range_check = smoothstep(\n"
-    "      0.0, 1.0, radius / max(abs(view_pos.z - sample_view.z), 1e-6));\n"
+    "      0.0, 1.0, radius / max(abs(view_pos.z - sample_view_z), 1e-6));\n"
     "    occlusion += select(0.0, 1.0,\n"
-    "      sample_view.z >= sample_pos.z + bias) * range_check;\n"
+    "      sample_view_z >= sample_pos.z + bias) * range_check;\n"
     "  }\n"
 
     "  let fade = 1.0 - smoothstep(radius * 40.0, radius * 100.0, -view_pos.z);\n"

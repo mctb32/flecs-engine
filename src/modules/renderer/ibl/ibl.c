@@ -55,8 +55,9 @@ WGPUBindGroupLayout flecsEngine_ibl_ensureBindLayout(
      *   binding 5: Cluster info uniform
      *   binding 6: Cluster grid storage
      *   binding 7: Light indices storage
-     *   binding 8: Lights storage (unified point + spot) */
-    WGPUBindGroupLayoutEntry layout_entries[9] = {
+     *   binding 8: Lights storage (unified point + spot)
+     *   binding 9: IBL irradiance (Lambertian-convolved) env cubemap */
+    WGPUBindGroupLayoutEntry layout_entries[10] = {
         {
             .binding = 0,
             .visibility = WGPUShaderStage_Fragment,
@@ -129,13 +130,22 @@ WGPUBindGroupLayout flecsEngine_ibl_ensureBindLayout(
                 .type = WGPUBufferBindingType_ReadOnlyStorage,
                 .minBindingSize = sizeof(FlecsGpuLight)
             }
+        },
+        {
+            .binding = 9,
+            .visibility = WGPUShaderStage_Fragment,
+            .texture = {
+                .sampleType = WGPUTextureSampleType_Float,
+                .viewDimension = WGPUTextureViewDimension_Cube,
+                .multisampled = false
+            }
         }
     };
 
     impl->ibl_shadow_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device,
         &(WGPUBindGroupLayoutDescriptor){
-            .entryCount = 9,
+            .entryCount = 10,
             .entries = layout_entries
         });
 
@@ -170,8 +180,8 @@ bool flecsEngine_ibl_createRuntimeBindGroup(
         engine->device,
         &(WGPUBindGroupDescriptor){
             .layout = bind_layout,
-            .entryCount = 9,
-            .entries = (WGPUBindGroupEntry[9]){
+            .entryCount = 10,
+            .entries = (WGPUBindGroupEntry[10]){
                 {
                     .binding = 0,
                     .textureView = ibl->ibl_prefiltered_cubemap_view
@@ -214,6 +224,10 @@ bool flecsEngine_ibl_createRuntimeBindGroup(
                     .buffer = engine->lighting.light_buffer,
                     .size = (uint64_t)engine->lighting.light_capacity *
                         sizeof(FlecsGpuLight)
+                },
+                {
+                    .binding = 9,
+                    .textureView = ibl->ibl_irradiance_cubemap_view
                 }
             }
         });
@@ -258,6 +272,16 @@ void flecsEngine_ibl_releaseRuntimeResources(
     if (ibl->ibl_prefiltered_cubemap) {
         wgpuTextureRelease(ibl->ibl_prefiltered_cubemap);
         ibl->ibl_prefiltered_cubemap = NULL;
+    }
+
+    if (ibl->ibl_irradiance_cubemap_view) {
+        wgpuTextureViewRelease(ibl->ibl_irradiance_cubemap_view);
+        ibl->ibl_irradiance_cubemap_view = NULL;
+    }
+
+    if (ibl->ibl_irradiance_cubemap) {
+        wgpuTextureRelease(ibl->ibl_irradiance_cubemap);
+        ibl->ibl_irradiance_cubemap = NULL;
     }
 
     if (ibl->ibl_equirect_texture_view) {

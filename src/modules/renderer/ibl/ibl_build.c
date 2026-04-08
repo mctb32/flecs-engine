@@ -9,6 +9,7 @@
 
 #define FLECS_ENGINE_IBL_ENV_SIZE (512u)
 #define FLECS_ENGINE_IBL_BRDF_LUT_SIZE (256u)
+#define FLECS_ENGINE_IBL_IRRADIANCE_SIZE (32u)
 #define FLECS_ENGINE_IBL_FALLBACK_IMAGE_SIZE (1u)
 
 typedef struct FlecsIblFaceUniform {
@@ -122,6 +123,81 @@ static const char *kPrefilterShaderSource =
     "    return vec4<f32>(prefiltered / total_weight, 1.0);\n"
     "  }\n"
     "  return vec4<f32>(0.0, 0.0, 0.0, 1.0);\n"
+    "}\n";
+
+static const char *kIrradianceShaderSource =
+    "struct VertexOutput {\n"
+    "  @builtin(position) pos : vec4<f32>,\n"
+    "  @location(0) uv : vec2<f32>\n"
+    "};\n"
+    "struct FaceUniform {\n"
+    "  data : vec4<f32>\n"
+    "};\n"
+    "@group(0) @binding(0) var equirect_texture : texture_2d<f32>;\n"
+    "@group(0) @binding(1) var env_sampler : sampler;\n"
+    "@group(0) @binding(2) var<uniform> face_uniform : FaceUniform;\n"
+    "const PI : f32 = 3.141592653589793;\n"
+    "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VertexOutput {\n"
+    "  var out : VertexOutput;\n"
+    "  var pos = array<vec2<f32>, 3>(\n"
+    "    vec2<f32>(-1.0, -1.0),\n"
+    "    vec2<f32>(3.0, -1.0),\n"
+    "    vec2<f32>(-1.0, 3.0));\n"
+    "  let p = pos[vid];\n"
+    "  out.pos = vec4<f32>(p, 0.0, 1.0);\n"
+    "  out.uv = vec2<f32>((p.x + 1.0) * 0.5, (1.0 - p.y) * 0.5);\n"
+    "  return out;\n"
+    "}\n"
+    "fn cubeFaceUvToDir(face : u32, uv : vec2<f32>, face_size : f32) -> vec3<f32> {\n"
+    "  let scale = max(1.0 - (1.0 / max(face_size, 1.0)), 0.0);\n"
+    "  let st = (uv * 2.0 - vec2<f32>(1.0, 1.0)) * scale;\n"
+    "  let x = st.x;\n"
+    "  let y = -st.y;\n"
+    "  if (face == 0u) {\n"
+    "    return normalize(vec3<f32>(1.0, y, -x));\n"
+    "  }\n"
+    "  if (face == 1u) {\n"
+    "    return normalize(vec3<f32>(-1.0, y, x));\n"
+    "  }\n"
+    "  if (face == 2u) {\n"
+    "    return normalize(vec3<f32>(x, 1.0, -y));\n"
+    "  }\n"
+    "  if (face == 3u) {\n"
+    "    return normalize(vec3<f32>(x, -1.0, y));\n"
+    "  }\n"
+    "  if (face == 4u) {\n"
+    "    return normalize(vec3<f32>(x, y, 1.0));\n"
+    "  }\n"
+    "  return normalize(vec3<f32>(-x, y, -1.0));\n"
+    "}\n"
+    "fn directionToEquirectUv(dir : vec3<f32>) -> vec2<f32> {\n"
+    "  let d = normalize(dir);\n"
+    "  let phi = atan2(d.z, d.x);\n"
+    "  let theta = asin(clamp(d.y, -1.0, 1.0));\n"
+    "  return vec2<f32>(phi / (2.0 * PI) + 0.5, 0.5 - theta / PI);\n"
+    "}\n"
+    "@fragment fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {\n"
+    "  let face = u32(face_uniform.data.x + 0.5);\n"
+    "  let n = cubeFaceUvToDir(face, in.uv, face_uniform.data.z);\n"
+    "  let up_guess = select(vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(1.0, 0.0, 0.0), abs(n.y) > 0.999);\n"
+    "  let tangent = normalize(cross(up_guess, n));\n"
+    "  let bitangent = cross(n, tangent);\n"
+    "  var irradiance = vec3<f32>(0.0);\n"
+    "  let sample_delta = 0.025;\n"
+    "  var num_samples = 0.0;\n"
+    "  for (var phi = 0.0; phi < 6.2831853; phi += sample_delta) {\n"
+    "    for (var theta = 0.0; theta < 1.5707963; theta += sample_delta) {\n"
+    "      let s = sin(theta);\n"
+    "      let c = cos(theta);\n"
+    "      let tangent_sample = vec3<f32>(s * cos(phi), s * sin(phi), c);\n"
+    "      let world_sample = tangent * tangent_sample.x + bitangent * tangent_sample.y + n * tangent_sample.z;\n"
+    "      let env_uv = directionToEquirectUv(world_sample);\n"
+    "      irradiance += textureSampleLevel(equirect_texture, env_sampler, env_uv, 0.0).rgb * c * s;\n"
+    "    }\n"
+    "    num_samples += 1.0;\n"
+    "  }\n"
+    "  irradiance = irradiance * PI / (num_samples * f32(u32(1.5707963 / sample_delta) + 1u));\n"
+    "  return vec4<f32>(irradiance, 1.0);\n"
     "}\n";
 
 static const char *kBrdfLutShaderSource =
@@ -652,6 +728,7 @@ static bool flecsIblRunPreprocessPasses(
 {
     bool result = false;
     WGPUShaderModule prefilter_shader = NULL;
+    WGPUShaderModule irradiance_shader = NULL;
     WGPUShaderModule brdf_shader = NULL;
     WGPUBindGroupLayout prefilter_bind_layout = NULL;
     WGPUBindGroupLayout brdf_bind_layout = NULL;
@@ -660,13 +737,16 @@ static bool flecsIblRunPreprocessPasses(
     WGPUBuffer prefilter_uniform_buffer = NULL;
     WGPUBuffer brdf_uniform_buffer = NULL;
     WGPURenderPipeline prefilter_pipeline = NULL;
+    WGPURenderPipeline irradiance_pipeline = NULL;
     WGPURenderPipeline brdf_pipeline = NULL;
 
     prefilter_shader = flecsIblCreateShaderModule(
         engine, kPrefilterShaderSource);
+    irradiance_shader = flecsIblCreateShaderModule(
+        engine, kIrradianceShaderSource);
     brdf_shader = flecsIblCreateShaderModule(
         engine, kBrdfLutShaderSource);
-    if (!prefilter_shader || !brdf_shader) {
+    if (!prefilter_shader || !irradiance_shader || !brdf_shader) {
         goto cleanup;
     }
 
@@ -810,6 +890,13 @@ static bool flecsIblRunPreprocessPasses(
         1,
         "fs_main",
         WGPUTextureFormat_RGBA16Float);
+    irradiance_pipeline = flecsIblCreatePipeline(
+        engine,
+        irradiance_shader,
+        &prefilter_bind_layout,
+        1,
+        "fs_main",
+        WGPUTextureFormat_RGBA16Float);
     brdf_pipeline = flecsIblCreatePipeline(
         engine,
         brdf_shader,
@@ -817,7 +904,7 @@ static bool flecsIblRunPreprocessPasses(
         1,
         "fs_main",
         WGPUTextureFormat_RG16Float);
-    if (!prefilter_pipeline || !brdf_pipeline) {
+    if (!prefilter_pipeline || !irradiance_pipeline || !brdf_pipeline) {
         goto cleanup;
     }
 
@@ -865,6 +952,41 @@ static bool flecsIblRunPreprocessPasses(
         }
     }
 
+    /* Render the Lambertian-irradiance cubemap (single mip). */
+    for (uint32_t face = 0; face < 6u; face ++) {
+        FlecsIblFaceUniform uniform = {
+            .face_index = (float)face,
+            .roughness = 0.0f,
+            .face_size = (float)FLECS_ENGINE_IBL_IRRADIANCE_SIZE,
+            .sample_count = 0.0f
+        };
+        wgpuQueueWriteBuffer(
+            engine->queue,
+            prefilter_uniform_buffer,
+            0,
+            &uniform,
+            sizeof(uniform));
+
+        WGPUTextureView face_view = flecsIblCreateCubeFaceView(
+            ibl->ibl_irradiance_cubemap,
+            WGPUTextureFormat_RGBA16Float,
+            0,
+            face);
+        if (!face_view) {
+            goto cleanup;
+        }
+
+        bool draw_ok = flecsIblSubmitFullscreenPass(
+            engine,
+            face_view,
+            irradiance_pipeline,
+            prefilter_bind_group);
+        wgpuTextureViewRelease(face_view);
+        if (!draw_ok) {
+            goto cleanup;
+        }
+    }
+
     if (!flecsIblSubmitFullscreenPass(
         engine,
         ibl->ibl_brdf_lut_texture_view,
@@ -878,6 +1000,9 @@ static bool flecsIblRunPreprocessPasses(
 cleanup:
     if (brdf_pipeline) {
         wgpuRenderPipelineRelease(brdf_pipeline);
+    }
+    if (irradiance_pipeline) {
+        wgpuRenderPipelineRelease(irradiance_pipeline);
     }
     if (prefilter_pipeline) {
         wgpuRenderPipelineRelease(prefilter_pipeline);
@@ -902,6 +1027,9 @@ cleanup:
     }
     if (brdf_shader) {
         wgpuShaderModuleRelease(brdf_shader);
+    }
+    if (irradiance_shader) {
+        wgpuShaderModuleRelease(irradiance_shader);
     }
     if (prefilter_shader) {
         wgpuShaderModuleRelease(prefilter_shader);
@@ -980,6 +1108,17 @@ bool flecsEngine_ibl_initResources(
         WGPUTextureFormat_RGBA16Float,
         &ibl->ibl_prefiltered_cubemap,
         &ibl->ibl_prefiltered_cubemap_view))
+    {
+        goto done;
+    }
+
+    if (!flecsIblCreateCubeTexture(
+        engine,
+        FLECS_ENGINE_IBL_IRRADIANCE_SIZE,
+        1u,
+        WGPUTextureFormat_RGBA16Float,
+        &ibl->ibl_irradiance_cubemap,
+        &ibl->ibl_irradiance_cubemap_view))
     {
         goto done;
     }

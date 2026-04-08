@@ -30,10 +30,10 @@
     "  let lod = roughness * max_mip;\n" \
     "  let prefiltered_color = textureSampleLevel(ibl_prefiltered_env, ibl_sampler, r, lod).rgb;\n" \
     "  let brdf = textureSample(ibl_brdf_lut, ibl_sampler, vec2<f32>(ndotv, roughness)).rg;\n" \
-    "  let kS = computeSplitSumSpecularTerm(f0, brdf);\n" \
-    "  let specular_ibl = prefiltered_color * kS * uniforms.ambient_light.w;\n" \
-    "  let irradiance = textureSampleLevel(ibl_prefiltered_env, ibl_sampler, n, max_mip).rgb;\n" \
-    "  let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);\n" \
+    "  let F = fresnelSchlickRoughness(ndotv, f0, roughness);\n" \
+    "  let specular_ibl = prefiltered_color * computeSplitSumSpecularTerm(f0, brdf) * uniforms.ambient_light.w;\n" \
+    "  let irradiance = textureSampleLevel(ibl_irradiance_env, ibl_sampler, n, 0.0).rgb;\n" \
+    "  let kD = (vec3<f32>(1.0) - F) * (1.0 - metallic);\n" \
     "  let diffuse_ibl = irradiance * albedo * kD * uniforms.ambient_light.w;\n" \
     "  let cluster_idx = getClusterIndex(frag_coord);\n" \
     "  let cluster_light = computeClusterLighting(\n" \

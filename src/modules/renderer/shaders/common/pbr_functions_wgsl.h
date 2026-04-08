@@ -14,6 +14,12 @@
     "  let x2 = x * x;\n" \
     "  return f0 + (vec3<f32>(1.0) - f0) * (x2 * x2 * x);\n" \
     "}\n" \
+    "fn fresnelSchlickRoughness(cos_theta : f32, f0 : vec3<f32>, roughness : f32) -> vec3<f32> {\n" \
+    "  let x = 1.0 - cos_theta;\n" \
+    "  let x2 = x * x;\n" \
+    "  let f90 = max(vec3<f32>(1.0 - roughness), f0);\n" \
+    "  return f0 + (f90 - f0) * (x2 * x2 * x);\n" \
+    "}\n" \
     "const PBR_DIV_EPSILON : f32 = 1e-7;\n" \
     "fn distributionGGX(n : vec3<f32>, h : vec3<f32>, roughness : f32) -> f32 {\n" \
     "  let a = roughness * roughness;\n" \

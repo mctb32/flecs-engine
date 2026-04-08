@@ -102,7 +102,6 @@ static const char *kShaderSource =
     "  let B = cross(N, T) * input.bitangent_sign;\n"
     "  let tbn = mat3x3<f32>(T, B, N);\n"
     "  let mapped_normal = normalize(tbn * tangent_normal);\n"
-    "\n"
     "  let lit = computePbrLighting(\n"
     "    albedo,\n"
     "    metallic,\n"
