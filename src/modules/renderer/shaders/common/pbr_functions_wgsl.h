@@ -14,18 +14,19 @@
     "  let x2 = x * x;\n" \
     "  return f0 + (vec3<f32>(1.0) - f0) * (x2 * x2 * x);\n" \
     "}\n" \
+    "const PBR_DIV_EPSILON : f32 = 1e-7;\n" \
     "fn distributionGGX(n : vec3<f32>, h : vec3<f32>, roughness : f32) -> f32 {\n" \
     "  let a = roughness * roughness;\n" \
     "  let a2 = a * a;\n" \
     "  let ndoth = max(dot(n, h), 0.0);\n" \
     "  let ndoth2 = ndoth * ndoth;\n" \
     "  let denom = ndoth2 * (a2 - 1.0) + 1.0;\n" \
-    "  return a2 / max(PI * denom * denom, 1e-4);\n" \
+    "  return a2 / max(PI * denom * denom, PBR_DIV_EPSILON);\n" \
     "}\n" \
     "fn geometrySchlickGGX(ndotv : f32, roughness : f32) -> f32 {\n" \
     "  let r = roughness + 1.0;\n" \
     "  let k = (r * r) / 8.0;\n" \
-    "  return ndotv / max(ndotv * (1.0 - k) + k, 1e-4);\n" \
+    "  return ndotv / max(ndotv * (1.0 - k) + k, PBR_DIV_EPSILON);\n" \
     "}\n" \
     "fn geometrySmith(\n" \
     "  ggx_v : f32,\n" \
@@ -73,7 +74,7 @@
     "  let d = distributionGGX(n, h, roughness);\n" \
     "  let g = geometrySmith(ggx_v, ndotl, roughness);\n" \
     "  let spec_num = d * g * f;\n" \
-    "  let spec_denom = max(4.0 * ndotv * ndotl, 1e-4);\n" \
+    "  let spec_denom = max(4.0 * ndotv * ndotl, PBR_DIV_EPSILON);\n" \
     "  return spec_num / spec_denom;\n" \
     "}\n" \
     "fn computeDirectLighting(\n" \
@@ -133,7 +134,7 @@
     "      if (theta < outer_cos) {\n" \
     "        continue;\n" \
     "      }\n" \
-    "      spot_effect = clamp((theta - outer_cos) / max(inner_cos - outer_cos, 1e-4), 0.0, 1.0);\n" \
+    "      spot_effect = clamp((theta - outer_cos) / max(inner_cos - outer_cos, PBR_DIV_EPSILON), 0.0, 1.0);\n" \
     "    }\n" \
     "    let h = getHalfVector(v, l);\n" \
     "    let ndotl = max(dot(n, l), 0.0);\n" \

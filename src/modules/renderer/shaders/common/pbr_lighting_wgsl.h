@@ -4,16 +4,14 @@
 #define FLECS_ENGINE_SHADER_COMMON_PBR_LIGHTING_WGSL \
     "fn computePbrLighting(\n" \
     "  albedo : vec3<f32>,\n" \
-    "  metallic_raw : f32,\n" \
-    "  roughness_raw : f32,\n" \
+    "  metallic : f32,\n" \
+    "  roughness : f32,\n" \
     "  emissive : vec3<f32>,\n" \
     "  world_pos : vec3<f32>,\n" \
     "  normal : vec3<f32>,\n" \
     "  frag_coord : vec4<f32>\n" \
     ") -> vec3<f32> {\n" \
-    "  let metallic = clamp(metallic_raw, 0.0, 1.0);\n" \
-    "  let roughness = clamp(roughness_raw, 0.0, 1.0);\n" \
-    "  let direct_roughness = clamp(roughness, 0.045, 1.0);\n" \
+    "  let direct_roughness = max(roughness, 0.045);\n" \
     "  let n = normalize(normal);\n" \
     "  let light = getLightDirection();\n" \
     "  let v = getViewDirection(world_pos);\n" \
@@ -21,8 +19,7 @@
     "  let f0 = computeF0(albedo, metallic);\n" \
     "  let ndotv = saturate(dot(n, v));\n" \
     "  let ggx_v = geometrySchlickGGX(ndotv, direct_roughness);\n" \
-    "  let shadow_result = computeShadow(world_pos);\n" \
-    "  let shadow = shadow_result.shadow;\n" \
+    "  let shadow = computeShadow(world_pos);\n" \
     "  let direct = computeDirectLighting(\n" \
     "    n, v, light.dir, h,\n" \
     "    albedo, metallic, direct_roughness,\n" \
