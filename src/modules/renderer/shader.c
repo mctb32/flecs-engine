@@ -30,7 +30,15 @@ static void flecsShaderImplRelease(
     }
 }
 
-FLECS_ENGINE_IMPL_HOOKS(FlecsShaderImpl, flecsShaderImplRelease)
+ECS_DTOR(FlecsShaderImpl, ptr, {
+    flecsShaderImplRelease(ptr);
+})
+
+ECS_MOVE(FlecsShaderImpl, dst, src, {
+    flecsShaderImplRelease(dst);
+    *dst = *src;
+    ecs_os_zeromem(src);
+})
 
 static bool flecsEngine_shader_compile(
     ecs_world_t *world,

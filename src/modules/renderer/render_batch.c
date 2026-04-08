@@ -60,7 +60,15 @@ static void flecsEngine_renderBatch_releaseImpl(
     }
 }
 
-FLECS_ENGINE_IMPL_HOOKS(FlecsRenderBatchImpl, flecsEngine_renderBatch_releaseImpl)
+ECS_DTOR(FlecsRenderBatchImpl, ptr, {
+    flecsEngine_renderBatch_releaseImpl(ptr);
+})
+
+ECS_MOVE(FlecsRenderBatchImpl, dst, src, {
+    flecsEngine_renderBatch_releaseImpl(dst);
+    *dst = *src;
+    ecs_os_zeromem(src);
+})
 
 ECS_COMPONENT_DECLARE(FlecsRenderBatchSet);
 

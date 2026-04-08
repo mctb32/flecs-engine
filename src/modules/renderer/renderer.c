@@ -542,18 +542,53 @@ cleanup:
     FLECS_TRACY_ZONE_END;
 }
 
-ECS_DTOR(FlecsTextureImpl, ptr, {
+static void flecsEngine_textureImpl_releaseImpl(
+    FlecsTextureImpl *ptr)
+{
     if (ptr->view) {
         wgpuTextureViewRelease(ptr->view);
+        ptr->view = NULL;
     }
     if (ptr->texture) {
         wgpuTextureRelease(ptr->texture);
+        ptr->texture = NULL;
     }
+}
+
+ECS_DTOR(FlecsTextureImpl, ptr, {
+    flecsEngine_textureImpl_releaseImpl(ptr);
 })
 
-ECS_DTOR(FlecsPbrTexturesImpl, ptr, {
+ECS_MOVE(FlecsTextureImpl, dst, src, {
+    flecsEngine_textureImpl_releaseImpl(dst);
+    *dst = *src;
+    ecs_os_zeromem(src);
+})
+
+static void flecsEngine_pbrTextures_releaseImpl(
+    FlecsPbrTexturesImpl *ptr)
+{
     if (ptr->bind_group) {
         wgpuBindGroupRelease(ptr->bind_group);
+        ptr->bind_group = NULL;
+    }
+}
+
+ECS_DTOR(FlecsPbrTexturesImpl, ptr, {
+    flecsEngine_pbrTextures_releaseImpl(ptr);
+})
+
+ECS_MOVE(FlecsPbrTexturesImpl, dst, src, {
+    flecsEngine_pbrTextures_releaseImpl(dst);
+    *dst = *src;
+    ecs_os_zeromem(src);
+})
+
+ECS_COPY(FlecsPbrTexturesImpl, dst, src, {
+    flecsEngine_pbrTextures_releaseImpl(dst);
+    *dst = *src;
+    if (dst->bind_group) {
+        wgpuBindGroupAddRef(dst->bind_group);
     }
 })
 
@@ -646,6 +681,7 @@ void FlecsEngineRendererImport(
     ECS_COMPONENT_DEFINE(world, FlecsTextureImpl);
     ecs_set_hooks(world, FlecsTextureImpl, {
         .ctor = flecs_default_ctor,
+        .move = ecs_move(FlecsTextureImpl),
         .dtor = ecs_dtor(FlecsTextureImpl)
     });
     ecs_add_pair(world, ecs_id(FlecsTexture), EcsWith, ecs_id(FlecsTextureImpl));
@@ -653,6 +689,8 @@ void FlecsEngineRendererImport(
     ECS_COMPONENT_DEFINE(world, FlecsPbrTexturesImpl);
     ecs_set_hooks(world, FlecsPbrTexturesImpl, {
         .ctor = flecs_default_ctor,
+        .move = ecs_move(FlecsPbrTexturesImpl),
+        .copy = ecs_copy(FlecsPbrTexturesImpl),
         .dtor = ecs_dtor(FlecsPbrTexturesImpl)
     });
     ecs_add_pair(world, ecs_id(FlecsPbrTexturesImpl), EcsOnInstantiate, EcsInherit);

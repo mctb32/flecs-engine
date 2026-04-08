@@ -318,16 +318,6 @@ void flecsEngine_renderView_renderShadow(
     const FlecsRenderView *view,
     WGPUCommandEncoder encoder);
 
-/* Shared ECS_DTOR + ECS_MOVE pair for types whose cleanup is a single
- * release function.  The destructor calls release_fn(ptr), and the move
- * hook releases the destination, shallow-copies the source, then zeroes
- * the source so its resources are not double-freed. */
-#define FLECS_ENGINE_IMPL_HOOKS(Type, release_fn) \
-    ECS_DTOR(Type, ptr, { release_fn(ptr); }) \
-    ECS_MOVE(Type, dst, src, { \
-        release_fn(dst); *dst = *src; ecs_os_zeromem(src); \
-    })
-
 /* Shared fullscreen-triangle vertex shader used by all post-process effects.
  * Produces a single triangle covering clip space with correct UVs. */
 #define FLECS_ENGINE_FULLSCREEN_VS_WGSL \

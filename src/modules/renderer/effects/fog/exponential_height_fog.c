@@ -101,8 +101,15 @@ static void flecsEngine_heightFog_releaseResources(
     }
 }
 
-FLECS_ENGINE_IMPL_HOOKS(FlecsHeightFogImpl,
-    flecsEngine_heightFog_releaseResources)
+ECS_DTOR(FlecsHeightFogImpl, ptr, {
+    flecsEngine_heightFog_releaseResources(ptr);
+})
+
+ECS_MOVE(FlecsHeightFogImpl, dst, src, {
+    flecsEngine_heightFog_releaseResources(dst);
+    *dst = *src;
+    ecs_os_zeromem(src);
+})
 
 static void flecsEngine_heightFog_fillUniform(
     const ecs_world_t *world,

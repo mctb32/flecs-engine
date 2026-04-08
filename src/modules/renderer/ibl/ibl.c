@@ -37,7 +37,15 @@ ECS_DTOR(FlecsHdri, ptr, {
     }
 })
 
-FLECS_ENGINE_IMPL_HOOKS(FlecsHdriImpl, flecsEngine_ibl_releaseRuntimeResources)
+ECS_DTOR(FlecsHdriImpl, ptr, {
+    flecsEngine_ibl_releaseRuntimeResources(ptr);
+})
+
+ECS_MOVE(FlecsHdriImpl, dst, src, {
+    flecsEngine_ibl_releaseRuntimeResources(dst);
+    *dst = *src;
+    ecs_os_zeromem(src);
+})
 
 WGPUBindGroupLayout flecsEngine_ibl_ensureBindLayout(
     FlecsEngineImpl *impl)

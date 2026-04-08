@@ -87,8 +87,15 @@ static void flecsEngine_renderView_releaseTargets(
     impl->effect_target_format = WGPUTextureFormat_Undefined;
 }
 
-FLECS_ENGINE_IMPL_HOOKS(FlecsRenderViewImpl,
-    flecsEngine_renderView_releaseTargets)
+ECS_DTOR(FlecsRenderViewImpl, ptr, {
+    flecsEngine_renderView_releaseTargets(ptr);
+})
+
+ECS_MOVE(FlecsRenderViewImpl, dst, src, {
+    flecsEngine_renderView_releaseTargets(dst);
+    *dst = *src;
+    ecs_os_zeromem(src);
+})
 
 static bool flecsEngine_renderView_createTargets(
     FlecsEngineImpl *engine,

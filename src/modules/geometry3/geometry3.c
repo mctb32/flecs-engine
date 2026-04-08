@@ -59,6 +59,33 @@ ECS_COPY(FlecsMesh3, dst, src, {
     dst->indices = ecs_vec_copy_t(NULL, &src->indices, uint32_t);
 })
 
+static void FlecsMesh3Impl_fini(
+    FlecsMesh3Impl *ptr)
+{
+    if (ptr->vertex_buffer) {
+        wgpuBufferRelease(ptr->vertex_buffer);
+        ptr->vertex_buffer = NULL;
+    }
+    if (ptr->vertex_uv_buffer) {
+        wgpuBufferRelease(ptr->vertex_uv_buffer);
+        ptr->vertex_uv_buffer = NULL;
+    }
+    if (ptr->index_buffer) {
+        wgpuBufferRelease(ptr->index_buffer);
+        ptr->index_buffer = NULL;
+    }
+}
+
+ECS_MOVE(FlecsMesh3Impl, dst, src, {
+    FlecsMesh3Impl_fini(dst);
+    *dst = *src;
+    ecs_os_zeromem(src);
+})
+
+ECS_DTOR(FlecsMesh3Impl, ptr, {
+    FlecsMesh3Impl_fini(ptr);
+})
+
 ECS_DTOR(FlecsMesh3, ptr, {
     FlecsMesh3_fini(ptr);
 })
@@ -526,7 +553,9 @@ void FlecsEngineGeometry3Import(
     });
 
     ecs_set_hooks(world, FlecsMesh3Impl, {
-        .ctor = flecs_default_ctor
+        .ctor = flecs_default_ctor,
+        .move = ecs_move(FlecsMesh3Impl),
+        .dtor = ecs_dtor(FlecsMesh3Impl)
     });
 
     ecs_set_hooks(world, FlecsSphere, {
