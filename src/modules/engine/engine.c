@@ -17,6 +17,7 @@
 
 ECS_COMPONENT_DECLARE(flecs_vec2_t);
 ECS_COMPONENT_DECLARE(flecs_vec3_t);
+ECS_COMPONENT_DECLARE(flecs_vec4_t);
 ECS_COMPONENT_DECLARE(flecs_mat4_t);
 ECS_COMPONENT_DECLARE(flecs_rgba_t);
 
@@ -221,6 +222,16 @@ void FlecsEngineImport(
         }
     });
 
+    ecs_id(flecs_vec4_t) = ecs_struct(world, {
+        .entity = ecs_entity(world, { .name = "vec4" }),
+        .members = {
+            { .name = "x", .type = ecs_id(ecs_f32_t) },
+            { .name = "y", .type = ecs_id(ecs_f32_t) },
+            { .name = "z", .type = ecs_id(ecs_f32_t) },
+            { .name = "w", .type = ecs_id(ecs_f32_t) },
+        }
+    });
+
     ecs_id(flecs_rgba_t) = ecs_struct(world, {
         .entity = ecs_entity(world, { .name = "rgba" }),
         .members = {
@@ -233,6 +244,7 @@ void FlecsEngineImport(
 
     ecs_set_alias(world, ecs_id(flecs_vec2_t), "flecs_vec2_t");
     ecs_set_alias(world, ecs_id(flecs_vec3_t), "flecs_vec3_t");
+    ecs_set_alias(world, ecs_id(flecs_vec4_t), "flecs_vec4_t");
     ecs_set_alias(world, ecs_id(flecs_rgba_t), "flecs_rgba_t");
 
     ecs_id(flecs_mat4_t) = ecs_component(world, {

@@ -91,6 +91,8 @@ static bool flecsEngine_gltf_readMesh(
         prim, cgltf_attribute_type_normal);
     const cgltf_accessor *uv_acc = flecsEngine_gltf_findAttribute(
         prim, cgltf_attribute_type_texcoord);
+    const cgltf_accessor *tan_acc = flecsEngine_gltf_findAttribute(
+        prim, cgltf_attribute_type_tangent);
     const cgltf_accessor *idx_acc = prim->indices;
 
     if (!pos_acc || !idx_acc) {
@@ -103,6 +105,7 @@ static bool flecsEngine_gltf_readMesh(
     ecs_vec_init_t(NULL, &mesh3->vertices, flecs_vec3_t, vert_count);
     ecs_vec_init_t(NULL, &mesh3->normals, flecs_vec3_t, vert_count);
     ecs_vec_init_t(NULL, &mesh3->uvs, flecs_vec2_t, vert_count);
+    ecs_vec_init_t(NULL, &mesh3->tangents, flecs_vec4_t, vert_count);
     ecs_vec_init_t(NULL, &mesh3->indices, uint32_t, idx_count);
     ecs_vec_set_count_t(NULL, &mesh3->vertices, flecs_vec3_t, vert_count);
     ecs_vec_set_count_t(NULL, &mesh3->normals, flecs_vec3_t, vert_count);
@@ -130,6 +133,19 @@ static bool flecsEngine_gltf_readMesh(
             (float*)ecs_vec_first_t(&mesh3->uvs, flecs_vec2_t), 2);
     } else {
         ecs_vec_set_count_t(NULL, &mesh3->uvs, flecs_vec2_t, 0);
+    }
+
+    /* glTF tangents are stored as vec4 (xyz = tangent, w = bitangent sign).
+     * Read them when present so the textured PBR shader can build a stable
+     * TBN frame instead of relying on screen-space derivatives, which break
+     * down at close camera distances. */
+    if (tan_acc && (int32_t)tan_acc->count == vert_count) {
+        ecs_vec_set_count_t(NULL, &mesh3->tangents, flecs_vec4_t, vert_count);
+        flecsEngine_gltf_readAccessor_f32(
+            tan_acc,
+            (float*)ecs_vec_first_t(&mesh3->tangents, flecs_vec4_t), 4);
+    } else {
+        ecs_vec_set_count_t(NULL, &mesh3->tangents, flecs_vec4_t, 0);
     }
 
     flecsEngine_gltf_readIndices(

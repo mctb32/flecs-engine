@@ -172,8 +172,8 @@ void initEngine(
   });
   ecs_add(world, view.camera, FlecsCameraController);
   // ecs_set(world, view.camera, FlecsPosition3, {-20.106, 1.9, 14.93});
-  ecs_set(world, view.camera, FlecsPosition3, {-13.225, 3.021, 14.92});
-  ecs_set(world, view.camera, FlecsLookAt, {-12.364, 3.04, 14.423});
+  ecs_set(world, view.camera, FlecsPosition3, {-11.476, 3.757, 13.92});
+  ecs_set(world, view.camera, FlecsLookAt, {-10.61, 3.739, 13.411});
 
   // Light
   view.light = ecs_entity(world, { .name = "light" });

@@ -590,7 +590,8 @@ void FlecsEngineRendererImport(
         .members = {
             { .name = "p", .type = ecs_id(flecs_vec3_t) },
             { .name = "n", .type = ecs_id(flecs_vec3_t) },
-            { .name = "uv", .type = ecs_id(flecs_vec2_t) }
+            { .name = "uv", .type = ecs_id(flecs_vec2_t) },
+            { .name = "t", .type = ecs_id(flecs_vec4_t) }
         }
     });
 

@@ -82,6 +82,12 @@ int32_t flecsEngine_vertexAttrFromType(
                 attrs[attr].offset = members[i].offset;
                 attr ++;
 
+            } else if (members[i].type == ecs_id(flecs_vec4_t)) {
+                attrs[attr].format = WGPUVertexFormat_Float32x4;
+                attrs[attr].shaderLocation = location_offset + attr;
+                attrs[attr].offset = members[i].offset;
+                attr ++;
+
             } else if (members[i].type == ecs_id(ecs_f32_t)) {
                 attrs[attr].format = WGPUVertexFormat_Float32;
                 attrs[attr].shaderLocation = location_offset + attr;

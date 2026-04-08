@@ -32,6 +32,7 @@ static void FlecsMesh3_fini(
     ecs_vec_fini_t(NULL, &ptr->vertices, flecs_vec3_t);
     ecs_vec_fini_t(NULL, &ptr->normals, flecs_vec3_t);
     ecs_vec_fini_t(NULL, &ptr->uvs, flecs_vec2_t);
+    ecs_vec_fini_t(NULL, &ptr->tangents, flecs_vec4_t);
     ecs_vec_fini_t(NULL, &ptr->indices, uint32_t);
 }
 
@@ -39,6 +40,7 @@ ECS_CTOR(FlecsMesh3, ptr, {
     ecs_vec_init_t(NULL, &ptr->vertices, flecs_vec3_t, 0);
     ecs_vec_init_t(NULL, &ptr->normals, flecs_vec3_t, 0);
     ecs_vec_init_t(NULL, &ptr->uvs, flecs_vec2_t, 0);
+    ecs_vec_init_t(NULL, &ptr->tangents, flecs_vec4_t, 0);
     ecs_vec_init_t(NULL, &ptr->indices, uint32_t, 0);
 })
 
@@ -53,6 +55,7 @@ ECS_COPY(FlecsMesh3, dst, src, {
     dst->vertices = ecs_vec_copy_t(NULL, &src->vertices, flecs_vec3_t);
     dst->normals = ecs_vec_copy_t(NULL, &src->normals, flecs_vec3_t);
     dst->uvs = ecs_vec_copy_t(NULL, &src->uvs, flecs_vec2_t);
+    dst->tangents = ecs_vec_copy_t(NULL, &src->tangents, flecs_vec4_t);
     dst->indices = ecs_vec_copy_t(NULL, &src->indices, uint32_t);
 })
 
@@ -87,6 +90,121 @@ ECS_DTOR(FlecsGeometry3Cache, ptr, {
     ecs_map_fini(&ptr->bevel_cache);
     ecs_map_fini(&ptr->bevel_corner_cache);
 })
+
+/* Compute per-vertex tangents (Lengyel) for meshes whose source asset did
+ * not provide them. The result is in the same form as glTF tangents:
+ * xyz is the surface tangent, w is the bitangent sign (+/- 1). The shader
+ * reconstructs the bitangent as cross(N, T) * w. */
+static void flecsEngine_mesh_computeTangents(
+    int32_t vert_count,
+    int32_t idx_count,
+    const flecs_vec3_t *positions,
+    const flecs_vec3_t *normals,
+    const flecs_vec2_t *uvs,
+    const uint32_t *indices,
+    flecs_vec4_t *out)
+{
+    flecs_vec3_t *tan1 = ecs_os_calloc_n(flecs_vec3_t, vert_count);
+    flecs_vec3_t *tan2 = ecs_os_calloc_n(flecs_vec3_t, vert_count);
+
+    for (int32_t t = 0; t + 2 < idx_count; t += 3) {
+        uint32_t i0 = indices[t];
+        uint32_t i1 = indices[t + 1];
+        uint32_t i2 = indices[t + 2];
+
+        const flecs_vec3_t *v0 = &positions[i0];
+        const flecs_vec3_t *v1 = &positions[i1];
+        const flecs_vec3_t *v2 = &positions[i2];
+        const flecs_vec2_t *w0 = &uvs[i0];
+        const flecs_vec2_t *w1 = &uvs[i1];
+        const flecs_vec2_t *w2 = &uvs[i2];
+
+        float ex1 = v1->x - v0->x;
+        float ey1 = v1->y - v0->y;
+        float ez1 = v1->z - v0->z;
+        float ex2 = v2->x - v0->x;
+        float ey2 = v2->y - v0->y;
+        float ez2 = v2->z - v0->z;
+
+        float du1 = w1->x - w0->x;
+        float dv1 = w1->y - w0->y;
+        float du2 = w2->x - w0->x;
+        float dv2 = w2->y - w0->y;
+
+        float det = du1 * dv2 - du2 * dv1;
+        if (fabsf(det) < 1e-20f) {
+            continue;
+        }
+        float r = 1.0f / det;
+
+        flecs_vec3_t sdir = {
+            (dv2 * ex1 - dv1 * ex2) * r,
+            (dv2 * ey1 - dv1 * ey2) * r,
+            (dv2 * ez1 - dv1 * ez2) * r
+        };
+        flecs_vec3_t tdir = {
+            (du1 * ex2 - du2 * ex1) * r,
+            (du1 * ey2 - du2 * ey1) * r,
+            (du1 * ez2 - du2 * ez1) * r
+        };
+
+        tan1[i0].x += sdir.x; tan1[i0].y += sdir.y; tan1[i0].z += sdir.z;
+        tan1[i1].x += sdir.x; tan1[i1].y += sdir.y; tan1[i1].z += sdir.z;
+        tan1[i2].x += sdir.x; tan1[i2].y += sdir.y; tan1[i2].z += sdir.z;
+
+        tan2[i0].x += tdir.x; tan2[i0].y += tdir.y; tan2[i0].z += tdir.z;
+        tan2[i1].x += tdir.x; tan2[i1].y += tdir.y; tan2[i1].z += tdir.z;
+        tan2[i2].x += tdir.x; tan2[i2].y += tdir.y; tan2[i2].z += tdir.z;
+    }
+
+    for (int32_t i = 0; i < vert_count; i++) {
+        float nx = normals[i].x, ny = normals[i].y, nz = normals[i].z;
+        float tx = tan1[i].x, ty = tan1[i].y, tz = tan1[i].z;
+
+        /* Gram-Schmidt orthonormalize against the vertex normal. */
+        float ndt = nx * tx + ny * ty + nz * tz;
+        tx -= nx * ndt;
+        ty -= ny * ndt;
+        tz -= nz * ndt;
+
+        float len2 = tx * tx + ty * ty + tz * tz;
+        if (len2 > 1e-20f) {
+            float inv = 1.0f / sqrtf(len2);
+            tx *= inv; ty *= inv; tz *= inv;
+        } else {
+            /* Pick any axis perpendicular to N. */
+            if (fabsf(nx) > 0.9f) {
+                tx = 0.0f; ty = 1.0f; tz = 0.0f;
+            } else {
+                tx = 1.0f; ty = 0.0f; tz = 0.0f;
+            }
+            float ndt2 = nx * tx + ny * ty + nz * tz;
+            tx -= nx * ndt2;
+            ty -= ny * ndt2;
+            tz -= nz * ndt2;
+            float l = sqrtf(tx * tx + ty * ty + tz * tz);
+            if (l > 0.0f) {
+                tx /= l; ty /= l; tz /= l;
+            }
+        }
+
+        /* Bitangent sign: positive when (N x T) aligns with the accumulated
+         * binormal direction, negative otherwise. Matches glTF convention. */
+        float bx = ny * tz - nz * ty;
+        float by = nz * tx - nx * tz;
+        float bz = nx * ty - ny * tx;
+        float w = (bx * tan2[i].x + by * tan2[i].y + bz * tan2[i].z) < 0.0f
+            ? -1.0f : 1.0f;
+
+        out[i].x = tx;
+        out[i].y = ty;
+        out[i].z = tz;
+        out[i].w = w;
+    }
+
+    ecs_os_free(tan1);
+    ecs_os_free(tan2);
+}
 
 static void FlecsMesh3_on_set(
     ecs_iter_t *it)
@@ -157,15 +275,41 @@ static void FlecsMesh3_on_set(
 
             FlecsLitVertexUv *uv_verts = ecs_os_malloc_n(FlecsLitVertexUv, vert_count);
             flecs_vec2_t *mesh_uvs = ecs_vec_first_t(&mesh[i].uvs, flecs_vec2_t);
+
+            /* Use the asset's tangents if it provided any (e.g. from glTF
+             * TANGENT accessors). Otherwise compute them on the CPU so the
+             * shader always has a stable, scale-invariant TBN frame. */
+            int32_t tan_count = ecs_vec_count(&mesh[i].tangents);
+            flecs_vec4_t *tangents;
+            bool owns_tangents = false;
+            if (tan_count == vert_count) {
+                tangents = ecs_vec_first_t(&mesh[i].tangents, flecs_vec4_t);
+            } else {
+                tangents = ecs_os_malloc_n(flecs_vec4_t, vert_count);
+                owns_tangents = true;
+                flecsEngine_mesh_computeTangents(
+                    vert_count,
+                    ind_count,
+                    mesh_vertices,
+                    mesh_normals,
+                    mesh_uvs,
+                    ecs_vec_first_t(&mesh[i].indices, uint32_t),
+                    tangents);
+            }
+
             for (int v = 0; v < vert_count; v ++) {
                 uv_verts[v].p = mesh_vertices[v];
                 uv_verts[v].n = mesh_normals[v];
                 uv_verts[v].uv = mesh_uvs[v];
+                uv_verts[v].t = tangents[v];
             }
 
             mesh_impl->vertex_uv_buffer = wgpuDeviceCreateBuffer(impl->device, &vert_uv_desc);
             wgpuQueueWriteBuffer(impl->queue, mesh_impl->vertex_uv_buffer, 0, uv_verts, vert_uv_size);
             ecs_os_free(uv_verts);
+            if (owns_tangents) {
+                ecs_os_free(tangents);
+            }
         }
 
         int32_t ind_size = ind_count * (int32_t)sizeof(uint32_t);

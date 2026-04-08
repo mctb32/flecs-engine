@@ -16,6 +16,12 @@ typedef struct {
 
 extern ECS_COMPONENT_DECLARE(flecs_vec3_t);
 
+typedef struct {
+    float x, y, z, w;
+} flecs_vec4_t;
+
+extern ECS_COMPONENT_DECLARE(flecs_vec4_t);
+
 typedef mat4 flecs_mat4_t;
 
 extern ECS_COMPONENT_DECLARE(flecs_mat4_t);

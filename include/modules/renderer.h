@@ -23,6 +23,7 @@ typedef struct {
     flecs_vec3_t p;
     flecs_vec3_t n;
     flecs_vec2_t uv;
+    flecs_vec4_t t;  /* tangent xyz + bitangent sign in w */
 } FlecsLitVertexUv;
 
 extern ECS_COMPONENT_DECLARE(FlecsLitVertexUv);
