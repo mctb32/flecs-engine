@@ -183,7 +183,7 @@ static int flecsEngine_frameCapture_configureTarget(
     impl->surface_config = (WGPUSurfaceConfiguration){
         .device = impl->device,
         .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
-        .format = WGPUTextureFormat_RGBA8Unorm,
+        .format = WGPUTextureFormat_RGBA8UnormSrgb,
         .width = (uint32_t)impl->width,
         .height = (uint32_t)impl->height
     };
