@@ -34,6 +34,11 @@ ground {
     Rgba: {20, 30, 40}
 }
 
+camera {
+    Position3: {18.369, 27.136, 6.479}
+    LookAt: {18.369, 26.418, 5.783}
+}
+
 // Metals
 {
     Display(items: ItemCount) {

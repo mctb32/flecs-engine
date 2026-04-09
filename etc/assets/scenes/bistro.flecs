@@ -1,6 +1,11 @@
 using flecs.engine.*
 using flecs.script
 
+camera {
+    Position3: {-20.501, 1.846, 13.392}
+    LookAt: {-19.521, 1.815, 13.195}
+}
+
 bistro {
     Gltf: {"etc/assets/gltf/Bistro/bistro.gltf"}
 

@@ -135,7 +135,7 @@ void initEngine(
       .sky_color = {5, 45, 100},
       .haze_color = {255, 255, 255},
       .horizon_color = {250, 255, 255},
-      .ground_color = {30, 50, 35},
+      .ground_color = {60, 60, 60},
       .ambient_intensity = 0.2
     },
     .screen_size_threshold = 5.0
@@ -171,10 +171,8 @@ void initEngine(
       .aspect_ratio = options.width / (float)options.height
   });
   ecs_add(world, view.camera, FlecsCameraController);
-  // ecs_set(world, view.camera, FlecsPosition3, {-20.106, 1.9, 14.93});
-  ecs_set(world, view.camera, FlecsPosition3, {16.948, 8.645, -29.3});
-  // ecs_set(world, view.camera, FlecsLookAt, {-10.61, 3.739, 13.411});
-  ecs_set(world, view.camera, FlecsLookAt, {16.471, 8.268, -30.093});
+  ecs_set(world, view.camera, FlecsPosition3, {37.5, 5, -15});
+  ecs_set(world, view.camera, FlecsLookAt, {37.5, 2, -30});
 
   // Light
   view.light = ecs_entity(world, { .name = "light" });
@@ -279,13 +277,14 @@ int main(
   ecs_log_set_level(0);
 
   ecs_entity_t s = ecs_script(world, {
-    .filename = "etc/assets/scenes/kenney_city.flecs"
-    // .filename = "etc/assets/scenes/bistro.flecs"
+    // .filename = "etc/assets/scenes/kenney_city.flecs"
+    .filename = "etc/assets/scenes/bistro.flecs"
     // .filename = "etc/assets/scenes/sponza.flecs"
     // .filename = "etc/assets/scenes/a_beautiful_game.flecs"
     // .filename = "etc/assets/scenes/flight_helmet.flecs"
     // .filename = "etc/assets/scenes/damaged_helmet.flecs"
     // .filename = "etc/assets/scenes/city.flecs"
+    // .filename = "etc/assets/scenes/museum.flecs"
     // .filename = "etc/assets/scenes/museum.flecs"
     // .filename = "etc/assets/scenes/cube.flecs"
     // .filename = "etc/assets/scenes/empty.flecs"

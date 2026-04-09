@@ -239,11 +239,8 @@ static void FlecsTransform3(ecs_iter_t *it) {
             ecs_iter_set_group(&it, depth);
             has_results |= flecsEngine_transform3_parent(&it);
         }
-
-        if (!has_results) {
-            break;
-        }
     }
+
     FLECS_TRACY_ZONE_END;
 }
 
@@ -299,7 +296,7 @@ void FlecsEngineTransform3Import(
 
     ecs_query_desc_t q_childof = {
         .entity = ecs_entity(world, { .name = "Transform3ChildOf" }),
-        .terms = {{ 
+        .terms = {{
             .id = ecs_id(FlecsWorldTransform3),
             .inout = EcsOut,
         }, {
@@ -314,7 +311,7 @@ void FlecsEngineTransform3Import(
             .inout = EcsIn,
             .oper = EcsOptional
         }, {
-            .id = ecs_id(FlecsWorldTransform3), 
+            .id = ecs_id(FlecsWorldTransform3),
             .inout = EcsIn,
             .oper = EcsOptional,
             .src.id = EcsCascade

@@ -133,7 +133,9 @@ void flecsEngine_batch_extractShadowInstances(
     const float *aabb_max = ctx->mesh.aabb_max;
 
     ecs_iter_t it = ecs_query_iter(world, batch->query);
-    ecs_iter_set_group(&it, ctx->group_id);
+    if (ctx->group_id) {
+        ecs_iter_set_group(&it, ctx->group_id);
+    }
     while (ecs_query_next(&it)) {
         const FlecsWorldTransform3 *wt = ecs_field(
             &it, FlecsWorldTransform3, 1);

@@ -74,6 +74,11 @@ static ecs_entity_t flecsEngine_createBatchSet_geometry_materialIndex(
 static void FlecsOnAddGeometryBatch(
     ecs_iter_t *it)
 {
+    bool was_deferred = ecs_is_deferred(it->world);
+    if (was_deferred) {
+        ecs_defer_suspend(it->world);
+    }
+
     for (int32_t i = 0; i < it->count; i ++) {
         ecs_entity_t batch_set_entity = it->entities[i];
         FlecsRenderBatchSet batch_set = *ecs_ensure(
@@ -96,6 +101,10 @@ static void FlecsOnAddGeometryBatch(
 
         ecs_set_ptr(it->world, batch_set_entity, FlecsRenderBatchSet,
             &batch_set);
+    }
+
+    if (was_deferred) {
+        ecs_defer_resume(it->world);
     }
 }
 

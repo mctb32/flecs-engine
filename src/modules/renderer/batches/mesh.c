@@ -652,6 +652,11 @@ static void flecsEngine_transparent_mesh_render(
                 if (active_pipeline != non_tex_pipeline) {
                     wgpuRenderPassEncoderSetPipeline(pass, non_tex_pipeline);
                     active_pipeline = non_tex_pipeline;
+
+                    if (engine->empty_bind_group) {
+                        wgpuRenderPassEncoderSetBindGroup(
+                            pass, 1, engine->empty_bind_group, 0, NULL);
+                    }
                 }
 
                 if (!ctx->mesh.vertex_buffer) {
