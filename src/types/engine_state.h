@@ -81,6 +81,16 @@ typedef struct {
      * via the `texture_bucket` field on FlecsGpuMaterial. */
     flecs_engine_texture_bucket_t buckets[FLECS_ENGINE_TEXTURE_BUCKET_COUNT];
     WGPUBindGroup texture_array_bind_group;
+
+    /* Cached pipelines for the texture-array build pass. The blit
+     * pipeline normalizes arbitrary source textures to one slice of a
+     * bucket array; the mip-gen compute pipeline downsamples mip N to
+     * mip N+1 across all slices in one dispatch. */
+    WGPURenderPipeline blit_pipeline;
+    WGPUBindGroupLayout blit_bind_layout;
+    WGPUSampler blit_sampler;
+    WGPUComputePipeline mipgen_pipeline;
+    WGPUBindGroupLayout mipgen_bind_layout;
 } flecs_engine_materials_t;
 
 typedef struct {

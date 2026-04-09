@@ -114,6 +114,26 @@ void flecsEngine_material_releaseBuffer(
         wgpuBindGroupRelease(impl->materials.texture_array_bind_group);
         impl->materials.texture_array_bind_group = NULL;
     }
+    if (impl->materials.blit_pipeline) {
+        wgpuRenderPipelineRelease(impl->materials.blit_pipeline);
+        impl->materials.blit_pipeline = NULL;
+    }
+    if (impl->materials.blit_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->materials.blit_bind_layout);
+        impl->materials.blit_bind_layout = NULL;
+    }
+    if (impl->materials.blit_sampler) {
+        wgpuSamplerRelease(impl->materials.blit_sampler);
+        impl->materials.blit_sampler = NULL;
+    }
+    if (impl->materials.mipgen_pipeline) {
+        wgpuComputePipelineRelease(impl->materials.mipgen_pipeline);
+        impl->materials.mipgen_pipeline = NULL;
+    }
+    if (impl->materials.mipgen_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->materials.mipgen_bind_layout);
+        impl->materials.mipgen_bind_layout = NULL;
+    }
 }
 
 void flecsEngine_material_uploadBuffer(
@@ -240,20 +260,10 @@ static const uint32_t flecs_engine_bucket_dim[FLECS_ENGINE_TEXTURE_BUCKET_COUNT]
     512, 1024, 2048
 };
 
-static bool flecsEngine_isCompressedFormat(
-    WGPUTextureFormat fmt)
-{
-    uint32_t f = (uint32_t)fmt;
-    /* BC1–BC7: 0x2C–0x39, ETC2: 0x3A–0x43, ASTC: 0x44–0x67 */
-    if (f >= 0x2Cu && f <= 0x67u) {
-        return true;
-    }
-    /* Guard against unknown formats outside any known range */
-    if (f > 0x67u || (f > 0x1Du && f < 0x2Cu)) {
-        ecs_err("texture array: unrecognized texture format 0x%x", f);
-    }
-    return false;
-}
+/* Bucket arrays are always RGBA8Unorm. The blit pass converts arbitrary
+ * source formats (BC7, RGBA8, etc.) to this canonical format on the GPU,
+ * and the mip-gen compute shader writes mips back through the same format. */
+#define FLECS_ENGINE_BUCKET_FORMAT WGPUTextureFormat_RGBA8Unorm
 
 /* Pick a bucket index for a given source texture dimension. The chosen
  * bucket is the smallest one whose dimension is >= the source's max side.
@@ -267,6 +277,281 @@ static uint8_t flecsEngine_textureArray_pickBucket(uint32_t w, uint32_t h)
         }
     }
     return FLECS_ENGINE_TEXTURE_BUCKET_COUNT - 1;
+}
+
+/* ---- Blit + mip-gen pipelines ---- */
+
+/* Fullscreen-triangle blit shader. Reads a single 2D source texture and
+ * writes it (with bilinear filtering) to the bound render target, which
+ * is a single (slice, mip 0) view of a bucket array. */
+static const char *kBlitShaderSource =
+    "struct VertexOut {\n"
+    "  @builtin(position) pos : vec4<f32>,\n"
+    "  @location(0) uv : vec2<f32>,\n"
+    "};\n"
+    "@vertex fn vs_main(@builtin(vertex_index) id : u32) -> VertexOut {\n"
+    "  var out : VertexOut;\n"
+    "  let x = f32((id << 1u) & 2u);\n"
+    "  let y = f32(id & 2u);\n"
+    "  out.uv = vec2<f32>(x, y);\n"
+    "  out.pos = vec4<f32>(x * 2.0 - 1.0, 1.0 - y * 2.0, 0.0, 1.0);\n"
+    "  return out;\n"
+    "}\n"
+    "@group(0) @binding(0) var src_tex  : texture_2d<f32>;\n"
+    "@group(0) @binding(1) var src_samp : sampler;\n"
+    "@fragment fn fs_main(in : VertexOut) -> @location(0) vec4<f32> {\n"
+    "  return textureSample(src_tex, src_samp, in.uv);\n"
+    "}\n";
+
+/* Mip-gen compute shader. Reads mip N of a bucket array as a 2DArray
+ * sampled texture and writes mip N+1 via a 2DArray storage texture. The
+ * dispatch z dimension covers all slices in one shot. */
+static const char *kMipGenShaderSource =
+    "@group(0) @binding(0) var src : texture_2d_array<f32>;\n"
+    "@group(0) @binding(1) var dst : texture_storage_2d_array<rgba8unorm, write>;\n"
+    "@compute @workgroup_size(8, 8, 1)\n"
+    "fn cs_main(@builtin(global_invocation_id) id : vec3<u32>) {\n"
+    "  let dst_dim = textureDimensions(dst);\n"
+    "  if (id.x >= dst_dim.x || id.y >= dst_dim.y) { return; }\n"
+    "  let layer = i32(id.z);\n"
+    "  let src_xy = vec2<i32>(id.xy * 2u);\n"
+    "  let s00 = textureLoad(src, src_xy + vec2<i32>(0, 0), layer, 0);\n"
+    "  let s10 = textureLoad(src, src_xy + vec2<i32>(1, 0), layer, 0);\n"
+    "  let s01 = textureLoad(src, src_xy + vec2<i32>(0, 1), layer, 0);\n"
+    "  let s11 = textureLoad(src, src_xy + vec2<i32>(1, 1), layer, 0);\n"
+    "  let avg = (s00 + s10 + s01 + s11) * 0.25;\n"
+    "  textureStore(dst, vec2<i32>(id.xy), layer, avg);\n"
+    "}\n";
+
+static void flecsEngine_textureArray_ensureBlitPipeline(
+    FlecsEngineImpl *impl)
+{
+    if (impl->materials.blit_pipeline) return;
+
+    WGPUBindGroupLayoutEntry blit_entries[2] = {0};
+    blit_entries[0].binding = 0;
+    blit_entries[0].visibility = WGPUShaderStage_Fragment;
+    blit_entries[0].texture.sampleType = WGPUTextureSampleType_Float;
+    blit_entries[0].texture.viewDimension = WGPUTextureViewDimension_2D;
+    blit_entries[1].binding = 1;
+    blit_entries[1].visibility = WGPUShaderStage_Fragment;
+    blit_entries[1].sampler.type = WGPUSamplerBindingType_Filtering;
+
+    impl->materials.blit_bind_layout = wgpuDeviceCreateBindGroupLayout(
+        impl->device, &(WGPUBindGroupLayoutDescriptor){
+            .entries = blit_entries,
+            .entryCount = 2
+        });
+
+    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+        impl->device, &(WGPUPipelineLayoutDescriptor){
+            .bindGroupLayoutCount = 1,
+            .bindGroupLayouts = &impl->materials.blit_bind_layout
+        });
+
+    WGPUShaderSourceWGSL wgsl_src = {
+        .chain = { .sType = WGPUSType_ShaderSourceWGSL },
+        .code = WGPU_STR(kBlitShaderSource)
+    };
+    WGPUShaderModule module = wgpuDeviceCreateShaderModule(
+        impl->device, &(WGPUShaderModuleDescriptor){
+            .nextInChain = &wgsl_src.chain
+        });
+
+    WGPUColorTargetState color_target = {
+        .format = FLECS_ENGINE_BUCKET_FORMAT,
+        .writeMask = WGPUColorWriteMask_All
+    };
+
+    impl->materials.blit_pipeline = wgpuDeviceCreateRenderPipeline(
+        impl->device, &(WGPURenderPipelineDescriptor){
+            .layout = pipeline_layout,
+            .vertex = {
+                .module = module,
+                .entryPoint = WGPU_STR("vs_main")
+            },
+            .fragment = &(WGPUFragmentState){
+                .module = module,
+                .entryPoint = WGPU_STR("fs_main"),
+                .targetCount = 1,
+                .targets = &color_target
+            },
+            .primitive = {
+                .topology = WGPUPrimitiveTopology_TriangleList,
+                .cullMode = WGPUCullMode_None,
+                .frontFace = WGPUFrontFace_CCW
+            },
+            .multisample = WGPU_MULTISAMPLE_DEFAULT
+        });
+
+    wgpuPipelineLayoutRelease(pipeline_layout);
+    wgpuShaderModuleRelease(module);
+
+    /* Linear-filter, clamp-to-edge sampler used for the blit. */
+    impl->materials.blit_sampler = wgpuDeviceCreateSampler(
+        impl->device, &(WGPUSamplerDescriptor){
+            .addressModeU = WGPUAddressMode_ClampToEdge,
+            .addressModeV = WGPUAddressMode_ClampToEdge,
+            .addressModeW = WGPUAddressMode_ClampToEdge,
+            .magFilter = WGPUFilterMode_Linear,
+            .minFilter = WGPUFilterMode_Linear,
+            .mipmapFilter = WGPUMipmapFilterMode_Linear,
+            .lodMinClamp = 0.0f,
+            .lodMaxClamp = 32.0f,
+            .maxAnisotropy = 1
+        });
+}
+
+static void flecsEngine_textureArray_ensureMipGenPipeline(
+    FlecsEngineImpl *impl)
+{
+    if (impl->materials.mipgen_pipeline) return;
+
+    WGPUBindGroupLayoutEntry mip_entries[2] = {0};
+    mip_entries[0].binding = 0;
+    mip_entries[0].visibility = WGPUShaderStage_Compute;
+    mip_entries[0].texture.sampleType = WGPUTextureSampleType_Float;
+    mip_entries[0].texture.viewDimension = WGPUTextureViewDimension_2DArray;
+    mip_entries[1].binding = 1;
+    mip_entries[1].visibility = WGPUShaderStage_Compute;
+    mip_entries[1].storageTexture.access = WGPUStorageTextureAccess_WriteOnly;
+    mip_entries[1].storageTexture.format = FLECS_ENGINE_BUCKET_FORMAT;
+    mip_entries[1].storageTexture.viewDimension =
+        WGPUTextureViewDimension_2DArray;
+
+    impl->materials.mipgen_bind_layout = wgpuDeviceCreateBindGroupLayout(
+        impl->device, &(WGPUBindGroupLayoutDescriptor){
+            .entries = mip_entries,
+            .entryCount = 2
+        });
+
+    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+        impl->device, &(WGPUPipelineLayoutDescriptor){
+            .bindGroupLayoutCount = 1,
+            .bindGroupLayouts = &impl->materials.mipgen_bind_layout
+        });
+
+    WGPUShaderSourceWGSL wgsl_src = {
+        .chain = { .sType = WGPUSType_ShaderSourceWGSL },
+        .code = WGPU_STR(kMipGenShaderSource)
+    };
+    WGPUShaderModule module = wgpuDeviceCreateShaderModule(
+        impl->device, &(WGPUShaderModuleDescriptor){
+            .nextInChain = &wgsl_src.chain
+        });
+
+    impl->materials.mipgen_pipeline = wgpuDeviceCreateComputePipeline(
+        impl->device, &(WGPUComputePipelineDescriptor){
+            .layout = pipeline_layout,
+            .compute = {
+                .module = module,
+                .entryPoint = WGPU_STR("cs_main")
+            }
+        });
+
+    wgpuPipelineLayoutRelease(pipeline_layout);
+    wgpuShaderModuleRelease(module);
+}
+
+/* Run a single blit: sample from src_2d_view and write to dst_slice_view
+ * (which must be a 2D view of one slice/mip 0 of a bucket array). */
+static void flecsEngine_textureArray_doBlit(
+    FlecsEngineImpl *impl,
+    WGPUCommandEncoder encoder,
+    WGPUTextureView src_2d_view,
+    WGPUTextureView dst_slice_view)
+{
+    WGPUBindGroupEntry bg_entries[2] = {
+        { .binding = 0, .textureView = src_2d_view },
+        { .binding = 1, .sampler = impl->materials.blit_sampler }
+    };
+    WGPUBindGroup bg = wgpuDeviceCreateBindGroup(
+        impl->device, &(WGPUBindGroupDescriptor){
+            .layout = impl->materials.blit_bind_layout,
+            .entries = bg_entries,
+            .entryCount = 2
+        });
+
+    WGPURenderPassColorAttachment color_att = {
+        .view = dst_slice_view,
+        .loadOp = WGPULoadOp_Clear,
+        .storeOp = WGPUStoreOp_Store,
+        .clearValue = { 0, 0, 0, 0 },
+        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED
+    };
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
+        encoder, &(WGPURenderPassDescriptor){
+            .colorAttachmentCount = 1,
+            .colorAttachments = &color_att
+        });
+    wgpuRenderPassEncoderSetPipeline(pass, impl->materials.blit_pipeline);
+    wgpuRenderPassEncoderSetBindGroup(pass, 0, bg, 0, NULL);
+    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+    wgpuRenderPassEncoderEnd(pass);
+    wgpuRenderPassEncoderRelease(pass);
+    wgpuBindGroupRelease(bg);
+}
+
+/* Generate mips 1..N for one channel of a bucket via the compute shader. */
+static void flecsEngine_textureArray_genMipsForChannel(
+    FlecsEngineImpl *impl,
+    WGPUCommandEncoder encoder,
+    WGPUTexture array_tex,
+    uint32_t arr_w,
+    uint32_t arr_h,
+    uint32_t layer_count,
+    uint32_t mip_count)
+{
+    for (uint32_t mip = 1; mip < mip_count; mip++) {
+        uint32_t dst_w = arr_w >> mip; if (!dst_w) dst_w = 1;
+        uint32_t dst_h = arr_h >> mip; if (!dst_h) dst_h = 1;
+
+        WGPUTextureView src_view = wgpuTextureCreateView(
+            array_tex, &(WGPUTextureViewDescriptor){
+                .format = FLECS_ENGINE_BUCKET_FORMAT,
+                .dimension = WGPUTextureViewDimension_2DArray,
+                .baseMipLevel = mip - 1,
+                .mipLevelCount = 1,
+                .baseArrayLayer = 0,
+                .arrayLayerCount = layer_count
+            });
+        WGPUTextureView dst_view = wgpuTextureCreateView(
+            array_tex, &(WGPUTextureViewDescriptor){
+                .format = FLECS_ENGINE_BUCKET_FORMAT,
+                .dimension = WGPUTextureViewDimension_2DArray,
+                .baseMipLevel = mip,
+                .mipLevelCount = 1,
+                .baseArrayLayer = 0,
+                .arrayLayerCount = layer_count
+            });
+
+        WGPUBindGroupEntry bg_entries[2] = {
+            { .binding = 0, .textureView = src_view },
+            { .binding = 1, .textureView = dst_view }
+        };
+        WGPUBindGroup bg = wgpuDeviceCreateBindGroup(
+            impl->device, &(WGPUBindGroupDescriptor){
+                .layout = impl->materials.mipgen_bind_layout,
+                .entries = bg_entries,
+                .entryCount = 2
+            });
+
+        WGPUComputePassEncoder cpass = wgpuCommandEncoderBeginComputePass(
+            encoder, &(WGPUComputePassDescriptor){0});
+        wgpuComputePassEncoderSetPipeline(cpass, impl->materials.mipgen_pipeline);
+        wgpuComputePassEncoderSetBindGroup(cpass, 0, bg, 0, NULL);
+        wgpuComputePassEncoderDispatchWorkgroups(
+            cpass,
+            (dst_w + 7) / 8,
+            (dst_h + 7) / 8,
+            layer_count);
+        wgpuComputePassEncoderEnd(cpass);
+        wgpuComputePassEncoderRelease(cpass);
+
+        wgpuBindGroupRelease(bg);
+        wgpuTextureViewRelease(src_view);
+        wgpuTextureViewRelease(dst_view);
+    }
 }
 
 /* Release previous texture arrays so they can be rebuilt. */
@@ -299,29 +584,18 @@ static void flecsEngine_textureArray_release(
 /* Survey all materials with PBR textures, assign each one a bucket based
  * on the largest dimension across its 4 channels, and write the resulting
  * (texture_bucket, texture_layer) into cpu_materials so the shader can
- * look them up later.
- *
- * Phase 2 keeps the existing single-format-family constraint inherited
- * from the pre-bucket code: if any source texture uses a different format
- * family from the others, the build aborts and the renderer falls back to
- * per-prefab bind groups for the whole scene. Phase 3 will lift this
- * constraint via GPU blit normalization to RGBA8.
- *
- * Returns false if the build should abort (no materials with textures, or
- * mixed format families). On success, fills out_format with the chosen
- * format family and bucket_layer_counts with the per-bucket slot counts. */
+ * look them up later. Returns false only if no materials with textures
+ * were found — there's no longer a format-family check because the GPU
+ * blit pass converts every source to RGBA8 regardless of input format. */
 static bool flecsEngine_textureArray_survey(
     const ecs_world_t *world,
     FlecsEngineImpl *impl,
-    WGPUTextureFormat *out_format,
     uint32_t bucket_layer_counts[FLECS_ENGINE_TEXTURE_BUCKET_COUNT])
 {
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
         bucket_layer_counts[b] = 0;
     }
 
-    WGPUTextureFormat fmt_seen = WGPUTextureFormat_Undefined;
-    uint32_t fmt_base_seen = 0;
     bool any_material = false;
 
     ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
@@ -351,17 +625,6 @@ static bool flecsEngine_textureArray_survey(
 
                 uint32_t tw = wgpuTextureGetWidth(ti->texture);
                 uint32_t th = wgpuTextureGetHeight(ti->texture);
-                WGPUTextureFormat tf = wgpuTextureGetFormat(ti->texture);
-                uint32_t base = (uint32_t)tf & ~1u;
-
-                if (fmt_seen == WGPUTextureFormat_Undefined) {
-                    fmt_seen = tf;
-                    fmt_base_seen = base;
-                } else if (base != fmt_base_seen) {
-                    /* Mixed format families — abort the array build. */
-                    return false;
-                }
-
                 if (tw > max_w) max_w = tw;
                 if (th > max_h) max_h = th;
             }
@@ -381,12 +644,7 @@ static bool flecsEngine_textureArray_survey(
         }
     }
 
-    if (!any_material) {
-        return false;
-    }
-
-    *out_format = fmt_seen;
-    return true;
+    return any_material;
 }
 
 /* Compute the mip count for a square dimension. */
@@ -401,8 +659,7 @@ static uint32_t flecsEngine_textureArray_mipCount(uint32_t dim)
 static bool flecsEngine_textureArray_createBucket(
     FlecsEngineImpl *impl,
     uint8_t bucket_idx,
-    uint32_t layer_count,
-    WGPUTextureFormat arr_format)
+    uint32_t layer_count)
 {
     flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket_idx];
     uint32_t dim = flecs_engine_bucket_dim[bucket_idx];
@@ -412,14 +669,15 @@ static bool flecsEngine_textureArray_createBucket(
         WGPUTextureDescriptor desc = {
             .usage = WGPUTextureUsage_TextureBinding
                    | WGPUTextureUsage_CopyDst
-                   | WGPUTextureUsage_CopySrc,
+                   | WGPUTextureUsage_RenderAttachment
+                   | WGPUTextureUsage_StorageBinding,
             .dimension = WGPUTextureDimension_2D,
             .size = {
                 .width = dim,
                 .height = dim,
                 .depthOrArrayLayers = layer_count
             },
-            .format = arr_format,
+            .format = FLECS_ENGINE_BUCKET_FORMAT,
             .mipLevelCount = mip_count,
             .sampleCount = 1
         };
@@ -438,19 +696,15 @@ static bool flecsEngine_textureArray_createBucket(
     return true;
 }
 
-/* Fill every layer of an uncompressed bucket with channel fallback colours
- * so that materials whose textures couldn't be copied still sample sensible
- * defaults. Skipped for compressed formats — those rely on the
- * unpopulated-layer redirection logic in copy_textures instead. */
+/* Pre-fill mip 0 of every layer with the channel's fallback colour so
+ * that materials whose textures couldn't be blitted still sample sensible
+ * defaults. The blit pass writes mip 0 over the fallback for materials
+ * that have a real source. The mip-gen compute pass then reads mip 0
+ * (mixed fallback + blitted) to generate mips 1..N. */
 static void flecsEngine_textureArray_fillBucketFallback(
     FlecsEngineImpl *impl,
-    uint8_t bucket_idx,
-    WGPUTextureFormat arr_format)
+    uint8_t bucket_idx)
 {
-    if (flecsEngine_isCompressedFormat(arr_format)) {
-        return;
-    }
-
     flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket_idx];
     if (!bk->layer_count) {
         return;
@@ -464,76 +718,52 @@ static void flecsEngine_textureArray_fillBucketFallback(
     };
 
     uint32_t dim = bk->width;
-    uint32_t mip_count = bk->mip_count;
     uint32_t layer_count = bk->layer_count;
     uint32_t row_bytes = dim * 4;
     uint32_t layer_bytes = row_bytes * dim;
     uint8_t *fill = ecs_os_malloc((ecs_size_t)layer_bytes);
 
     for (int ch = 0; ch < 4; ch++) {
-        for (uint32_t mip = 0; mip < mip_count; mip++) {
-            uint32_t mw = dim >> mip; if (!mw) mw = 1;
-            uint32_t mh = dim >> mip; if (!mh) mh = 1;
-            uint32_t mip_row_bytes = mw * 4;
-            uint32_t mip_layer_bytes = mip_row_bytes * mh;
+        for (uint32_t p = 0; p < dim * dim; p++) {
+            memcpy(fill + p * 4, fallback_rgba[ch], 4);
+        }
 
-            for (uint32_t p = 0; p < mw * mh; p++) {
-                memcpy(fill + p * 4, fallback_rgba[ch], 4);
-            }
-
-            for (uint32_t layer = 0; layer < layer_count; layer++) {
-                WGPUTexelCopyTextureInfo dst = {
-                    .texture = bk->texture_arrays[ch],
-                    .mipLevel = mip,
-                    .origin = { 0, 0, layer }
-                };
-                WGPUTexelCopyBufferLayout src_layout = {
-                    .bytesPerRow = mip_row_bytes,
-                    .rowsPerImage = mh
-                };
-                WGPUExtent3D size = { mw, mh, 1 };
-                wgpuQueueWriteTexture(
-                    impl->queue, &dst, fill,
-                    mip_layer_bytes, &src_layout, &size);
-            }
+        for (uint32_t layer = 0; layer < layer_count; layer++) {
+            WGPUTexelCopyTextureInfo dst = {
+                .texture = bk->texture_arrays[ch],
+                .mipLevel = 0,
+                .origin = { 0, 0, layer }
+            };
+            WGPUTexelCopyBufferLayout src_layout = {
+                .bytesPerRow = row_bytes,
+                .rowsPerImage = dim
+            };
+            WGPUExtent3D size = { dim, dim, 1 };
+            wgpuQueueWriteTexture(
+                impl->queue, &dst, fill,
+                layer_bytes, &src_layout, &size);
         }
     }
 
     ecs_os_free(fill);
 }
 
-/* Copy real textures into bucket array slots via GPU copy. Phase 2 only
- * succeeds when the source's dimensions exactly match its assigned bucket
- * (after mip-offset adjustment); other cases fall through to the fallback
- * fill colour. Phase 3 replaces this with a GPU blit pass that handles
- * arbitrary source dimensions/formats. */
-static void flecsEngine_textureArray_copyTextures(
+/* For each material with PBR textures, run a GPU blit per channel that
+ * samples the source texture and writes the result into mip 0 of the
+ * material's slot in its bucket array. Then run the mip-gen compute pass
+ * to fill mips 1..N for every channel of every populated bucket. */
+static void flecsEngine_textureArray_blitTextures(
     const ecs_world_t *world,
-    FlecsEngineImpl *impl,
-    WGPUTextureFormat arr_format)
+    FlecsEngineImpl *impl)
 {
-    bool compressed = flecsEngine_isCompressedFormat(arr_format);
+    flecsEngine_textureArray_ensureBlitPipeline(impl);
+    flecsEngine_textureArray_ensureMipGenPipeline(impl);
 
     WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(
         impl->device, &(WGPUCommandEncoderDescriptor){0});
 
-    /* Per-bucket "first populated layer" used to redirect materials whose
-     * textures couldn't be copied to a layer that does have real data. */
-    uint32_t first_populated[FLECS_ENGINE_TEXTURE_BUCKET_COUNT];
-    for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
-        first_populated[b] = UINT32_MAX;
-    }
-
-    /* Track which bucket slots actually received real texture data so we
-     * can redirect unpopulated ones below. */
-    bool *bucket_populated[FLECS_ENGINE_TEXTURE_BUCKET_COUNT];
-    for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
-        flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[b];
-        bucket_populated[b] = bk->layer_count
-            ? ecs_os_calloc_n(bool, (int32_t)bk->layer_count)
-            : NULL;
-    }
-
+    /* Pass 1: blit each material's source textures into mip 0 of its
+     * assigned (bucket, slot, channel). */
     ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
     while (ecs_query_next(&it)) {
         const FlecsPbrTextures *textures =
@@ -554,10 +784,6 @@ static void flecsEngine_textureArray_copyTextures(
             flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket];
             if (slot >= bk->layer_count) continue;
 
-            uint32_t arr_w = bk->width;
-            uint32_t arr_h = bk->height;
-            uint32_t mip_count = bk->mip_count;
-
             ecs_entity_t tex_entities[4] = {
                 textures[i].albedo,
                 textures[i].emissive,
@@ -565,91 +791,59 @@ static void flecsEngine_textureArray_copyTextures(
                 textures[i].normal
             };
 
-            bool copied_any = false;
             for (int ch = 0; ch < 4; ch++) {
                 if (!tex_entities[ch]) continue;
                 const FlecsTextureImpl *ti =
                     ecs_get(world, tex_entities[ch], FlecsTextureImpl);
                 if (!ti || !ti->texture) continue;
 
-                WGPUTextureFormat src_fmt =
-                    wgpuTextureGetFormat(ti->texture);
-                if (((uint32_t)src_fmt & ~1u) !=
-                    ((uint32_t)arr_format & ~1u)) continue;
+                /* Create a 2D sampling view of the source. The source
+                 * is a 2D texture with 1 array layer (per the loader). */
+                WGPUTextureView src_view = wgpuTextureCreateView(
+                    ti->texture, &(WGPUTextureViewDescriptor){
+                        .format = wgpuTextureGetFormat(ti->texture),
+                        .dimension = WGPUTextureViewDimension_2D,
+                        .baseMipLevel = 0,
+                        .mipLevelCount = wgpuTextureGetMipLevelCount(
+                            ti->texture),
+                        .baseArrayLayer = 0,
+                        .arrayLayerCount = 1
+                    });
 
-                uint32_t tw = wgpuTextureGetWidth(ti->texture);
-                uint32_t th = wgpuTextureGetHeight(ti->texture);
+                /* Create a 2D render-target view of the destination
+                 * (single slice, single mip). */
+                WGPUTextureView dst_view = wgpuTextureCreateView(
+                    bk->texture_arrays[ch], &(WGPUTextureViewDescriptor){
+                        .format = FLECS_ENGINE_BUCKET_FORMAT,
+                        .dimension = WGPUTextureViewDimension_2D,
+                        .baseMipLevel = 0,
+                        .mipLevelCount = 1,
+                        .baseArrayLayer = slot,
+                        .arrayLayerCount = 1
+                    });
 
-                /* Phase 2 exact-match copy: source must be square and
-                 * have an integer mip offset that lands it on the bucket
-                 * dimension. Mismatched cases get the fallback colour
-                 * and will be fixed in Phase 3. */
-                if (tw != th) continue;
-                if (tw < arr_w) continue;
-                uint32_t mip_offset = 0;
-                while ((tw >> mip_offset) > arr_w) mip_offset++;
-                if ((tw >> mip_offset) != arr_w) continue;
+                flecsEngine_textureArray_doBlit(
+                    impl, encoder, src_view, dst_view);
 
-                uint32_t src_mips =
-                    wgpuTextureGetMipLevelCount(ti->texture);
-                uint32_t avail =
-                    src_mips > mip_offset ? src_mips - mip_offset : 0;
-                uint32_t copy_mips =
-                    avail < mip_count ? avail : mip_count;
-
-                for (uint32_t mip = 0; mip < copy_mips; mip++) {
-                    uint32_t mw = arr_w >> mip; if (!mw) mw = 1;
-                    uint32_t mh = arr_h >> mip; if (!mh) mh = 1;
-                    if (compressed && (mw < 4 || mh < 4)) break;
-
-                    WGPUTexelCopyTextureInfo src = {
-                        .texture = ti->texture,
-                        .mipLevel = mip + mip_offset,
-                        .origin = { 0, 0, 0 }
-                    };
-                    WGPUTexelCopyTextureInfo dst = {
-                        .texture = bk->texture_arrays[ch],
-                        .mipLevel = mip,
-                        .origin = { 0, 0, slot }
-                    };
-                    WGPUExtent3D size = { mw, mh, 1 };
-                    wgpuCommandEncoderCopyTextureToTexture(
-                        encoder, &src, &dst, &size);
-                }
-                copied_any = true;
-            }
-
-            if (copied_any) {
-                bucket_populated[bucket][slot] = true;
-                if (first_populated[bucket] == UINT32_MAX) {
-                    first_populated[bucket] = slot;
-                }
+                wgpuTextureViewRelease(src_view);
+                wgpuTextureViewRelease(dst_view);
             }
         }
     }
 
-    /* Per-bucket: redirect unpopulated slots to the bucket's first
-     * populated slot so that materials whose textures could not be copied
-     * still sample real (opaque) data instead of zeros. */
-    for (uint32_t mat_id = 0; mat_id < impl->materials.count; mat_id++) {
-        uint8_t bucket =
-            impl->materials.cpu_materials[mat_id].texture_bucket;
-        if (bucket >= FLECS_ENGINE_TEXTURE_BUCKET_COUNT) continue;
-
-        uint32_t slot =
-            impl->materials.cpu_materials[mat_id].texture_layer;
-        flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket];
-        if (slot >= bk->layer_count) continue;
-        if (!bucket_populated[bucket]) continue;
-        if (bucket_populated[bucket][slot]) continue;
-        if (first_populated[bucket] == UINT32_MAX) continue;
-
-        impl->materials.cpu_materials[mat_id].texture_layer =
-            first_populated[bucket];
-    }
-
+    /* Pass 2: generate mips 1..N for every channel of every populated
+     * bucket. The compute shader runs across all slices in one dispatch
+     * per (bucket, channel, mip-level). */
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
-        ecs_os_free(bucket_populated[b]);
+        flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[b];
+        if (!bk->layer_count || bk->mip_count <= 1) continue;
+        for (int ch = 0; ch < 4; ch++) {
+            flecsEngine_textureArray_genMipsForChannel(
+                impl, encoder,
+                bk->texture_arrays[ch],
+                bk->width, bk->height,
+                bk->layer_count, bk->mip_count);
+        }
     }
 
     WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(
@@ -671,8 +865,7 @@ static void flecsEngine_textureArray_copyTextures(
 
 /* Create 2D-array views per bucket and assemble the single bind group. */
 static void flecsEngine_textureArray_createBindGroup(
-    FlecsEngineImpl *impl,
-    WGPUTextureFormat arr_format)
+    FlecsEngineImpl *impl)
 {
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
         flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[b];
@@ -680,7 +873,7 @@ static void flecsEngine_textureArray_createBindGroup(
 
         for (int ch = 0; ch < 4; ch++) {
             WGPUTextureViewDescriptor vd = {
-                .format = arr_format,
+                .format = FLECS_ENGINE_BUCKET_FORMAT,
                 .dimension = WGPUTextureViewDimension_2DArray,
                 .baseMipLevel = 0,
                 .mipLevelCount = bk->mip_count,
@@ -732,9 +925,10 @@ static void flecsEngine_textureArray_createBindGroup(
 }
 
 /* Build per-bucket texture 2D arrays so the shader can index layers via
- * (texture_bucket, texture_layer) pairs on FlecsGpuMaterial. When textures
- * use mixed format families the array cannot be built and the renderer
- * falls back to per-prefab texture binding automatically. */
+ * (texture_bucket, texture_layer) pairs on FlecsGpuMaterial. The GPU blit
+ * pass normalizes any source format/dimension to the bucket's RGBA8Unorm
+ * arrays, so this build always succeeds when there's at least one material
+ * with PBR textures. */
 void flecsEngine_material_buildTextureArrays(
     const ecs_world_t *world,
     FlecsEngineImpl *impl)
@@ -746,10 +940,9 @@ void flecsEngine_material_buildTextureArrays(
     flecsEngine_textureArray_release(impl);
     flecsEngine_pbr_texture_ensureFallbacks(impl);
 
-    WGPUTextureFormat arr_format;
     uint32_t bucket_layer_counts[FLECS_ENGINE_TEXTURE_BUCKET_COUNT];
     if (!flecsEngine_textureArray_survey(
-            world, impl, &arr_format, bucket_layer_counts))
+            world, impl, bucket_layer_counts))
     {
         return;
     }
@@ -757,15 +950,15 @@ void flecsEngine_material_buildTextureArrays(
     for (uint8_t b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
         if (!bucket_layer_counts[b]) continue;
         if (!flecsEngine_textureArray_createBucket(
-                impl, b, bucket_layer_counts[b], arr_format))
+                impl, b, bucket_layer_counts[b]))
         {
             flecsEngine_textureArray_release(impl);
             return;
         }
-        flecsEngine_textureArray_fillBucketFallback(impl, b, arr_format);
+        flecsEngine_textureArray_fillBucketFallback(impl, b);
     }
 
-    flecsEngine_textureArray_copyTextures(world, impl, arr_format);
+    flecsEngine_textureArray_blitTextures(world, impl);
 
-    flecsEngine_textureArray_createBindGroup(impl, arr_format);
+    flecsEngine_textureArray_createBindGroup(impl);
 }
