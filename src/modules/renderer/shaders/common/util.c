@@ -21,7 +21,7 @@ bool flecsEngine_shader_usesShadow(
 
     return strstr(
         shader->source,
-        "@group(0) @binding(3) var shadow_map") != NULL;
+        "@group(0) @binding(4) var shadow_map") != NULL;
 }
 
 bool flecsEngine_shader_usesCluster(
@@ -33,7 +33,7 @@ bool flecsEngine_shader_usesCluster(
 
     return strstr(
         shader->source,
-        "@binding(5) var<uniform> cluster_info") != NULL;
+        "@binding(6) var<uniform> cluster_info") != NULL;
 }
 
 bool flecsEngine_shader_usesTextures(

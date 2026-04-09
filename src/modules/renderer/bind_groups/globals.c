@@ -14,13 +14,13 @@
  *    0: IBL prefiltered env cubemap
  *    1: IBL sampler
  *    2: IBL BRDF LUT
- *    3: Shadow depth texture array
- *    4: Shadow comparison sampler
- *    5: Cluster info uniform
- *    6: Cluster grid storage
- *    7: Light indices storage
- *    8: Lights storage (unified point + spot)
- *    9: IBL irradiance (Lambertian-convolved) env cubemap
+ *    3: IBL irradiance (Lambertian-convolved) env cubemap
+ *    4: Shadow depth texture array
+ *    5: Shadow comparison sampler
+ *    6: Cluster info uniform
+ *    7: Cluster grid storage
+ *    8: Light indices storage
+ *    9: Lights storage (unified point + spot)
  *   10: Materials storage (indexed by FlecsMaterialId)
  */
 
@@ -38,7 +38,7 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
     flecsEngine_material_ensureBuffer(impl);
 
     WGPUBindGroupLayoutEntry layout_entries[11] = {
-        {
+        { /* 0: IBL prefiltered env cubemap */
             .binding = 0,
             .visibility = WGPUShaderStage_Fragment,
             .texture = {
@@ -47,14 +47,14 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
                 .multisampled = false
             }
         },
-        {
+        { /* 1: IBL sampler */
             .binding = 1,
             .visibility = WGPUShaderStage_Fragment,
             .sampler = {
                 .type = WGPUSamplerBindingType_Filtering
             }
         },
-        {
+        { /* 2: IBL BRDF LUT */
             .binding = 2,
             .visibility = WGPUShaderStage_Fragment,
             .texture = {
@@ -63,56 +63,8 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
                 .multisampled = false
             }
         },
-        {
+        { /* 3: IBL irradiance cubemap */
             .binding = 3,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Depth,
-                .viewDimension = WGPUTextureViewDimension_2DArray,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 4,
-            .visibility = WGPUShaderStage_Fragment,
-            .sampler = {
-                .type = WGPUSamplerBindingType_Comparison
-            }
-        },
-        {
-            .binding = 5,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(FlecsClusterInfo)
-            }
-        },
-        {
-            .binding = 6,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_ReadOnlyStorage,
-                .minBindingSize = sizeof(FlecsClusterEntry)
-            }
-        },
-        {
-            .binding = 7,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_ReadOnlyStorage,
-                .minBindingSize = sizeof(uint32_t)
-            }
-        },
-        {
-            .binding = 8,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_ReadOnlyStorage,
-                .minBindingSize = sizeof(FlecsGpuLight)
-            }
-        },
-        {
-            .binding = 9,
             .visibility = WGPUShaderStage_Fragment,
             .texture = {
                 .sampleType = WGPUTextureSampleType_Float,
@@ -120,7 +72,55 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
                 .multisampled = false
             }
         },
-        {
+        { /* 4: Shadow depth texture array */
+            .binding = 4,
+            .visibility = WGPUShaderStage_Fragment,
+            .texture = {
+                .sampleType = WGPUTextureSampleType_Depth,
+                .viewDimension = WGPUTextureViewDimension_2DArray,
+                .multisampled = false
+            }
+        },
+        { /* 5: Shadow comparison sampler */
+            .binding = 5,
+            .visibility = WGPUShaderStage_Fragment,
+            .sampler = {
+                .type = WGPUSamplerBindingType_Comparison
+            }
+        },
+        { /* 6: Cluster info */
+            .binding = 6,
+            .visibility = WGPUShaderStage_Fragment,
+            .buffer = {
+                .type = WGPUBufferBindingType_Uniform,
+                .minBindingSize = sizeof(FlecsClusterInfo)
+            }
+        },
+        { /* 7: Cluster grid */
+            .binding = 7,
+            .visibility = WGPUShaderStage_Fragment,
+            .buffer = {
+                .type = WGPUBufferBindingType_ReadOnlyStorage,
+                .minBindingSize = sizeof(FlecsClusterEntry)
+            }
+        },
+        { /* 8: Light indices */
+            .binding = 8,
+            .visibility = WGPUShaderStage_Fragment,
+            .buffer = {
+                .type = WGPUBufferBindingType_ReadOnlyStorage,
+                .minBindingSize = sizeof(uint32_t)
+            }
+        },
+        { /* 9: Lights (point + spot) */
+            .binding = 9,
+            .visibility = WGPUShaderStage_Fragment,
+            .buffer = {
+                .type = WGPUBufferBindingType_ReadOnlyStorage,
+                .minBindingSize = sizeof(FlecsGpuLight)
+            }
+        },
+        { /* 10: Materials storage */
             .binding = 10,
             .visibility = WGPUShaderStage_Fragment,
             .buffer = {
@@ -191,38 +191,38 @@ bool flecsEngine_globals_createBindGroup(
                 },
                 {
                     .binding = 3,
-                    .textureView = engine->shadow.texture_view
+                    .textureView = ibl->ibl_irradiance_cubemap_view
                 },
                 {
                     .binding = 4,
-                    .sampler = engine->shadow.sampler
+                    .textureView = engine->shadow.texture_view
                 },
                 {
                     .binding = 5,
+                    .sampler = engine->shadow.sampler
+                },
+                {
+                    .binding = 6,
                     .buffer = engine->lighting.cluster_info_buffer,
                     .size = sizeof(FlecsClusterInfo)
                 },
                 {
-                    .binding = 6,
+                    .binding = 7,
                     .buffer = engine->lighting.cluster_grid_buffer,
                     .size = (uint64_t)FLECS_ENGINE_CLUSTER_TOTAL *
                         sizeof(FlecsClusterEntry)
                 },
                 {
-                    .binding = 7,
+                    .binding = 8,
                     .buffer = engine->lighting.cluster_index_buffer,
                     .size = (uint64_t)engine->lighting.cluster_index_capacity *
                         sizeof(uint32_t)
                 },
                 {
-                    .binding = 8,
+                    .binding = 9,
                     .buffer = engine->lighting.light_buffer,
                     .size = (uint64_t)engine->lighting.light_capacity *
                         sizeof(FlecsGpuLight)
-                },
-                {
-                    .binding = 9,
-                    .textureView = ibl->ibl_irradiance_cubemap_view
                 },
                 {
                     .binding = 10,
