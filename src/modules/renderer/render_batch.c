@@ -22,10 +22,10 @@ ECS_MOVE(FlecsRenderBatch, dst, src, {
     ecs_os_zeromem(src);
 })
 
-/* Lazily create an empty bind group layout used as a placeholder for unused
- * pipeline bind group slots, so the engine can pin per-batch uniforms to
- * @group(2) regardless of which optional groups (IBL/shadow/cluster, textures)
- * the shader actually uses. */
+/* Lazily create an empty bind group layout used as a placeholder for the
+ * @group(1) PBR textures slot when a pipeline does not sample any material
+ * textures. Keeps pipeline bind group indices contiguous so WebGPU accepts
+ * pipeline switches between textured and non-textured draws. */
 static WGPUBindGroupLayout flecsEngine_renderBatch_ensureEmptyBindLayout(
     FlecsEngineImpl *engine)
 {
@@ -69,23 +69,6 @@ static WGPUBindGroup flecsEngine_renderBatch_ensureEmptyBindGroup(
 static void flecsEngine_renderBatch_releaseImpl(
     FlecsRenderBatchImpl *ptr)
 {
-    for (int32_t i = 0; i < FLECS_ENGINE_UNIFORMS_MAX; i ++) {
-        if (ptr->uniform_buffers[i]) {
-            wgpuBufferRelease(ptr->uniform_buffers[i]);
-            ptr->uniform_buffers[i] = NULL;
-        }
-    }
-
-    if (ptr->bind_group) {
-        wgpuBindGroupRelease(ptr->bind_group);
-        ptr->bind_group = NULL;
-    }
-
-    if (ptr->bind_layout) {
-        wgpuBindGroupLayoutRelease(ptr->bind_layout);
-        ptr->bind_layout = NULL;
-    }
-
     if (ptr->pipeline_hdr) {
         wgpuRenderPipelineRelease(ptr->pipeline_hdr);
         ptr->pipeline_hdr = NULL;
@@ -145,20 +128,6 @@ static bool flecsEngine_renderBatch_usesMaterialId(
     return false;
 }
 
-static uint8_t flecsEngine_renderBatch_uniformCount(
-    const ecs_entity_t *uniform_types)
-{
-    uint8_t result = 0;
-    for (int32_t i = 0; i < FLECS_ENGINE_UNIFORMS_MAX; i ++) {
-        if (!uniform_types[i]) {
-            break;
-        }
-        result ++;
-    }
-
-    return result;
-}
-
 static int32_t flecsEngine_renderBatch_setupInstanceBindings(
     const ecs_world_t *world,
     FlecsRenderBatch *rb,
@@ -194,72 +163,6 @@ static int32_t flecsEngine_renderBatch_setupInstanceBindings(
     }
 
     return vertex_buffer_count;
-}
-
-static bool flecsEngine_renderBatch_setupBindings(
-    ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const ecs_entity_t *uniform_types,
-    WGPUShaderStage visibility,
-    FlecsRenderBatchImpl *impl)
-{
-    WGPUBindGroupLayoutEntry layout_entries[FLECS_ENGINE_UNIFORMS_MAX];
-    WGPUBindGroupLayoutDescriptor bind_layout_desc = { .entries = layout_entries };
-    WGPUBindGroupEntry entries[FLECS_ENGINE_UNIFORMS_MAX];
-
-    ecs_os_memset_n(
-        layout_entries, 0, WGPUBindGroupLayoutEntry, FLECS_ENGINE_UNIFORMS_MAX);
-    ecs_os_memset_n(entries, 0, WGPUBindGroupEntry, FLECS_ENGINE_UNIFORMS_MAX);
-
-    impl->uniform_count = flecsEngine_renderBatch_uniformCount(uniform_types);
-    if (!impl->uniform_count) {
-        return false;
-    }
-
-    for (uint8_t b = 0; b < impl->uniform_count; b ++) {
-        ecs_entity_t type = uniform_types[b];
-
-        uint64_t type_size = flecsEngine_type_sizeof(world, type);
-        layout_entries[b].binding = b;
-        layout_entries[b].visibility = visibility;
-        layout_entries[b].buffer = (WGPUBufferBindingLayout){
-            .type = WGPUBufferBindingType_Uniform,
-            .minBindingSize = type_size
-        };
-
-        WGPUBufferDescriptor uniform_desc = {
-            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-            .size = type_size
-        };
-
-        entries[b].binding = b;
-        impl->uniform_buffers[b] = entries[b].buffer =
-            wgpuDeviceCreateBuffer(
-                engine->device, &uniform_desc);
-        entries[b].size = type_size;
-
-        bind_layout_desc.entryCount = (uint32_t)b + 1;
-    }
-
-    impl->bind_layout = wgpuDeviceCreateBindGroupLayout(
-        engine->device, &bind_layout_desc);
-    if (!impl->bind_layout) {
-        return false;
-    }
-
-    WGPUBindGroupDescriptor bind_group_desc = {
-        .entries = entries,
-        .entryCount = impl->uniform_count,
-        .layout = impl->bind_layout
-    };
-
-    impl->bind_group = wgpuDeviceCreateBindGroup(
-        engine->device, &bind_group_desc);
-    if (!impl->bind_group) {
-        return false;
-    }
-
-    return true;
 }
 
 static WGPURenderPipeline flecsEngine_renderBatch_createShadowPipeline(
@@ -324,12 +227,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     const FlecsEngineImpl *engine,
     const FlecsShader *shader,
     const FlecsShaderImpl *shader_impl,
-    WGPUBindGroupLayout bind_layout,
-    bool use_ibl,
-    bool use_shadow,
-    bool use_cluster,
     bool use_textures,
-    bool use_material,
     const WGPUBlendState *blend,
     WGPUCullMode cull_mode,
     WGPUCompareFunction depth_test,
@@ -340,24 +238,26 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     uint32_t sample_count)
 {
     /* Bind group layout order is fixed by update frequency:
-     *   group 0 = IBL + shadow + cluster + materials (scene globals)
+     *   group 0 = scene globals (frame uniform, IBL, shadow, cluster, materials)
      *   group 1 = PBR material textures (scene-stable)
-     *   group 2 = per-batch uniforms (per draw)
-     * Unused slots use a shared empty bind group layout placeholder so the
-     * pipeline always has contiguous bind group indices up to 2. */
+     *
+     * Group 0 is always populated because every PBR shader samples the
+     * frame uniform buffer at binding 0. Group 1 is populated iff the
+     * pipeline samples PBR textures; otherwise a shared empty placeholder
+     * keeps bind group indices contiguous across pipeline switches. */
+    if (!engine->ibl_shadow_bind_layout) {
+        return NULL;
+    }
+
     WGPUBindGroupLayout empty_layout =
         flecsEngine_renderBatch_ensureEmptyBindLayout((FlecsEngineImpl*)engine);
 
-    WGPUBindGroupLayout bind_layouts[3] = {
-        empty_layout, empty_layout, bind_layout
+    WGPUBindGroupLayout bind_layouts[2] = {
+        engine->ibl_shadow_bind_layout,
+        empty_layout
     };
-    uint32_t bind_layout_count = 3u;
+    uint32_t bind_layout_count = 2u;
 
-    if ((use_ibl || use_shadow || use_cluster || use_material) &&
-        engine->ibl_shadow_bind_layout)
-    {
-        bind_layouts[0] = engine->ibl_shadow_bind_layout;
-    }
     if (use_textures) {
         WGPUBindGroupLayout tex_layout =
             flecsEngine_textures_ensureBindLayout((FlecsEngineImpl*)engine);
@@ -583,23 +483,12 @@ static void FlecsRenderBatch_on_set(
             depth_write = true;
         }
 
-        if ((impl.uses_ibl || impl.uses_shadow || impl.uses_cluster ||
-             impl.uses_material) &&
-            !flecsEngine_globals_ensureBindLayout(engine))
-        {
+        /* Every batch uses the scene-globals bind layout for @group(0) —
+         * that's where the frame uniform buffer lives. */
+        if (!flecsEngine_globals_ensureBindLayout(engine)) {
             flecsEngine_renderBatch_logErr(world, e,
                 "failed to create render batch '%s': "
                 "scene bind layout is not available");
-            flecsEngine_renderBatch_releaseImpl(&impl);
-            continue;
-        }
-
-        // Setup per-batch uniform bindings (group 2)
-        if (!flecsEngine_renderBatch_setupBindings(world, engine,
-            rb[i].uniforms,
-            WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
-            &impl))
-        {
             flecsEngine_renderBatch_releaseImpl(&impl);
             continue;
         }
@@ -613,12 +502,7 @@ static void FlecsRenderBatch_on_set(
             engine,
             shader,
             shader_impl,
-            impl.bind_layout,
-            impl.uses_ibl,
-            impl.uses_shadow,
-            impl.uses_cluster,
             impl.uses_textures,
-            impl.uses_material,
             blend,
             cull_mode,
             depth_test,
@@ -640,135 +524,6 @@ static void FlecsRenderBatch_on_set(
 
         ecs_set_ptr(world, e, FlecsRenderBatchImpl, &impl);
     }
-}
-
-void flecsEngine_renderBatch_setupCamera(
-    const ecs_world_t *world,
-    FlecsUniform *uniforms,
-    ecs_entity_t entity)
-{
-    uniforms->camera_pos[0] = 0.0f;
-    uniforms->camera_pos[1] = 0.0f;
-    uniforms->camera_pos[2] = 0.0f;
-    uniforms->camera_pos[3] = 1.0f;
-
-    glm_mat4_identity(uniforms->mvp);
-    glm_mat4_identity(uniforms->inv_vp);
-    const FlecsCameraImpl *camera = ecs_get(
-        world, entity, FlecsCameraImpl);
-    if (!camera) {
-        flecsEngine_renderBatch_logErr(world, entity,
-            "invalid camera '%s' in view");
-        return;
-    }
-
-    glm_mat4_copy((vec4*)camera->mvp, uniforms->mvp);
-    glm_mat4_inv(uniforms->mvp, uniforms->inv_vp);
-
-    const FlecsWorldTransform3 *camera_transform = ecs_get(
-        world, entity, FlecsWorldTransform3);
-    if (camera_transform) {
-        uniforms->camera_pos[0] = camera_transform->m[3][0];
-        uniforms->camera_pos[1] = camera_transform->m[3][1];
-        uniforms->camera_pos[2] = camera_transform->m[3][2];
-    }
-}
-
-void flecsEngine_renderBatch_setupLight(
-    const ecs_world_t *world,
-    FlecsUniform *uniforms,
-    ecs_entity_t entity)
-{
-    uniforms->light_color[0] = 1.0f;
-    uniforms->light_color[1] = 1.0f;
-    uniforms->light_color[2] = 1.0f;
-    uniforms->light_color[3] = 1.0f;
-
-    const FlecsDirectionalLight *light = ecs_get(
-        world, entity, FlecsDirectionalLight);
-    if (!light) {
-        flecsEngine_renderBatch_logErr(world, entity,
-            "invalid directional light '%s'");
-        return;
-    }
-
-    const FlecsRotation3 *rotation = ecs_get(world, entity, FlecsRotation3);
-    if (!rotation) {
-        flecsEngine_renderBatch_logErr(world, entity,
-            "directional light '%s' is missing Rotation3");
-        return;
-    }
-
-    vec3 ray_dir;
-    if (!flecsEngine_lightDirFromRotation(rotation, ray_dir)) {
-        flecsEngine_renderBatch_logErr(world, entity,
-            "directional light '%s' has invalid Rotation3");
-        return;
-    }
-
-    uniforms->light_ray_dir[0] = ray_dir[0];
-    uniforms->light_ray_dir[1] = ray_dir[1];
-    uniforms->light_ray_dir[2] = ray_dir[2];
-
-    FlecsRgba rgb = {255, 255, 255, 255};
-    const FlecsRgba *light_rgb = ecs_get(world, entity, FlecsRgba);
-    if (light_rgb) {
-        rgb = *light_rgb;
-    }
-
-    uniforms->light_color[0] =
-        flecsEngine_colorChannelToFloat(rgb.r) * light->intensity;
-    uniforms->light_color[1] =
-        flecsEngine_colorChannelToFloat(rgb.g) * light->intensity;
-    uniforms->light_color[2] =
-        flecsEngine_colorChannelToFloat(rgb.b) * light->intensity;
-}
-
-static void flecsEngine_renderBatch_updateUniforms(
-    const ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    const FlecsRenderView *view,
-    const FlecsRenderBatchImpl *impl)
-{
-    FlecsUniform uniforms = {0};
-    uniforms.camera_pos[3] = 1.0f;
-
-    if (view->camera) {
-        flecsEngine_renderBatch_setupCamera(world, &uniforms, view->camera);
-    }
-
-    if (view->light) {
-        flecsEngine_renderBatch_setupLight(world, &uniforms, view->light);
-    }
-
-    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-        glm_mat4_copy((vec4*)engine->shadow.current_light_vp[i], uniforms.light_vp[i]);
-    }
-
-    memcpy(uniforms.cascade_splits, engine->shadow.cascade_splits,
-        sizeof(float) * FLECS_ENGINE_SHADOW_CASCADE_COUNT);
-
-    float bias = view->shadow.bias;
-    if (bias <= 0) { bias = 0.0005f; }
-    uniforms.shadow_info[1] = bias;
-
-    uniforms.ambient_light[3] = view->background.ambient_intensity;
-
-    uniforms.sky_color[0] = flecsEngine_colorChannelToFloat(view->background.sky_color.r);
-    uniforms.sky_color[1] = flecsEngine_colorChannelToFloat(view->background.sky_color.g);
-    uniforms.sky_color[2] = flecsEngine_colorChannelToFloat(view->background.sky_color.b);
-    uniforms.sky_color[3] = flecsEngine_colorChannelToFloat(view->background.sky_color.a);
-
-    engine->camera_pos[0] = uniforms.camera_pos[0];
-    engine->camera_pos[1] = uniforms.camera_pos[1];
-    engine->camera_pos[2] = uniforms.camera_pos[2];
-
-    wgpuQueueWriteBuffer(
-        engine->queue,
-        impl->uniform_buffers[0],
-        0,
-        &uniforms,
-        sizeof(FlecsUniform));
 }
 
 void flecsEngine_renderBatch_render(
@@ -794,11 +549,7 @@ void flecsEngine_renderBatch_render(
     if (pipeline != engine->last_pipeline) {
         wgpuRenderPassEncoderSetPipeline(pass, pipeline);
         engine->last_pipeline = pipeline;
-        flecsEngine_renderBatch_updateUniforms(world, engine, view, impl);
     }
-
-    /* Per-batch uniforms live at @group(2). */
-    wgpuRenderPassEncoderSetBindGroup(pass, 2, impl->bind_group, 0, NULL);
 
     /* WebGPU keeps previously bound bind groups across pipeline switches.
      * If a prior textured draw bound a non-empty group at @group(1), this
@@ -813,8 +564,9 @@ void flecsEngine_renderBatch_render(
         }
     }
 
-    if (impl->uses_ibl || impl->uses_shadow || impl->uses_cluster ||
-        impl->uses_material)
+    /* Every shader samples the frame uniform buffer at group(0) binding(0),
+     * so the scene-globals bind group is always bound — regardless of
+     * whether the shader uses IBL, shadow, cluster, or materials. */
     {
         ecs_entity_t hdri = view->hdri;
         if (!hdri) {
@@ -831,8 +583,8 @@ void flecsEngine_renderBatch_render(
             flecsEngine_globals_createBindGroup(engine, ibl);
         }
 
-        /* Scene-globals bundle (IBL + shadow + cluster + materials)
-         * lives at @group(0). */
+        /* Scene globals (frame uniform + IBL + shadow + cluster + materials)
+         * live at @group(0). */
         wgpuRenderPassEncoderSetBindGroup(
             pass, 0, ibl->ibl_shadow_bind_group, 0, NULL);
     }

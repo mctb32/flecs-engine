@@ -2,8 +2,8 @@
 #define FLECS_ENGINE_SHADER_COMMON_SHADOW_WGSL_H
 
 #define FLECS_ENGINE_SHADER_COMMON_SHADOW_WGSL \
-    "@group(0) @binding(4) var shadow_map : texture_depth_2d_array;\n" \
-    "@group(0) @binding(5) var shadow_sampler : sampler_comparison;\n" \
+    "@group(0) @binding(5) var shadow_map : texture_depth_2d_array;\n" \
+    "@group(0) @binding(6) var shadow_sampler : sampler_comparison;\n" \
     "fn sampleShadowCascade(world_pos : vec3<f32>, cascade : i32) -> f32 {\n" \
     "  let light_clip = uniforms.light_vp[cascade] * vec4<f32>(world_pos, 1.0);\n" \
     "  let light_ndc = light_clip.xyz / light_clip.w;\n" \

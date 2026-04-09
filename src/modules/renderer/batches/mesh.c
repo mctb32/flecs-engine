@@ -322,9 +322,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
         },
-        .uniforms = {
-            ecs_id(FlecsUniform)
-        },
         .extract_callback = flecsEngine_mesh_extract,
         .shadow_extract_callback = flecsEngine_mesh_extractShadow,
         .callback = flecsEngine_mesh_render,
@@ -372,9 +369,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
             ecs_id(FlecsRgba),
             ecs_id(FlecsPbrMaterial),
             ecs_id(FlecsEmissive)
-        },
-        .uniforms = {
-            ecs_id(FlecsUniform)
         },
         .extract_callback = flecsEngine_mesh_extract,
         .shadow_extract_callback = flecsEngine_mesh_extractShadow,
@@ -469,9 +463,6 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
-        },
-        .uniforms = {
-            ecs_id(FlecsUniform)
         },
         .extract_callback = flecsEngine_mesh_extract,
         .shadow_extract_callback = flecsEngine_mesh_extractShadow,
@@ -728,9 +719,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
         },
-        .uniforms = {
-            ecs_id(FlecsUniform)
-        },
         .depth_test = WGPUCompareFunction_Less,
         .cull_mode = WGPUCullMode_None,
         .blend = {
@@ -773,9 +761,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
-        },
-        .uniforms = {
-            ecs_id(FlecsUniform)
         },
         .depth_test = WGPUCompareFunction_Less,
         .cull_mode = WGPUCullMode_None,

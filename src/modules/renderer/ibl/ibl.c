@@ -114,6 +114,10 @@ void flecsEngine_ibl_releaseResources(
         wgpuBindGroupLayoutRelease(impl->ibl_shadow_bind_layout);
         impl->ibl_shadow_bind_layout = NULL;
     }
+    if (impl && impl->frame_uniform_buffer) {
+        wgpuBufferRelease(impl->frame_uniform_buffer);
+        impl->frame_uniform_buffer = NULL;
+    }
     if (impl && impl->empty_bind_group) {
         wgpuBindGroupRelease(impl->empty_bind_group);
         impl->empty_bind_group = NULL;

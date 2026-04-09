@@ -11,6 +11,6 @@
     "  texture_layer : u32,\n" \
     "  _pad : u32\n" \
     "};\n" \
-    "@group(0) @binding(10) var<storage, read> materials : array<GpuMaterial>;\n"
+    "@group(0) @binding(11) var<storage, read> materials : array<GpuMaterial>;\n"
 
 #endif

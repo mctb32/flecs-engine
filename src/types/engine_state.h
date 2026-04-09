@@ -5,7 +5,6 @@
 #include "../vendor.h"
 #include "gpu_types.h"
 
-#define FLECS_ENGINE_UNIFORMS_MAX (8)
 #define FLECS_ENGINE_INSTANCE_TYPES_MAX (8)
 
 struct FlecsEngineSurfaceInterface;
@@ -134,6 +133,11 @@ typedef struct {
     WGPUBindGroupLayout empty_bind_layout;
     WGPUBindGroup empty_bind_group;
     uint32_t scene_bind_version;
+
+    /* Per-frame / per-view shader uniforms. Single global buffer bound at
+     * group(0) binding(0), written by render_view before each view's
+     * batches are encoded. */
+    WGPUBuffer frame_uniform_buffer;
 
     ecs_query_t *view_query;
     WGPURenderPipeline last_pipeline;

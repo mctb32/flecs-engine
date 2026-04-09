@@ -80,9 +80,6 @@ void FlecsOnAddSkyBoxBatch(
                 ecs_id(FlecsInstanceTransform),
                 ecs_id(FlecsRgba)
             },
-            .uniforms = {
-                ecs_id(FlecsUniform)
-            },
             .depth_test = WGPUCompareFunction_LessEqual,
             .cull_mode = WGPUCullMode_None,
             .depth_write = false,

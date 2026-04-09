@@ -208,9 +208,6 @@ static ecs_entity_t flecsEngine_createBatch_primitive_materialIndex(
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
         },
-        .uniforms = {
-            ecs_id(FlecsUniform)
-        },
         .extract_callback = flecsEngine_primitive_extract,
         .shadow_extract_callback = flecsEngine_primitive_extractShadow,
         .callback = flecsEngine_primitive_render,
@@ -263,9 +260,6 @@ ecs_entity_t flecsEngine_createBatch_primitive(
             ecs_id(FlecsRgba),
             ecs_id(FlecsPbrMaterial),
             ecs_id(FlecsEmissive)
-        },
-        .uniforms = {
-            ecs_id(FlecsUniform)
         },
         .extract_callback = flecsEngine_primitive_extract,
         .shadow_extract_callback = flecsEngine_primitive_extractShadow,

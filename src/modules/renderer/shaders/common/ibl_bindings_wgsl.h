@@ -2,9 +2,9 @@
 #define FLECS_ENGINE_SHADER_COMMON_IBL_BINDINGS_WGSL_H
 
 #define FLECS_ENGINE_SHADER_COMMON_IBL_BINDINGS_WGSL \
-    "@group(0) @binding(0) var ibl_prefiltered_env : texture_cube<f32>;\n" \
-    "@group(0) @binding(1) var ibl_sampler : sampler;\n" \
-    "@group(0) @binding(2) var ibl_brdf_lut : texture_2d<f32>;\n" \
-    "@group(0) @binding(3) var ibl_irradiance_env : texture_cube<f32>;\n"
+    "@group(0) @binding(1) var ibl_prefiltered_env : texture_cube<f32>;\n" \
+    "@group(0) @binding(2) var ibl_sampler : sampler;\n" \
+    "@group(0) @binding(3) var ibl_brdf_lut : texture_2d<f32>;\n" \
+    "@group(0) @binding(4) var ibl_irradiance_env : texture_cube<f32>;\n"
 
 #endif

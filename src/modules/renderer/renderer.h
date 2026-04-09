@@ -63,7 +63,6 @@ ECS_STRUCT(FlecsRenderBatch, {
     ecs_query_t *query;
     ecs_entity_t vertex_type;
     ecs_entity_t instance_types[FLECS_ENGINE_INSTANCE_TYPES_MAX];
-    ecs_entity_t uniforms[FLECS_ENGINE_UNIFORMS_MAX];
     WGPUCompareFunction depth_test;
     WGPUCullMode cull_mode;
     WGPUBlendState blend;

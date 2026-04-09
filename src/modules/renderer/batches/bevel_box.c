@@ -408,9 +408,6 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes(
             ecs_id(FlecsPbrMaterial),
             ecs_id(FlecsEmissive)
         },
-        .uniforms = {
-            ecs_id(FlecsUniform)
-        },
         .extract_callback = flecsEngine_bevel_box_extract,
         .callback = flecsEngine_bevel_box_render,
         .ctx = flecsEngine_bevel_box_createCtx(world, true),
@@ -447,9 +444,6 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
-        },
-        .uniforms = {
-            ecs_id(FlecsUniform)
         },
         .extract_callback = flecsEngine_bevel_box_extract,
         .callback = flecsEngine_bevel_box_render,

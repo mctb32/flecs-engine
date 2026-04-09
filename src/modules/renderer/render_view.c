@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "renderer.h"
 #include "frustum_cull.h"
 #include "../../tracy_hooks.h"
@@ -96,6 +98,161 @@ ECS_MOVE(FlecsRenderViewImpl, dst, src, {
     *dst = *src;
     ecs_os_zeromem(src);
 })
+
+/* --- Frame uniform buffer -------------------------------------------------
+ *
+ * FlecsUniform holds per-frame / per-view shader inputs (view matrices,
+ * camera position, directional light, shadow cascades, sky / ambient).
+ * The buffer itself is engine-global (engine->frame_uniform_buffer) and is
+ * rewritten once per view immediately before that view's batches are
+ * encoded. Because wgpuQueueWriteBuffer writes are applied atomically
+ * before the submitted command buffer executes, rendering more than one
+ * view against the same frame buffer handle yields only the last view's
+ * uniforms — single-view rendering is the assumed case. */
+
+static void flecsEngine_renderView_logErr(
+    const ecs_world_t *world,
+    ecs_entity_t entity,
+    const char *fmt)
+{
+    char *name = ecs_get_path(world, entity);
+    ecs_err(fmt, name);
+    ecs_os_free(name);
+}
+
+static void flecsEngine_renderView_writeCamera(
+    const ecs_world_t *world,
+    FlecsUniform *uniforms,
+    ecs_entity_t entity)
+{
+    uniforms->camera_pos[0] = 0.0f;
+    uniforms->camera_pos[1] = 0.0f;
+    uniforms->camera_pos[2] = 0.0f;
+    uniforms->camera_pos[3] = 1.0f;
+
+    glm_mat4_identity(uniforms->mvp);
+    glm_mat4_identity(uniforms->inv_vp);
+
+    const FlecsCameraImpl *camera = ecs_get(
+        world, entity, FlecsCameraImpl);
+    if (!camera) {
+        flecsEngine_renderView_logErr(world, entity,
+            "invalid camera '%s' in view");
+        return;
+    }
+
+    glm_mat4_copy((vec4*)camera->mvp, uniforms->mvp);
+    glm_mat4_inv(uniforms->mvp, uniforms->inv_vp);
+
+    const FlecsWorldTransform3 *camera_transform = ecs_get(
+        world, entity, FlecsWorldTransform3);
+    if (camera_transform) {
+        uniforms->camera_pos[0] = camera_transform->m[3][0];
+        uniforms->camera_pos[1] = camera_transform->m[3][1];
+        uniforms->camera_pos[2] = camera_transform->m[3][2];
+    }
+}
+
+static void flecsEngine_renderView_writeLight(
+    const ecs_world_t *world,
+    FlecsUniform *uniforms,
+    ecs_entity_t entity)
+{
+    uniforms->light_color[0] = 1.0f;
+    uniforms->light_color[1] = 1.0f;
+    uniforms->light_color[2] = 1.0f;
+    uniforms->light_color[3] = 1.0f;
+
+    const FlecsDirectionalLight *light = ecs_get(
+        world, entity, FlecsDirectionalLight);
+    if (!light) {
+        flecsEngine_renderView_logErr(world, entity,
+            "invalid directional light '%s'");
+        return;
+    }
+
+    const FlecsRotation3 *rotation = ecs_get(world, entity, FlecsRotation3);
+    if (!rotation) {
+        flecsEngine_renderView_logErr(world, entity,
+            "directional light '%s' is missing Rotation3");
+        return;
+    }
+
+    vec3 ray_dir;
+    if (!flecsEngine_lightDirFromRotation(rotation, ray_dir)) {
+        flecsEngine_renderView_logErr(world, entity,
+            "directional light '%s' has invalid Rotation3");
+        return;
+    }
+
+    uniforms->light_ray_dir[0] = ray_dir[0];
+    uniforms->light_ray_dir[1] = ray_dir[1];
+    uniforms->light_ray_dir[2] = ray_dir[2];
+
+    FlecsRgba rgb = {255, 255, 255, 255};
+    const FlecsRgba *light_rgb = ecs_get(world, entity, FlecsRgba);
+    if (light_rgb) {
+        rgb = *light_rgb;
+    }
+
+    uniforms->light_color[0] =
+        flecsEngine_colorChannelToFloat(rgb.r) * light->intensity;
+    uniforms->light_color[1] =
+        flecsEngine_colorChannelToFloat(rgb.g) * light->intensity;
+    uniforms->light_color[2] =
+        flecsEngine_colorChannelToFloat(rgb.b) * light->intensity;
+}
+
+static void flecsEngine_renderView_writeFrameUniforms(
+    const ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view)
+{
+    if (!engine->frame_uniform_buffer) {
+        return;
+    }
+
+    FlecsUniform uniforms = {0};
+    uniforms.camera_pos[3] = 1.0f;
+
+    if (view->camera) {
+        flecsEngine_renderView_writeCamera(world, &uniforms, view->camera);
+    }
+
+    if (view->light) {
+        flecsEngine_renderView_writeLight(world, &uniforms, view->light);
+    }
+
+    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
+        glm_mat4_copy((vec4*)engine->shadow.current_light_vp[i],
+            uniforms.light_vp[i]);
+    }
+
+    memcpy(uniforms.cascade_splits, engine->shadow.cascade_splits,
+        sizeof(float) * FLECS_ENGINE_SHADOW_CASCADE_COUNT);
+
+    float bias = view->shadow.bias;
+    if (bias <= 0) { bias = 0.0005f; }
+    uniforms.shadow_info[1] = bias;
+
+    uniforms.ambient_light[3] = view->background.ambient_intensity;
+
+    uniforms.sky_color[0] = flecsEngine_colorChannelToFloat(view->background.sky_color.r);
+    uniforms.sky_color[1] = flecsEngine_colorChannelToFloat(view->background.sky_color.g);
+    uniforms.sky_color[2] = flecsEngine_colorChannelToFloat(view->background.sky_color.b);
+    uniforms.sky_color[3] = flecsEngine_colorChannelToFloat(view->background.sky_color.a);
+
+    engine->camera_pos[0] = uniforms.camera_pos[0];
+    engine->camera_pos[1] = uniforms.camera_pos[1];
+    engine->camera_pos[2] = uniforms.camera_pos[2];
+
+    wgpuQueueWriteBuffer(
+        engine->queue,
+        engine->frame_uniform_buffer,
+        0,
+        &uniforms,
+        sizeof(FlecsUniform));
+}
 
 static bool flecsEngine_renderView_createTargets(
     FlecsEngineImpl *engine,
@@ -237,6 +394,10 @@ static void flecsEngine_renderView_render(
 
     flecsEngine_setupLights(world, engine);
     flecsEngine_cluster_build(world, engine, view);
+
+    /* Populate the engine-global frame uniform buffer for this view.
+     * Written once here instead of once per pipeline change per batch. */
+    flecsEngine_renderView_writeFrameUniforms(world, engine, view);
 
     flecsEngine_renderView_renderBatches(
         world, view_entity, engine, view, impl, encoder);
