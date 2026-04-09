@@ -389,17 +389,19 @@ static void flecsEngine_textured_mesh_render(
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
+    (void)world;
     FLECS_TRACY_ZONE_BEGIN("TexturedMeshRender");
 
-    bool use_array = engine->materials.texture_array_bind_group;
-
-    /* When a texture array is available, bind it once for all groups.
-     * PBR material textures live at @group(1). */
-    if (use_array) {
-        wgpuRenderPassEncoderSetBindGroup(
-            pass, 1,
-            engine->materials.texture_array_bind_group, 0, NULL);
+    /* PBR material textures live at @group(1). The array build pass
+     * always populates this bind group when there are any textured
+     * materials in the scene; otherwise this batch has nothing to draw. */
+    if (!engine->materials.texture_array_bind_group) {
+        FLECS_TRACY_ZONE_END;
+        return;
     }
+    wgpuRenderPassEncoderSetBindGroup(
+        pass, 1,
+        engine->materials.texture_array_bind_group, 0, NULL);
 
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
     ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
@@ -412,17 +414,6 @@ static void flecsEngine_textured_mesh_render(
         flecsEngine_batch_t *ctx =
             ecs_query_get_group_ctx(batch->query, group_id);
         ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
-
-        /* Fall back to per-group texture binding when no array */
-        if (!use_array) {
-            const FlecsPbrTexturesImpl *tex_impl = ecs_get(
-                world, (ecs_entity_t)group_id, FlecsPbrTexturesImpl);
-            if (!tex_impl || !tex_impl->bind_group) {
-                continue;
-            }
-            wgpuRenderPassEncoderSetBindGroup(
-                pass, 1, tex_impl->bind_group, 0, NULL);
-        }
 
         ctx->vertex_buffer = ctx->mesh.vertex_uv_buffer;
         flecsEngine_batch_draw(engine, pass, ctx);
@@ -627,19 +618,20 @@ static void flecsEngine_transparent_mesh_render(
         if (group_id != active_group) {
             active_group = group_id;
 
-            if (sorted[i].is_textured && tex_pipeline) {
+            if (sorted[i].is_textured && tex_pipeline &&
+                engine->materials.texture_array_bind_group)
+            {
                 if (active_pipeline != tex_pipeline) {
                     wgpuRenderPassEncoderSetPipeline(pass, tex_pipeline);
                     active_pipeline = tex_pipeline;
                 }
 
-                const FlecsPbrTexturesImpl *tex_impl = ecs_get(
-                    world, (ecs_entity_t)group_id, FlecsPbrTexturesImpl);
-                if (!tex_impl || !tex_impl->bind_group) {
-                    continue;
-                }
+                /* Same scene-wide texture array bind group as the opaque
+                 * textured path. The shader looks up the right slot via
+                 * the per-instance material id. */
                 wgpuRenderPassEncoderSetBindGroup(
-                    pass, 1, tex_impl->bind_group,
+                    pass, 1,
+                    engine->materials.texture_array_bind_group,
                     0, NULL);
 
                 if (!ctx->mesh.vertex_uv_buffer) {

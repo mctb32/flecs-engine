@@ -12,7 +12,6 @@ ECS_COMPONENT_DECLARE(FlecsLitVertex);
 ECS_COMPONENT_DECLARE(FlecsLitVertexUv);
 ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
 ECS_COMPONENT_DECLARE(FlecsTextureImpl);
-ECS_COMPONENT_DECLARE(FlecsPbrTexturesImpl);
 extern ECS_COMPONENT_DECLARE(FlecsPbrTextures);
 extern ECS_COMPONENT_DECLARE(FlecsRgba);
 extern ECS_COMPONENT_DECLARE(FlecsPbrMaterial);
@@ -565,33 +564,6 @@ ECS_MOVE(FlecsTextureImpl, dst, src, {
     ecs_os_zeromem(src);
 })
 
-static void flecsEngine_pbrTextures_releaseImpl(
-    FlecsPbrTexturesImpl *ptr)
-{
-    if (ptr->bind_group) {
-        wgpuBindGroupRelease(ptr->bind_group);
-        ptr->bind_group = NULL;
-    }
-}
-
-ECS_DTOR(FlecsPbrTexturesImpl, ptr, {
-    flecsEngine_pbrTextures_releaseImpl(ptr);
-})
-
-ECS_MOVE(FlecsPbrTexturesImpl, dst, src, {
-    flecsEngine_pbrTextures_releaseImpl(dst);
-    *dst = *src;
-    ecs_os_zeromem(src);
-})
-
-ECS_COPY(FlecsPbrTexturesImpl, dst, src, {
-    flecsEngine_pbrTextures_releaseImpl(dst);
-    *dst = *src;
-    if (dst->bind_group) {
-        wgpuBindGroupAddRef(dst->bind_group);
-    }
-})
-
 void FlecsEngineRendererImport(
     ecs_world_t *world)
 {
@@ -686,17 +658,6 @@ void FlecsEngineRendererImport(
     });
     ecs_add_pair(world, ecs_id(FlecsTexture), EcsWith, ecs_id(FlecsTextureImpl));
 
-    ECS_COMPONENT_DEFINE(world, FlecsPbrTexturesImpl);
-    ecs_set_hooks(world, FlecsPbrTexturesImpl, {
-        .ctor = flecs_default_ctor,
-        .move = ecs_move(FlecsPbrTexturesImpl),
-        .copy = ecs_copy(FlecsPbrTexturesImpl),
-        .dtor = ecs_dtor(FlecsPbrTexturesImpl)
-    });
-    ecs_add_pair(world, ecs_id(FlecsPbrTexturesImpl), EcsOnInstantiate, EcsInherit);
-    ecs_add_pair(world, ecs_id(FlecsPbrTextures), EcsWith,
-        ecs_id(FlecsPbrTexturesImpl));
-
     /* Augment material component hooks with renderer-side on_set callbacks.
      * Hooks fire immediately (even inside deferred contexts like GLTF loading),
      * while observers would be deferred and miss the window for creating GPU
@@ -710,11 +671,6 @@ void FlecsEngineRendererImport(
         hooks = ti->hooks;
         hooks.on_set = flecsEngine_texture_onSet;
         ecs_set_hooks_id(world, ecs_id(FlecsTexture), &hooks);
-
-        ti = ecs_get_type_info(world, ecs_id(FlecsPbrTextures));
-        hooks = ti->hooks;
-        hooks.on_set = flecsEngine_pbrTextures_onSet;
-        ecs_set_hooks_id(world, ecs_id(FlecsPbrTextures), &hooks);
     }
 
     ecs_set_name_prefix(world, "FlecsEngine");

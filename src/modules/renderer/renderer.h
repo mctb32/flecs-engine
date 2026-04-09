@@ -346,14 +346,6 @@ WGPUShaderModule flecsEngine_createShaderModule(
 WGPUBindGroupLayout flecsEngine_textures_ensureBindLayout(
     FlecsEngineImpl *impl);
 
-bool flecsEngine_textures_createBindGroup(
-    FlecsEngineImpl *engine,
-    WGPUTextureView albedo_view,
-    WGPUTextureView emissive_view,
-    WGPUTextureView roughness_view,
-    WGPUTextureView normal_view,
-    WGPUBindGroup *out_bind_group);
-
 WGPUTexture flecsEngine_texture_loadFile(
     WGPUDevice device,
     WGPUQueue queue,
@@ -391,9 +383,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
     const char *name);
 
 void flecsEngine_texture_onSet(
-    ecs_iter_t *it);
-
-void flecsEngine_pbrTextures_onSet(
     ecs_iter_t *it);
 
 // Import renderer module

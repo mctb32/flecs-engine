@@ -43,12 +43,6 @@ typedef struct {
 extern ECS_COMPONENT_DECLARE(FlecsTextureImpl);
 
 typedef struct {
-    WGPUBindGroup bind_group;
-} FlecsPbrTexturesImpl;
-
-extern ECS_COMPONENT_DECLARE(FlecsPbrTexturesImpl);
-
-typedef struct {
     WGPUShaderModule shader_module;
     bool uses_ibl;
     bool uses_shadow;
