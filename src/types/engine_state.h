@@ -42,6 +42,21 @@ typedef struct {
     ecs_query_t *spot_light_query;
 } flecs_engine_lighting_t;
 
+/* PBR texture buckets: textures are normalized into one of 3 size buckets
+ * (512², 1024², 2048²) so the shader can pick the right binding via a
+ * per-material `texture_bucket` field. Each bucket holds 4 channel arrays
+ * (albedo, emissive, roughness, normal), all at the bucket's dimensions. */
+#define FLECS_ENGINE_TEXTURE_BUCKET_COUNT 3
+
+typedef struct {
+    WGPUTexture texture_arrays[4];       /* albedo, emissive, roughness, normal */
+    WGPUTextureView texture_array_views[4];
+    uint32_t layer_count;
+    uint32_t mip_count;
+    uint32_t width;
+    uint32_t height;
+} flecs_engine_texture_bucket_t;
+
 typedef struct {
     WGPUBuffer buffer;
     FlecsGpuMaterial *cpu_materials;
@@ -62,16 +77,10 @@ typedef struct {
 
     ecs_query_t *texture_query;
 
-    /* Texture arrays: all PBR textures packed into 2D-array textures
-     * so the shader can index layers by material ID, enabling single
-     * instanced draw calls even when instances use different textures. */
-    WGPUTexture texture_arrays[4];       /* albedo, emissive, roughness, normal */
-    WGPUTextureView texture_array_views[4];
+    /* Per-bucket texture arrays. The shader picks a bucket per fragment
+     * via the `texture_bucket` field on FlecsGpuMaterial. */
+    flecs_engine_texture_bucket_t buckets[FLECS_ENGINE_TEXTURE_BUCKET_COUNT];
     WGPUBindGroup texture_array_bind_group;
-    uint32_t texture_array_layer_count;
-    uint32_t texture_array_width;
-    uint32_t texture_array_height;
-    uint32_t texture_array_mip_count;
 } flecs_engine_materials_t;
 
 typedef struct {
