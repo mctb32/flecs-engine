@@ -284,7 +284,9 @@ int main(
   ECS_IMPORT(world, FlecsScriptMath);
   ECS_IMPORT(world, FlecsEngine);
 
-  ecs_log_set_level(1);
+  if (!options.frame_output_mode) {
+    ecs_log_set_level(1);
+  }
 
   initEngine(world, options);
 

@@ -6,3 +6,4 @@ build-wasm
 .vscode
 .claude
 _deps
+test/out
