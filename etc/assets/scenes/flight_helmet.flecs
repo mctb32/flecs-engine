@@ -13,6 +13,7 @@ prefab FlightHelmet {
 }
 
 _ : FlightHelmet {
-    Position3: {y: 0}
-    Scale3: {10, 10, 10}
+    Position3: {z: -1}
+    Scale3: {2.5, 2.5, 2.5}
+    Rotation3: {y: math.PI / 1.5}
 }

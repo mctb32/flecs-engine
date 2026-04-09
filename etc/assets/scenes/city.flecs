@@ -102,7 +102,7 @@ template Building {
 @tree Parent
 template StreetLantern {
   prop poleHeight: 3
-  prop on: false
+  prop on: true
 
   // Pole
   {
@@ -164,14 +164,14 @@ template City {
   prop buildingWidth: 8
   prop maxFloors: 26
   prop varFloors: 4
-  prop streetLights: false
+  prop streetLights: true
 
   const gridSizeH = gridSize / 2
 
   // Street plane
   {
     Position3: {0, 0.1 / 2, 0}
-    Box: {2000, 0.1, 2000}
+    Box: {600, 0.1, 600}
     Rgba: {20.4, 20.4, 20.4}
   }
 
@@ -230,4 +230,9 @@ template City {
 // Create the city with default values
 City city() {
   Position3: {z: -150}
+}
+
+camera {
+  Position3: {-105, 16.7, -20.5}
+  LookAt: {-104.367, 16.514, -21.251}
 }

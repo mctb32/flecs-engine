@@ -182,13 +182,13 @@ void initEngine(
       .aspect_ratio = options.width / (float)options.height
   });
   ecs_add(world, view.camera, FlecsCameraController);
-  ecs_set(world, view.camera, FlecsPosition3, {37.5, 5, -15});
-  ecs_set(world, view.camera, FlecsLookAt, {37.5, 2, -30});
+  ecs_set(world, view.camera, FlecsPosition3, {0, 2, -3});
+  ecs_set(world, view.camera, FlecsLookAt, {0, 0, 0});
 
   // Light
   view.light = ecs_entity(world, { .name = "light" });
   ecs_set(world, view.light, FlecsPosition3, {1, 2, 1});
-  ecs_set(world, view.light, FlecsDirectionalLight, { .intensity = 2.0f });
+  ecs_set(world, view.light, FlecsDirectionalLight, { .intensity = 4.0f });
   ecs_set(world, view.light, FlecsLookAt, { 0, 0, 0 });
   ecs_set(world, view.light, FlecsRgba, {255, 255, 255, 255});
 
@@ -312,9 +312,13 @@ int main(
   emscripten_set_main_loop_arg(
       (em_arg_callback_func)flecsWasmFrame, world, 0, 1);
 #else
-  ecs_singleton_set(world, EcsRest, {0});
+  if (!options.frame_output_mode) {
+    ecs_singleton_set(world, EcsRest, {0});
+  }
   while (ecs_progress(world, 0)) {}
 #endif
+
+  ecs_log_set_level(-1);
 
   return ecs_fini(world);
 }

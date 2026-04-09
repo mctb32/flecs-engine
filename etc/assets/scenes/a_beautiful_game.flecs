@@ -3,7 +3,7 @@ using flecs.script
 
 {
     Position3: {}
-    Quad: {10000, 10000}
+    Quad: {1000, 1000}
     Rotation3: {-math.PI / 2}
     Rgba: {0, 0, 0}
 }
@@ -13,6 +13,6 @@ prefab ABeautifulGame {
 }
 
 _ : ABeautifulGame {
-    Position3: {y: 0, z: -10}
-    Scale3: {30, 30, 30}
+    Position3: {}
+    Scale3: {5, 5, 5}
 }
