@@ -525,6 +525,8 @@ static void flecsEngine_textureArray_copyTextures(
             if (layer >= layer_count) continue;
 
             impl->materials.cpu_materials[layer].texture_layer = layer;
+            /* Phase 1: existing single array lives at bucket 1. */
+            impl->materials.cpu_materials[layer].texture_bucket = 1;
 
             ecs_entity_t tex_entities[4] = {
                 textures[i].albedo,
@@ -649,16 +651,30 @@ static void flecsEngine_textureArray_createBindGroup(
     WGPUBindGroupLayout layout =
         flecsEngine_textures_ensureBindLayout(impl);
 
-    WGPUBindGroupEntry entries[5] = {
-        { .binding = 0,
-          .textureView = impl->materials.texture_array_views[0] },
-        { .binding = 1,
-          .textureView = impl->materials.texture_array_views[1] },
-        { .binding = 2,
-          .textureView = impl->materials.texture_array_views[2] },
-        { .binding = 3,
-          .textureView = impl->materials.texture_array_views[3] },
-        { .binding = 4, .sampler = sampler }
+    /* Phase 1: the existing single set of arrays occupies the bucket-1
+     * (1024) slots in the 12-texture layout. The other 8 slots are filled
+     * with 1×1 dummy fallback views. All materials are tagged with
+     * texture_bucket = 1 so the shader switch lands here. */
+    WGPUTextureView white  = impl->materials.fallback_white_view;
+    WGPUTextureView normal = impl->materials.fallback_normal_view;
+
+    WGPUTextureView views[12] = {
+        /* albedo    0  1  2 */ white,  impl->materials.texture_array_views[0], white,
+        /* emissive  3  4  5 */ white,  impl->materials.texture_array_views[1], white,
+        /* roughness 6  7  8 */ white,  impl->materials.texture_array_views[2], white,
+        /* normal    9 10 11 */ normal, impl->materials.texture_array_views[3], normal,
+    };
+
+    WGPUBindGroupEntry entries[13];
+    for (int i = 0; i < 12; i++) {
+        entries[i] = (WGPUBindGroupEntry){
+            .binding = (uint32_t)i,
+            .textureView = views[i]
+        };
+    }
+    entries[12] = (WGPUBindGroupEntry){
+        .binding = 12,
+        .sampler = sampler
     };
 
     impl->materials.texture_array_bind_group =
@@ -666,7 +682,7 @@ static void flecsEngine_textureArray_createBindGroup(
             &(WGPUBindGroupDescriptor){
                 .layout = layout,
                 .entries = entries,
-                .entryCount = 5
+                .entryCount = 13
             });
 
     impl->materials.texture_array_layer_count = layer_count;
