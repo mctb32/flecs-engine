@@ -12,6 +12,7 @@
 typedef struct {
   bool frame_output_mode;
   const char *frame_output_path;
+  const char *scene_path;
   int32_t width;
   int32_t height;
 } FlecsAppOptions;
@@ -20,8 +21,9 @@ static void flecsPrintUsage(
   const char *argv0)
 {
   printf(
-    "Usage: %s [--frame-out <file.ppm>] [--width <px>] [--height <px>] [--size <WxH>]\n"
+    "Usage: %s [--scene <file.flecs>] [--frame-out <file.ppm>] [--width <px>] [--height <px>] [--size <WxH>]\n"
     "\n"
+    "  --scene <path>      Load scene from a Flecs script file (overrides default).\n"
     "  --frame-out <path>  Render one frame to a PPM image, then quit.\n"
     "  --width <px>        Output width (default: 1280).\n"
     "  --height <px>       Output height (default: 800).\n"
@@ -82,6 +84,15 @@ static int flecsParseArgs(
       }
       options->frame_output_mode = true;
       options->frame_output_path = argv[++ i];
+      continue;
+    }
+
+    if (!strcmp(arg, "--scene")) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "Missing value for --scene\n");
+        return -1;
+      }
+      options->scene_path = argv[++ i];
       continue;
     }
 
@@ -256,6 +267,7 @@ int main(
   FlecsAppOptions options = {
     .frame_output_mode = false,
     .frame_output_path = NULL,
+    .scene_path = NULL,
     .width = 1280,
     .height = 800
   };
@@ -272,22 +284,25 @@ int main(
   ECS_IMPORT(world, FlecsScriptMath);
   ECS_IMPORT(world, FlecsEngine);
 
+  ecs_log_set_level(1);
+
   initEngine(world, options);
 
-  ecs_log_set_level(0);
+  const char *scene_filename = options.scene_path
+    ? options.scene_path
+    : "etc/assets/scenes/bistro.flecs";
+    // : "etc/assets/scenes/kenney_city.flecs";
+    // : "etc/assets/scenes/sponza.flecs";
+    // : "etc/assets/scenes/a_beautiful_game.flecs";
+    // : "etc/assets/scenes/flight_helmet.flecs";
+    // : "etc/assets/scenes/damaged_helmet.flecs";
+    // : "etc/assets/scenes/city.flecs";
+    // : "etc/assets/scenes/museum.flecs";
+    // : "etc/assets/scenes/cube.flecs";
+    // : "etc/assets/scenes/empty.flecs";
 
   ecs_entity_t s = ecs_script(world, {
-    // .filename = "etc/assets/scenes/kenney_city.flecs"
-    .filename = "etc/assets/scenes/bistro.flecs"
-    // .filename = "etc/assets/scenes/sponza.flecs"
-    // .filename = "etc/assets/scenes/a_beautiful_game.flecs"
-    // .filename = "etc/assets/scenes/flight_helmet.flecs"
-    // .filename = "etc/assets/scenes/damaged_helmet.flecs"
-    // .filename = "etc/assets/scenes/city.flecs"
-    // .filename = "etc/assets/scenes/museum.flecs"
-    // .filename = "etc/assets/scenes/museum.flecs"
-    // .filename = "etc/assets/scenes/cube.flecs"
-    // .filename = "etc/assets/scenes/empty.flecs"
+    .filename = scene_filename
   });
   if (!s) {
     ecs_err("failed to load script\n");
@@ -300,8 +315,6 @@ int main(
   ecs_singleton_set(world, EcsRest, {0});
   while (ecs_progress(world, 0)) {}
 #endif
-
-  ecs_log_set_level(-1);
 
   return ecs_fini(world);
 }
