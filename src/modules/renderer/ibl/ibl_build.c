@@ -1051,7 +1051,7 @@ bool flecsEngine_ibl_initResources(
 {
     flecsEngine_ibl_releaseRuntimeResources(ibl);
 
-    if (!flecsEngine_ibl_ensureBindLayout(engine)) {
+    if (!flecsEngine_globals_ensureBindLayout(engine)) {
         return false;
     }
 
@@ -1140,7 +1140,7 @@ bool flecsEngine_ibl_initResources(
         goto done;
     }
 
-    if (!flecsEngine_ibl_createRuntimeBindGroup(engine, ibl)) {
+    if (!flecsEngine_globals_createBindGroup(engine, ibl)) {
         goto done;
     }
 

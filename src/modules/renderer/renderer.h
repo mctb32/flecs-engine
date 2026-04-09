@@ -175,10 +175,11 @@ bool flecsEngine_ibl_initResources(
     uint32_t filter_sample_count,
     uint32_t lut_sample_count);
 
-WGPUBindGroupLayout flecsEngine_ibl_ensureBindLayout(
+/* Scene-globals bind group (group 0) — see bind_groups/globals.c */
+WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
     FlecsEngineImpl *impl);
 
-bool flecsEngine_ibl_createRuntimeBindGroup(
+bool flecsEngine_globals_createBindGroup(
     const FlecsEngineImpl *engine,
     FlecsHdriImpl *ibl);
 
@@ -342,8 +343,17 @@ WGPUShaderModule flecsEngine_createShaderModule(
     WGPUDevice device,
     const char *wgsl_source);
 
-WGPUBindGroupLayout flecsEngine_pbr_texture_ensureBindLayout(
+/* PBR textures bind group (group 1) — see bind_groups/textures.c */
+WGPUBindGroupLayout flecsEngine_textures_ensureBindLayout(
     FlecsEngineImpl *impl);
+
+bool flecsEngine_textures_createBindGroup(
+    FlecsEngineImpl *engine,
+    WGPUTextureView albedo_view,
+    WGPUTextureView emissive_view,
+    WGPUTextureView roughness_view,
+    WGPUTextureView normal_view,
+    WGPUBindGroup *out_bind_group);
 
 WGPUTexture flecsEngine_texture_loadFile(
     WGPUDevice device,
@@ -360,14 +370,6 @@ void flecsEngine_pbr_texture_ensureFallbacks(
 
 WGPUSampler flecsEngine_pbr_texture_ensureSampler(
     FlecsEngineImpl *engine);
-
-bool flecsEngine_pbr_texture_createBindGroup(
-    FlecsEngineImpl *engine,
-    WGPUTextureView albedo_view,
-    WGPUTextureView emissive_view,
-    WGPUTextureView roughness_view,
-    WGPUTextureView normal_view,
-    WGPUBindGroup *out_bind_group);
 
 void flecsEngine_material_buildTextureArrays(
     const ecs_world_t *world,

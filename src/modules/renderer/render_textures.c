@@ -281,70 +281,6 @@ WGPUTexture flecsEngine_texture_loadFile(
     return tex;
 }
 
-WGPUBindGroupLayout flecsEngine_pbr_texture_ensureBindLayout(
-    FlecsEngineImpl *impl)
-{
-    if (impl->materials.pbr_texture_bind_layout) {
-        return impl->materials.pbr_texture_bind_layout;
-    }
-
-    WGPUBindGroupLayoutEntry entries[5] = {
-        { /* albedo */
-            .binding = 0,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2DArray,
-                .multisampled = false
-            }
-        },
-        { /* emissive */
-            .binding = 1,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2DArray,
-                .multisampled = false
-            }
-        },
-        { /* roughness/metallic */
-            .binding = 2,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2DArray,
-                .multisampled = false
-            }
-        },
-        { /* normal */
-            .binding = 3,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2DArray,
-                .multisampled = false
-            }
-        },
-        { /* sampler */
-            .binding = 4,
-            .visibility = WGPUShaderStage_Fragment,
-            .sampler = {
-                .type = WGPUSamplerBindingType_Filtering
-            }
-        }
-    };
-
-    WGPUBindGroupLayoutDescriptor layout_desc = {
-        .entries = entries,
-        .entryCount = 5
-    };
-
-    impl->materials.pbr_texture_bind_layout = wgpuDeviceCreateBindGroupLayout(
-        impl->device, &layout_desc);
-
-    return impl->materials.pbr_texture_bind_layout;
-}
-
 static WGPUTextureView flecsEngine_texture_createArrayView(
     WGPUTexture texture)
 {
@@ -413,54 +349,6 @@ WGPUSampler flecsEngine_pbr_texture_ensureSampler(
     return engine->materials.pbr_sampler;
 }
 
-bool flecsEngine_pbr_texture_createBindGroup(
-    FlecsEngineImpl *engine,
-    WGPUTextureView albedo_view,
-    WGPUTextureView emissive_view,
-    WGPUTextureView roughness_view,
-    WGPUTextureView normal_view,
-    WGPUBindGroup *out_bind_group)
-{
-    flecsEngine_pbr_texture_ensureFallbacks(engine);
-
-    if (!albedo_view) {
-        albedo_view = engine->materials.fallback_white_view;
-    }
-    if (!emissive_view) {
-        emissive_view = engine->materials.fallback_white_view;
-    }
-    if (!roughness_view) {
-        roughness_view = engine->materials.fallback_white_view;
-    }
-    if (!normal_view) {
-        normal_view = engine->materials.fallback_normal_view;
-    }
-
-    WGPUSampler sampler = flecsEngine_pbr_texture_ensureSampler(engine);
-
-    WGPUBindGroupLayout layout = flecsEngine_pbr_texture_ensureBindLayout(engine);
-    if (!layout) {
-        return false;
-    }
-
-    WGPUBindGroupEntry entries[5] = {
-        { .binding = 0, .textureView = albedo_view },
-        { .binding = 1, .textureView = emissive_view },
-        { .binding = 2, .textureView = roughness_view },
-        { .binding = 3, .textureView = normal_view },
-        { .binding = 4, .sampler = sampler }
-    };
-
-    WGPUBindGroupDescriptor bg_desc = {
-        .layout = layout,
-        .entries = entries,
-        .entryCount = 5
-    };
-
-    *out_bind_group = wgpuDeviceCreateBindGroup(engine->device, &bg_desc);
-    return *out_bind_group != NULL;
-}
-
 void flecsEngine_texture_onSet(
     ecs_iter_t *it)
 {
@@ -500,7 +388,7 @@ void flecsEngine_pbrTextures_onSet(
         return;
     }
 
-    flecsEngine_pbr_texture_ensureBindLayout(engine);
+    flecsEngine_textures_ensureBindLayout(engine);
 
     for (int i = 0; i < it->count; i++) {
         WGPUTextureView albedo_view = NULL;
@@ -530,7 +418,7 @@ void flecsEngine_pbrTextures_onSet(
         }
 
         WGPUBindGroup bind_group = NULL;
-        if (flecsEngine_pbr_texture_createBindGroup(
+        if (flecsEngine_textures_createBindGroup(
             engine, albedo_view, emissive_view,
             roughness_view, normal_view, &bind_group))
         {

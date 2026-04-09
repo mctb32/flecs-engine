@@ -647,7 +647,7 @@ static void flecsEngine_textureArray_createBindGroup(
 
     WGPUSampler sampler = flecsEngine_pbr_texture_ensureSampler(impl);
     WGPUBindGroupLayout layout =
-        flecsEngine_pbr_texture_ensureBindLayout(impl);
+        flecsEngine_textures_ensureBindLayout(impl);
 
     WGPUBindGroupEntry entries[5] = {
         { .binding = 0,

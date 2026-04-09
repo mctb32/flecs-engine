@@ -11,10 +11,6 @@ bool flecsIblBuildDefaultImage(
     const flecs_rgba_t *horizon_color,
     FlecsHdriImage *image);
 
-bool flecsEngine_ibl_createRuntimeBindGroup(
-    const FlecsEngineImpl *engine,
-    FlecsHdriImpl *ibl);
-
 void flecsEngine_ibl_releaseRuntimeResources(
     FlecsHdriImpl *ibl);
 

@@ -360,7 +360,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     }
     if (use_textures) {
         WGPUBindGroupLayout tex_layout =
-            flecsEngine_pbr_texture_ensureBindLayout((FlecsEngineImpl*)engine);
+            flecsEngine_textures_ensureBindLayout((FlecsEngineImpl*)engine);
         if (tex_layout) {
             bind_layouts[1] = tex_layout;
         }
@@ -585,7 +585,7 @@ static void FlecsRenderBatch_on_set(
 
         if ((impl.uses_ibl || impl.uses_shadow || impl.uses_cluster ||
              impl.uses_material) &&
-            !flecsEngine_ibl_ensureBindLayout(engine))
+            !flecsEngine_globals_ensureBindLayout(engine))
         {
             flecsEngine_renderBatch_logErr(world, e,
                 "failed to create render batch '%s': "
@@ -828,7 +828,7 @@ void flecsEngine_renderBatch_render(
          * (shadow atlas resize, cluster reallocation, or materials
          * buffer reallocation). */
         if (ibl->scene_bind_version != engine->scene_bind_version) {
-            flecsEngine_ibl_createRuntimeBindGroup(engine, ibl);
+            flecsEngine_globals_createBindGroup(engine, ibl);
         }
 
         /* Scene-globals bundle (IBL + shadow + cluster + materials)
