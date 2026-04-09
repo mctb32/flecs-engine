@@ -22,6 +22,50 @@ ECS_MOVE(FlecsRenderBatch, dst, src, {
     ecs_os_zeromem(src);
 })
 
+/* Lazily create an empty bind group layout used as a placeholder for unused
+ * pipeline bind group slots, so the engine can pin per-batch uniforms to
+ * @group(2) regardless of which optional groups (IBL/shadow/cluster, textures)
+ * the shader actually uses. */
+static WGPUBindGroupLayout flecsEngine_renderBatch_ensureEmptyBindLayout(
+    FlecsEngineImpl *engine)
+{
+    if (engine->empty_bind_layout) {
+        return engine->empty_bind_layout;
+    }
+    engine->empty_bind_layout = wgpuDeviceCreateBindGroupLayout(
+        engine->device,
+        &(WGPUBindGroupLayoutDescriptor){
+            .entryCount = 0,
+            .entries = NULL
+        });
+    return engine->empty_bind_layout;
+}
+
+/* Lazily create an empty bind group matching the empty bind layout. Used to
+ * "unbind" a slot when switching from a pipeline that uses it to one that
+ * does not — WebGPU keeps previously bound groups across pipeline switches,
+ * so a stale non-empty bind group at an empty layout slot fails validation. */
+static WGPUBindGroup flecsEngine_renderBatch_ensureEmptyBindGroup(
+    FlecsEngineImpl *engine)
+{
+    if (engine->empty_bind_group) {
+        return engine->empty_bind_group;
+    }
+    WGPUBindGroupLayout layout =
+        flecsEngine_renderBatch_ensureEmptyBindLayout(engine);
+    if (!layout) {
+        return NULL;
+    }
+    engine->empty_bind_group = wgpuDeviceCreateBindGroup(
+        engine->device,
+        &(WGPUBindGroupDescriptor){
+            .layout = layout,
+            .entryCount = 0,
+            .entries = NULL
+        });
+    return engine->empty_bind_group;
+}
+
 static void flecsEngine_renderBatch_releaseImpl(
     FlecsRenderBatchImpl *ptr)
 {
@@ -315,18 +359,30 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     WGPUTextureFormat color_format,
     uint32_t sample_count)
 {
-    WGPUBindGroupLayout bind_layouts[3] = { bind_layout };
-    uint32_t bind_layout_count = 1u;
+    /* Bind group layout order is fixed by update frequency:
+     *   group 0 = IBL + shadow + cluster (per-frame globals)
+     *   group 1 = PBR material textures (scene-stable)
+     *   group 2 = per-batch uniforms / material storage (per draw)
+     * Unused slots use a shared empty bind group layout placeholder so the
+     * pipeline always has contiguous bind group indices up to 2. */
+    WGPUBindGroupLayout empty_layout =
+        flecsEngine_renderBatch_ensureEmptyBindLayout((FlecsEngineImpl*)engine);
+
+    WGPUBindGroupLayout bind_layouts[3] = {
+        empty_layout, empty_layout, bind_layout
+    };
+    uint32_t bind_layout_count = 3u;
+
     if ((use_ibl || use_shadow || use_cluster) &&
         engine->ibl_shadow_bind_layout)
     {
-        bind_layouts[bind_layout_count++] = engine->ibl_shadow_bind_layout;
+        bind_layouts[0] = engine->ibl_shadow_bind_layout;
     }
     if (use_textures) {
         WGPUBindGroupLayout tex_layout =
             flecsEngine_pbr_texture_ensureBindLayout((FlecsEngineImpl*)engine);
         if (tex_layout) {
-            bind_layouts[bind_layout_count++] = tex_layout;
+            bind_layouts[1] = tex_layout;
         }
     }
 
@@ -828,7 +884,21 @@ void flecsEngine_renderBatch_render(
         bind_group = impl->bind_group_materials;
     }
 
-    wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
+    /* Per-batch uniforms / material storage live at @group(2). */
+    wgpuRenderPassEncoderSetBindGroup(pass, 2, bind_group, 0, NULL);
+
+    /* WebGPU keeps previously bound bind groups across pipeline switches.
+     * If a prior textured draw bound a non-empty group at @group(1), this
+     * pipeline (which expects an empty layout there) would fail validation.
+     * Reset the slot with an empty bind group when this pipeline doesn't use
+     * textures; the textured render callbacks overwrite @group(1) themselves. */
+    if (!impl->uses_textures) {
+        WGPUBindGroup empty = flecsEngine_renderBatch_ensureEmptyBindGroup(
+            (FlecsEngineImpl*)engine);
+        if (empty) {
+            wgpuRenderPassEncoderSetBindGroup(pass, 1, empty, 0, NULL);
+        }
+    }
 
     if (impl->uses_ibl || impl->uses_shadow || impl->uses_cluster) {
         ecs_entity_t hdri = view->hdri;
@@ -844,8 +914,9 @@ void flecsEngine_renderBatch_render(
             flecsEngine_ibl_createRuntimeBindGroup(engine, ibl);
         }
 
+        /* IBL + shadow + cluster bundle lives at @group(0). */
         wgpuRenderPassEncoderSetBindGroup(
-            pass, 1, ibl->ibl_shadow_bind_group, 0, NULL);
+            pass, 0, ibl->ibl_shadow_bind_group, 0, NULL);
     }
 
     batch->callback(world, engine, pass, batch);

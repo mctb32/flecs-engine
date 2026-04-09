@@ -399,10 +399,11 @@ static void flecsEngine_textured_mesh_render(
 
     bool use_array = engine->materials.texture_array_bind_group;
 
-    /* When a texture array is available, bind it once for all groups */
+    /* When a texture array is available, bind it once for all groups.
+     * PBR material textures live at @group(1). */
     if (use_array) {
         wgpuRenderPassEncoderSetBindGroup(
-            pass, 2,
+            pass, 1,
             engine->materials.texture_array_bind_group, 0, NULL);
     }
 
@@ -426,7 +427,7 @@ static void flecsEngine_textured_mesh_render(
                 continue;
             }
             wgpuRenderPassEncoderSetBindGroup(
-                pass, 2, tex_impl->bind_group, 0, NULL);
+                pass, 1, tex_impl->bind_group, 0, NULL);
         }
 
         ctx->vertex_buffer = ctx->mesh.vertex_uv_buffer;
@@ -647,7 +648,7 @@ static void flecsEngine_transparent_mesh_render(
                     continue;
                 }
                 wgpuRenderPassEncoderSetBindGroup(
-                    pass, 2, tex_impl->bind_group,
+                    pass, 1, tex_impl->bind_group,
                     0, NULL);
 
                 if (!ctx->mesh.vertex_uv_buffer) {

@@ -19,12 +19,12 @@
     "  _pad1 : u32\n" \
     "};\n"
 
-/* Cluster bind group bindings at group 1 (shared with IBL + shadow). */
+/* Cluster bind group bindings at group 0 (shared with IBL + shadow). */
 #define FLECS_ENGINE_SHADER_COMMON_CLUSTER_BINDINGS_WGSL \
-    "@group(1) @binding(5) var<uniform> cluster_info : ClusterInfo;\n" \
-    "@group(1) @binding(6) var<storage, read> cluster_grid : array<ClusterEntry>;\n" \
-    "@group(1) @binding(7) var<storage, read> light_indices : array<u32>;\n" \
-    "@group(1) @binding(8) var<storage, read> lights : array<Light>;\n"
+    "@group(0) @binding(5) var<uniform> cluster_info : ClusterInfo;\n" \
+    "@group(0) @binding(6) var<storage, read> cluster_grid : array<ClusterEntry>;\n" \
+    "@group(0) @binding(7) var<storage, read> light_indices : array<u32>;\n" \
+    "@group(0) @binding(8) var<storage, read> lights : array<Light>;\n"
 
 /* Cluster index lookup function */
 #define FLECS_ENGINE_SHADER_COMMON_CLUSTER_FUNCTIONS_WGSL \

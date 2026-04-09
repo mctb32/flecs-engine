@@ -14,6 +14,6 @@
     "  shadow_info : vec4<f32>,\n" \
     "  ambient_light : vec4<f32>\n" \
     "}\n" \
-    "@group(0) @binding(0) var<uniform> uniforms : Uniforms;\n"
+    "@group(2) @binding(0) var<uniform> uniforms : Uniforms;\n"
 
 #endif

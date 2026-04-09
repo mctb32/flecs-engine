@@ -9,7 +9,7 @@ bool flecsEngine_shader_usesIbl(
 
     return strstr(
         shader->source,
-        "@group(1) @binding(0) var ibl_prefiltered_env") != NULL;
+        "@group(0) @binding(0) var ibl_prefiltered_env") != NULL;
 }
 
 bool flecsEngine_shader_usesShadow(
@@ -21,7 +21,7 @@ bool flecsEngine_shader_usesShadow(
 
     return strstr(
         shader->source,
-        "@group(1) @binding(3) var shadow_map") != NULL;
+        "@group(0) @binding(3) var shadow_map") != NULL;
 }
 
 bool flecsEngine_shader_usesCluster(
@@ -45,5 +45,5 @@ bool flecsEngine_shader_usesTextures(
 
     return strstr(
         shader->source,
-        "@group(2) @binding(0) var albedo_tex") != NULL;
+        "@group(1) @binding(0) var albedo_tex") != NULL;
 }

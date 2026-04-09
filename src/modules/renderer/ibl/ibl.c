@@ -312,6 +312,14 @@ void flecsEngine_ibl_releaseResources(
         wgpuBindGroupLayoutRelease(impl->ibl_shadow_bind_layout);
         impl->ibl_shadow_bind_layout = NULL;
     }
+    if (impl && impl->empty_bind_group) {
+        wgpuBindGroupRelease(impl->empty_bind_group);
+        impl->empty_bind_group = NULL;
+    }
+    if (impl && impl->empty_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->empty_bind_layout);
+        impl->empty_bind_layout = NULL;
+    }
 }
 
 static void FlecsIbl_on_set(

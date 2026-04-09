@@ -15,12 +15,12 @@ static const char *kShaderSource =
     FLECS_ENGINE_SHADER_COMMON_SHADOW_WGSL
     FLECS_ENGINE_SHADER_COMMON_CLUSTER_WGSL
 
-    /* PBR texture array bindings at group 2 */
-    "@group(2) @binding(0) var albedo_tex : texture_2d_array<f32>;\n"
-    "@group(2) @binding(1) var emissive_tex : texture_2d_array<f32>;\n"
-    "@group(2) @binding(2) var roughness_tex : texture_2d_array<f32>;\n"
-    "@group(2) @binding(3) var normal_tex : texture_2d_array<f32>;\n"
-    "@group(2) @binding(4) var tex_sampler : sampler;\n"
+    /* PBR texture array bindings at group 1 */
+    "@group(1) @binding(0) var albedo_tex : texture_2d_array<f32>;\n"
+    "@group(1) @binding(1) var emissive_tex : texture_2d_array<f32>;\n"
+    "@group(1) @binding(2) var roughness_tex : texture_2d_array<f32>;\n"
+    "@group(1) @binding(3) var normal_tex : texture_2d_array<f32>;\n"
+    "@group(1) @binding(4) var tex_sampler : sampler;\n"
 
     FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_WGSL
 
