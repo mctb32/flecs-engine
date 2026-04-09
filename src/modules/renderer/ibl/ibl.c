@@ -54,18 +54,25 @@ WGPUBindGroupLayout flecsEngine_ibl_ensureBindLayout(
         return impl->ibl_shadow_bind_layout;
     }
 
-    /* Combined IBL + Shadow + Cluster bind group layout (group 1):
-     *   binding 0: IBL prefiltered env cubemap
-     *   binding 1: IBL sampler
-     *   binding 2: IBL BRDF LUT
-     *   binding 3: Shadow depth texture array
-     *   binding 4: Shadow comparison sampler
-     *   binding 5: Cluster info uniform
-     *   binding 6: Cluster grid storage
-     *   binding 7: Light indices storage
-     *   binding 8: Lights storage (unified point + spot)
-     *   binding 9: IBL irradiance (Lambertian-convolved) env cubemap */
-    WGPUBindGroupLayoutEntry layout_entries[10] = {
+    /* The scene-globals bind group references the materials storage
+     * buffer. Allocate a dummy one up-front so HDRI init (which calls
+     * flecsEngine_ibl_createRuntimeBindGroup) can complete even before
+     * any material has been defined by the scene. */
+    flecsEngine_material_ensureBuffer(impl);
+
+    /* Combined scene-globals bind group layout (group 0):
+     *   binding  0: IBL prefiltered env cubemap
+     *   binding  1: IBL sampler
+     *   binding  2: IBL BRDF LUT
+     *   binding  3: Shadow depth texture array
+     *   binding  4: Shadow comparison sampler
+     *   binding  5: Cluster info uniform
+     *   binding  6: Cluster grid storage
+     *   binding  7: Light indices storage
+     *   binding  8: Lights storage (unified point + spot)
+     *   binding  9: IBL irradiance (Lambertian-convolved) env cubemap
+     *   binding 10: Materials storage (indexed by FlecsMaterialId) */
+    WGPUBindGroupLayoutEntry layout_entries[11] = {
         {
             .binding = 0,
             .visibility = WGPUShaderStage_Fragment,
@@ -147,13 +154,21 @@ WGPUBindGroupLayout flecsEngine_ibl_ensureBindLayout(
                 .viewDimension = WGPUTextureViewDimension_Cube,
                 .multisampled = false
             }
+        },
+        {
+            .binding = 10,
+            .visibility = WGPUShaderStage_Fragment,
+            .buffer = {
+                .type = WGPUBufferBindingType_ReadOnlyStorage,
+                .minBindingSize = sizeof(FlecsGpuMaterial)
+            }
         }
     };
 
     impl->ibl_shadow_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device,
         &(WGPUBindGroupLayoutDescriptor){
-            .entryCount = 10,
+            .entryCount = 11,
             .entries = layout_entries
         });
 
@@ -184,12 +199,19 @@ bool flecsEngine_ibl_createRuntimeBindGroup(
         return false;
     }
 
+    if (!engine->materials.buffer) {
+        return false;
+    }
+
+    uint64_t material_buffer_size =
+        (uint64_t)engine->materials.buffer_capacity * sizeof(FlecsGpuMaterial);
+
     ibl->ibl_shadow_bind_group = wgpuDeviceCreateBindGroup(
         engine->device,
         &(WGPUBindGroupDescriptor){
             .layout = bind_layout,
-            .entryCount = 10,
-            .entries = (WGPUBindGroupEntry[10]){
+            .entryCount = 11,
+            .entries = (WGPUBindGroupEntry[11]){
                 {
                     .binding = 0,
                     .textureView = ibl->ibl_prefiltered_cubemap_view
@@ -236,6 +258,11 @@ bool flecsEngine_ibl_createRuntimeBindGroup(
                 {
                     .binding = 9,
                     .textureView = ibl->ibl_irradiance_cubemap_view
+                },
+                {
+                    .binding = 10,
+                    .buffer = engine->materials.buffer,
+                    .size = material_buffer_size
                 }
             }
         });

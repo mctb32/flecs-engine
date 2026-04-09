@@ -73,11 +73,9 @@ extern ECS_COMPONENT_DECLARE(FlecsRenderViewImpl);
 typedef struct {
     WGPUBindGroupLayout bind_layout;
     WGPUBindGroup bind_group;
-    WGPUBindGroup bind_group_materials;
     WGPURenderPipeline pipeline_hdr;
     WGPURenderPipeline pipeline_shadow;
     WGPUBuffer uniform_buffers[FLECS_ENGINE_UNIFORMS_MAX];
-    uint64_t material_buffer_size;
     uint8_t uniform_count;
     bool uses_material;
     bool uses_ibl;

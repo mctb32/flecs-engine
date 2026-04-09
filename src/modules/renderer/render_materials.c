@@ -64,6 +64,19 @@ static void flecsEngine_material_ensureBufferCapacity(
     impl->materials.buffer = new_material_buffer;
     impl->materials.cpu_materials = new_cpu_materials;
     impl->materials.buffer_capacity = new_capacity;
+
+    /* The materials storage buffer lives in the group-0 scene-globals bind
+     * group. Bump scene_bind_version so the cached bind group is rebuilt
+     * against the new buffer handle on the next frame. */
+    impl->scene_bind_version ++;
+}
+
+void flecsEngine_material_ensureBuffer(
+    FlecsEngineImpl *impl)
+{
+    if (!impl->materials.buffer) {
+        flecsEngine_material_ensureBufferCapacity(impl, 1);
+    }
 }
 
 void flecsEngine_material_releaseBuffer(
@@ -102,6 +115,11 @@ void flecsEngine_material_uploadBuffer(
     FlecsEngineImpl *impl)
 {
     FLECS_TRACY_ZONE_BEGIN("MaterialUpload");
+
+    /* Guarantee a non-null buffer regardless of whether any material is
+     * defined yet — see flecsEngine_material_ensureBuffer. */
+    flecsEngine_material_ensureBuffer(impl);
+
     if (impl->materials.last_id == impl->materials.next_id) {
         FLECS_TRACY_ZONE_END;
         return;

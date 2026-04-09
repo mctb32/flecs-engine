@@ -373,6 +373,12 @@ void flecsEngine_material_buildTextureArrays(
     const ecs_world_t *world,
     FlecsEngineImpl *impl);
 
+/* Ensure the materials storage buffer exists. Allocates a single-entry
+ * dummy on first call so bind groups that reference the materials buffer
+ * (group 0) can be constructed before any material has been defined. */
+void flecsEngine_material_ensureBuffer(
+    FlecsEngineImpl *impl);
+
 ecs_entity_t flecsEngine_createBatch_textured_mesh(
     ecs_world_t *world,
     ecs_entity_t parent,
