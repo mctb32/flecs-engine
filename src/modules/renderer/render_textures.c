@@ -349,7 +349,7 @@ WGPUSampler flecsEngine_pbr_texture_ensureSampler(
     return engine->materials.pbr_sampler;
 }
 
-static const char* flecsEngine_texture_formatName(
+const char* flecsEngine_texture_formatName(
     WGPUTextureFormat format)
 {
     switch (format) {
@@ -478,11 +478,22 @@ void flecsEngine_texture_onSet(
             tex_impl->view =
                 flecsEngine_texture_createArrayView(texture);
 
+            uint32_t tw = wgpuTextureGetWidth(texture);
+            uint32_t th = wgpuTextureGetHeight(texture);
+            WGPUTextureFormat fmt = wgpuTextureGetFormat(texture);
+
+            FlecsTextureInfo *info = ecs_ensure(
+                world, it->entities[i], FlecsTextureInfo);
+            info->source.width = tw;
+            info->source.height = th;
+            info->source.mip_count = wgpuTextureGetMipLevelCount(texture);
+            ecs_os_free((char*)info->source.format);
+            info->source.format = ecs_os_strdup(
+                flecsEngine_texture_formatName(fmt));
+
             ecs_trace("loaded texture: %ux%u %s %s\n",
-                wgpuTextureGetWidth(texture),
-                wgpuTextureGetHeight(texture),
-                flecsEngine_texture_formatName(
-                    wgpuTextureGetFormat(texture)),
+                tw, th,
+                flecsEngine_texture_formatName(fmt),
                 tex[i].path);
         }
     }

@@ -38,6 +38,20 @@ ECS_STRUCT(FlecsTexture, {
 
 extern ECS_COMPONENT_DECLARE(FlecsTexture);
 
+typedef struct {
+    uint32_t width;
+    uint32_t height;
+    uint32_t mip_count;
+    const char *format;
+} flecs_texture_info_t;
+
+ECS_STRUCT(FlecsTextureInfo, {
+    flecs_texture_info_t source;
+    flecs_texture_info_t actual;
+});
+
+extern ECS_COMPONENT_DECLARE(FlecsTextureInfo);
+
 ECS_STRUCT(FlecsPbrTextures, {
     ecs_entity_t albedo;
     ecs_entity_t emissive;

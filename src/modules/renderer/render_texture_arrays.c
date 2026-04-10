@@ -14,6 +14,13 @@ static const WGPUTextureFormat flecs_bc7_channel_format[4] = {
     WGPUTextureFormat_BC7RGBAUnorm,      /* normal   */
 };
 
+static uint32_t flecsEngine_textureArray_mipCount(uint32_t dim)
+{
+    uint32_t count = 1;
+    while (dim > 1) { dim >>= 1; count++; }
+    return count;
+}
+
 static uint8_t flecsEngine_textureArray_pickBucket(uint32_t w, uint32_t h)
 {
     uint32_t max_dim = w > h ? w : h;
@@ -165,7 +172,7 @@ static void flecsEngine_textureArray_decideBucketFormats(
 /* ---- Survey (format-aware) ---- */
 
 static bool flecsEngine_textureArray_survey(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *impl,
     uint32_t bucket_channel_layers[FLECS_ENGINE_TEXTURE_BUCKET_COUNT][4])
 {
@@ -248,6 +255,32 @@ static bool flecsEngine_textureArray_survey(
                 gm->layer_normal = bucket_channel_layers[bucket][3]++;
             }
 
+            /* Write actual (bucket) info to each texture's
+             * FlecsTextureInfo. If a texture appears in multiple
+             * materials, the last write wins — fine for inspection. */
+            uint32_t bk_dim = flecs_engine_bucket_dim[bucket];
+            bool bk_bc7 = impl->materials.buckets[bucket].is_bc7;
+            uint32_t bk_mips =
+                flecsEngine_textureArray_mipCount(bk_dim);
+            for (int ch = 0; ch < 4; ch++) {
+                if (!tex_entities[ch]) continue;
+                FlecsTextureInfo *info = ecs_ensure(
+                    world, tex_entities[ch], FlecsTextureInfo);
+                info->actual.width = bk_dim;
+                info->actual.height = bk_dim;
+                info->actual.mip_count = bk_mips;
+                ecs_os_free((char*)info->actual.format);
+                if (bk_bc7) {
+                    info->actual.format = ecs_os_strdup(
+                        flecsEngine_texture_formatName(
+                            flecs_bc7_channel_format[ch]));
+                } else {
+                    info->actual.format = ecs_os_strdup(
+                        flecsEngine_texture_formatName(
+                            FLECS_ENGINE_BUCKET_FORMAT));
+                }
+            }
+
             any_material = true;
         }
     }
@@ -264,13 +297,6 @@ static bool flecsEngine_textureArray_survey(
 }
 
 /* ---- Bucket creation ---- */
-
-static uint32_t flecsEngine_textureArray_mipCount(uint32_t dim)
-{
-    uint32_t count = 1;
-    while (dim > 1) { dim >>= 1; count++; }
-    return count;
-}
 
 static bool flecsEngine_textureArray_createBucket(
     FlecsEngineImpl *impl,
@@ -497,7 +523,7 @@ static void flecsEngine_textureArray_createBindGroup(
 /* ---- Build orchestrator ---- */
 
 void flecsEngine_material_buildTextureArrays(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
     if (!impl->materials.texture_query || !impl->device) {

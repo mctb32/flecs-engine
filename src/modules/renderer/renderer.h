@@ -363,7 +363,7 @@ WGPUSampler flecsEngine_pbr_texture_ensureSampler(
     FlecsEngineImpl *engine);
 
 void flecsEngine_material_buildTextureArrays(
-    const ecs_world_t *world,
+    ecs_world_t *world,
     FlecsEngineImpl *impl);
 
 /* Ensure the materials storage buffer exists. Allocates a single-entry
@@ -419,6 +419,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
 
 void flecsEngine_texture_onSet(
     ecs_iter_t *it);
+
+const char* flecsEngine_texture_formatName(
+    WGPUTextureFormat format);
 
 // Import renderer module
 void FlecsEngineRendererImport(
