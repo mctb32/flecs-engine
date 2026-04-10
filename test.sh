@@ -17,8 +17,11 @@ SCENES_DIR="etc/assets/scenes"
 BASELINE_DIR="test/scenes"
 OUT_DIR="test/out"
 
+echo "==> Building engine"
+cmake --build build
+
 if [[ ! -x "$ENGINE" ]]; then
-  echo "error: $ENGINE not found or not executable. Build first with: cmake --build build" >&2
+  echo "error: $ENGINE not found or not executable after build." >&2
   exit 1
 fi
 
