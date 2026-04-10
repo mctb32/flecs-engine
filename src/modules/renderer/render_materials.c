@@ -41,8 +41,8 @@ static void flecsEngine_material_ensureBufferCapacity(
         ecs_os_malloc_n(FlecsGpuMaterial, new_capacity);
     ecs_assert(new_cpu_materials != NULL, ECS_OUT_OF_MEMORY, NULL);
 
-    /* Preserve existing data so that texture_layer values (and any other
-     * fields written by buildTextureArrays) survive a reallocation. */
+    /* Preserve existing data so that per-channel layer values (and any
+     * other fields written by buildTextureArrays) survive a reallocation. */
     if (impl->materials.cpu_materials && impl->materials.buffer_capacity) {
         ecs_os_memcpy_n(new_cpu_materials, impl->materials.cpu_materials,
             FlecsGpuMaterial, (int32_t)impl->materials.buffer_capacity);
@@ -104,8 +104,8 @@ void flecsEngine_material_releaseBuffer(
                 wgpuTextureRelease(bk->texture_arrays[ch]);
                 bk->texture_arrays[ch] = NULL;
             }
+            bk->layer_counts[ch] = 0;
         }
-        bk->layer_count = 0;
         bk->mip_count = 0;
         bk->width = 0;
         bk->height = 0;
@@ -220,7 +220,8 @@ redo: {
                      * once it has assigned them to a real bucket. The
                      * per-prefab fallback path also relies on this default
                      * because its bind group plugs source textures into
-                     * the bucket-1 slots. */
+                     * the bucket-1 slots. All per-channel layer fields
+                     * default to 0 (the reserved neutral slot). */
                     .texture_bucket = 1
                 };
             }
@@ -569,8 +570,8 @@ static void flecsEngine_textureArray_release(
                 wgpuTextureRelease(bk->texture_arrays[ch]);
                 bk->texture_arrays[ch] = NULL;
             }
+            bk->layer_counts[ch] = 0;
         }
-        bk->layer_count = 0;
         bk->mip_count = 0;
         bk->width = 0;
         bk->height = 0;
@@ -582,18 +583,31 @@ static void flecsEngine_textureArray_release(
 }
 
 /* Survey all materials with PBR textures, assign each one a bucket based
- * on the largest dimension across its 4 channels, and write the resulting
- * (texture_bucket, texture_layer) into cpu_materials so the shader can
- * look them up later. Returns false only if no materials with textures
- * were found — there's no longer a format-family check because the GPU
- * blit pass converts every source to RGBA8 regardless of input format. */
+ * on the largest dimension across its 4 channels, and assign each
+ * contributing channel its own dense slot inside that bucket's channel
+ * array. Layer 0 of every (bucket, channel) is reserved as a neutral
+ * slot pre-filled with the channel's fallback colour; contributors get
+ * slots 1..N. Materials without a given channel leave their layer at 0
+ * so the shader samples the neutral fill there.
+ *
+ * This decouples channel allocation so that e.g. a bucket with 100 albedo
+ * users but only 1 emissive user sizes its emissive array at 2 layers,
+ * not 100. Fills bucket_channel_layers with (contributors + 1) for each
+ * populated (bucket, channel), and 0 for channels with no contributors
+ * so the create pass can skip them entirely. */
 static bool flecsEngine_textureArray_survey(
     const ecs_world_t *world,
     FlecsEngineImpl *impl,
-    uint32_t bucket_layer_counts[FLECS_ENGINE_TEXTURE_BUCKET_COUNT])
+    uint32_t bucket_channel_layers[FLECS_ENGINE_TEXTURE_BUCKET_COUNT][4])
 {
+    /* Start each (bucket, channel) at 1 for the reserved neutral slot.
+     * Contributors will bump this to 2, 3, ... We'll collapse 1 back
+     * to 0 at the end for channels with zero real contributors so the
+     * create pass knows to skip allocating that channel. */
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
-        bucket_layer_counts[b] = 0;
+        for (int ch = 0; ch < 4; ch++) {
+            bucket_channel_layers[b][ch] = 1;
+        }
     }
 
     bool any_material = false;
@@ -616,6 +630,9 @@ static bool flecsEngine_textureArray_survey(
                 textures[i].normal
             };
 
+            /* First pass: resolve each channel's source (if any) and
+             * find the max side across all contributing channels. */
+            bool has_channel[4] = { false, false, false, false };
             uint32_t max_w = 0, max_h = 0;
             for (int ch = 0; ch < 4; ch++) {
                 if (!tex_entities[ch]) continue;
@@ -623,6 +640,7 @@ static bool flecsEngine_textureArray_survey(
                     ecs_get(world, tex_entities[ch], FlecsTextureImpl);
                 if (!ti || !ti->texture) continue;
 
+                has_channel[ch] = true;
                 uint32_t tw = wgpuTextureGetWidth(ti->texture);
                 uint32_t th = wgpuTextureGetHeight(ti->texture);
                 if (tw > max_w) max_w = tw;
@@ -636,11 +654,36 @@ static bool flecsEngine_textureArray_survey(
             }
 
             uint8_t bucket = flecsEngine_textureArray_pickBucket(max_w, max_h);
-            uint32_t slot = bucket_layer_counts[bucket]++;
+            FlecsGpuMaterial *gm = &impl->materials.cpu_materials[mat_id];
+            gm->texture_bucket = bucket;
 
-            impl->materials.cpu_materials[mat_id].texture_bucket = bucket;
-            impl->materials.cpu_materials[mat_id].texture_layer = slot;
+            /* Per-channel dense slot assignment. Non-contributors stay at
+             * layer 0 (neutral fill). */
+            if (has_channel[0]) {
+                gm->layer_albedo = bucket_channel_layers[bucket][0]++;
+            }
+            if (has_channel[1]) {
+                gm->layer_emissive = bucket_channel_layers[bucket][1]++;
+            }
+            if (has_channel[2]) {
+                gm->layer_mr = bucket_channel_layers[bucket][2]++;
+            }
+            if (has_channel[3]) {
+                gm->layer_normal = bucket_channel_layers[bucket][3]++;
+            }
+
             any_material = true;
+        }
+    }
+
+    /* Channels that never saw a contributor are still sitting at 1 (just
+     * the neutral slot). Collapse those to 0 so createBucket skips them
+     * and the bind group backfills with the 1x1 fallback view. */
+    for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
+        for (int ch = 0; ch < 4; ch++) {
+            if (bucket_channel_layers[b][ch] == 1) {
+                bucket_channel_layers[b][ch] = 0;
+            }
         }
     }
 
@@ -655,17 +698,26 @@ static uint32_t flecsEngine_textureArray_mipCount(uint32_t dim)
     return count;
 }
 
-/* Create the four channel array textures for a single bucket. */
+/* Create the channel array textures for a single bucket. Each channel
+ * is allocated independently at its own layer count; channels with a
+ * layer count of 0 are skipped entirely (their bind group slot will be
+ * backfilled with the 1x1 fallback view). */
 static bool flecsEngine_textureArray_createBucket(
     FlecsEngineImpl *impl,
     uint8_t bucket_idx,
-    uint32_t layer_count)
+    const uint32_t channel_layer_counts[4])
 {
     flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket_idx];
     uint32_t dim = flecs_engine_bucket_dim[bucket_idx];
     uint32_t mip_count = flecsEngine_textureArray_mipCount(dim);
 
     for (int ch = 0; ch < 4; ch++) {
+        uint32_t lc = channel_layer_counts[ch];
+        if (!lc) {
+            bk->layer_counts[ch] = 0;
+            continue;
+        }
+
         WGPUTextureDescriptor desc = {
             .usage = WGPUTextureUsage_TextureBinding
                    | WGPUTextureUsage_CopyDst
@@ -675,7 +727,7 @@ static bool flecsEngine_textureArray_createBucket(
             .size = {
                 .width = dim,
                 .height = dim,
-                .depthOrArrayLayers = layer_count
+                .depthOrArrayLayers = lc
             },
             .format = FLECS_ENGINE_BUCKET_FORMAT,
             .mipLevelCount = mip_count,
@@ -684,12 +736,12 @@ static bool flecsEngine_textureArray_createBucket(
         bk->texture_arrays[ch] = wgpuDeviceCreateTexture(impl->device, &desc);
         if (!bk->texture_arrays[ch]) {
             ecs_err("failed to create texture array (bucket %u, channel %d, "
-                "%ux%u, %u layers)", bucket_idx, ch, dim, dim, layer_count);
+                "%ux%u, %u layers)", bucket_idx, ch, dim, dim, lc);
             return false;
         }
+        bk->layer_counts[ch] = lc;
     }
 
-    bk->layer_count = layer_count;
     bk->mip_count = mip_count;
     bk->width = dim;
     bk->height = dim;
@@ -706,9 +758,6 @@ static void flecsEngine_textureArray_fillBucketFallback(
     uint8_t bucket_idx)
 {
     flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket_idx];
-    if (!bk->layer_count) {
-        return;
-    }
 
     static const uint8_t fallback_rgba[4][4] = {
         { 255, 255, 255, 255 }, /* albedo    */
@@ -718,17 +767,22 @@ static void flecsEngine_textureArray_fillBucketFallback(
     };
 
     uint32_t dim = bk->width;
-    uint32_t layer_count = bk->layer_count;
+    if (!dim) {
+        return;
+    }
     uint32_t row_bytes = dim * 4;
     uint32_t layer_bytes = row_bytes * dim;
     uint8_t *fill = ecs_os_malloc((ecs_size_t)layer_bytes);
 
     for (int ch = 0; ch < 4; ch++) {
+        uint32_t lc = bk->layer_counts[ch];
+        if (!lc || !bk->texture_arrays[ch]) continue;
+
         for (uint32_t p = 0; p < dim * dim; p++) {
             memcpy(fill + p * 4, fallback_rgba[ch], 4);
         }
 
-        for (uint32_t layer = 0; layer < layer_count; layer++) {
+        for (uint32_t layer = 0; layer < lc; layer++) {
             WGPUTexelCopyTextureInfo dst = {
                 .texture = bk->texture_arrays[ch],
                 .mipLevel = 0,
@@ -763,7 +817,8 @@ static void flecsEngine_textureArray_blitTextures(
         impl->device, &(WGPUCommandEncoderDescriptor){0});
 
     /* Pass 1: blit each material's source textures into mip 0 of its
-     * assigned (bucket, slot, channel). */
+     * assigned (bucket, channel, slot). Each channel uses its own
+     * per-material layer index. */
     ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
     while (ecs_query_next(&it)) {
         const FlecsPbrTextures *textures =
@@ -775,14 +830,12 @@ static void flecsEngine_textureArray_blitTextures(
             uint32_t mat_id = mat_ids[i].value;
             if (mat_id >= impl->materials.count) continue;
 
-            uint8_t bucket =
-                impl->materials.cpu_materials[mat_id].texture_bucket;
-            uint32_t slot =
-                impl->materials.cpu_materials[mat_id].texture_layer;
+            const FlecsGpuMaterial *gm =
+                &impl->materials.cpu_materials[mat_id];
+            uint8_t bucket = (uint8_t)gm->texture_bucket;
             if (bucket >= FLECS_ENGINE_TEXTURE_BUCKET_COUNT) continue;
 
             flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket];
-            if (slot >= bk->layer_count) continue;
 
             ecs_entity_t tex_entities[4] = {
                 textures[i].albedo,
@@ -790,9 +843,20 @@ static void flecsEngine_textureArray_blitTextures(
                 textures[i].roughness,
                 textures[i].normal
             };
+            uint32_t per_channel_slot[4] = {
+                gm->layer_albedo,
+                gm->layer_emissive,
+                gm->layer_mr,
+                gm->layer_normal
+            };
 
             for (int ch = 0; ch < 4; ch++) {
                 if (!tex_entities[ch]) continue;
+                if (!bk->texture_arrays[ch]) continue;
+                uint32_t slot = per_channel_slot[ch];
+                if (slot == 0) continue;  /* neutral, never blitted */
+                if (slot >= bk->layer_counts[ch]) continue;
+
                 const FlecsTextureImpl *ti =
                     ecs_get(world, tex_entities[ch], FlecsTextureImpl);
                 if (!ti || !ti->texture) continue;
@@ -831,18 +895,19 @@ static void flecsEngine_textureArray_blitTextures(
         }
     }
 
-    /* Pass 2: generate mips 1..N for every channel of every populated
-     * bucket. The compute shader runs across all slices in one dispatch
-     * per (bucket, channel, mip-level). */
+    /* Pass 2: generate mips 1..N for every populated (bucket, channel).
+     * Each channel uses its own layer count; channels with no
+     * allocation are skipped. */
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
         flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[b];
-        if (!bk->layer_count || bk->mip_count <= 1) continue;
+        if (bk->mip_count <= 1) continue;
         for (int ch = 0; ch < 4; ch++) {
+            if (!bk->layer_counts[ch] || !bk->texture_arrays[ch]) continue;
             flecsEngine_textureArray_genMipsForChannel(
                 impl, encoder,
                 bk->texture_arrays[ch],
                 bk->width, bk->height,
-                bk->layer_count, bk->mip_count);
+                bk->layer_counts[ch], bk->mip_count);
         }
     }
 
@@ -863,22 +928,24 @@ static void flecsEngine_textureArray_blitTextures(
     }
 }
 
-/* Create 2D-array views per bucket and assemble the single bind group. */
+/* Create 2D-array views per bucket and assemble the single bind group.
+ * Channels with no allocation get a NULL view here; the backfill loop
+ * below plugs in the 1x1 fallback view in their place. */
 static void flecsEngine_textureArray_createBindGroup(
     FlecsEngineImpl *impl)
 {
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
         flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[b];
-        if (!bk->layer_count) continue;
 
         for (int ch = 0; ch < 4; ch++) {
+            if (!bk->layer_counts[ch] || !bk->texture_arrays[ch]) continue;
             WGPUTextureViewDescriptor vd = {
                 .format = FLECS_ENGINE_BUCKET_FORMAT,
                 .dimension = WGPUTextureViewDimension_2DArray,
                 .baseMipLevel = 0,
                 .mipLevelCount = bk->mip_count,
                 .baseArrayLayer = 0,
-                .arrayLayerCount = bk->layer_count
+                .arrayLayerCount = bk->layer_counts[ch]
             };
             bk->texture_array_views[ch] = wgpuTextureCreateView(
                 bk->texture_arrays[ch], &vd);
@@ -925,10 +992,12 @@ static void flecsEngine_textureArray_createBindGroup(
 }
 
 /* Build per-bucket texture 2D arrays so the shader can index layers via
- * (texture_bucket, texture_layer) pairs on FlecsGpuMaterial. The GPU blit
- * pass normalizes any source format/dimension to the bucket's RGBA8Unorm
- * arrays, so this build always succeeds when there's at least one material
- * with PBR textures. */
+ * texture_bucket plus per-channel layer fields on FlecsGpuMaterial.
+ * Channels are sized independently per bucket: only materials that
+ * actually have a texture for a given (bucket, channel) consume a
+ * layer there. The GPU blit pass normalizes any source format/dimension
+ * to the bucket's RGBA8Unorm arrays, so this build always succeeds when
+ * there's at least one material with PBR textures. */
 void flecsEngine_material_buildTextureArrays(
     const ecs_world_t *world,
     FlecsEngineImpl *impl)
@@ -940,17 +1009,22 @@ void flecsEngine_material_buildTextureArrays(
     flecsEngine_textureArray_release(impl);
     flecsEngine_pbr_texture_ensureFallbacks(impl);
 
-    uint32_t bucket_layer_counts[FLECS_ENGINE_TEXTURE_BUCKET_COUNT];
+    uint32_t bucket_channel_layers[FLECS_ENGINE_TEXTURE_BUCKET_COUNT][4];
     if (!flecsEngine_textureArray_survey(
-            world, impl, bucket_layer_counts))
+            world, impl, bucket_channel_layers))
     {
         return;
     }
 
     for (uint8_t b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
-        if (!bucket_layer_counts[b]) continue;
+        uint32_t bucket_total = 0;
+        for (int ch = 0; ch < 4; ch++) {
+            bucket_total += bucket_channel_layers[b][ch];
+        }
+        if (!bucket_total) continue;
+
         if (!flecsEngine_textureArray_createBucket(
-                impl, b, bucket_layer_counts[b]))
+                impl, b, bucket_channel_layers[b]))
         {
             flecsEngine_textureArray_release(impl);
             return;

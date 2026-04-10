@@ -8,8 +8,11 @@
     "  roughness : f32,\n" \
     "  emissive_strength : f32,\n" \
     "  emissive_color : u32,\n" \
-    "  texture_layer : u32,\n" \
-    "  texture_bucket : u32\n" \
+    "  texture_bucket : u32,\n" \
+    "  layer_albedo : u32,\n" \
+    "  layer_emissive : u32,\n" \
+    "  layer_mr : u32,\n" \
+    "  layer_normal : u32\n" \
     "};\n" \
     "@group(0) @binding(11) var<storage, read> materials : array<GpuMaterial>;\n"
 

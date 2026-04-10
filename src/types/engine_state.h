@@ -51,7 +51,9 @@ typedef struct {
 typedef struct {
     WGPUTexture texture_arrays[4];       /* albedo, emissive, roughness, normal */
     WGPUTextureView texture_array_views[4];
-    uint32_t layer_count;
+    /* Per-channel layer count. A channel with 0 layers is not allocated;
+     * its binding slot is plugged with a 1x1 fallback view. */
+    uint32_t layer_counts[4];
     uint32_t mip_count;
     uint32_t width;
     uint32_t height;
