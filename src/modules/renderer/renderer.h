@@ -390,6 +390,18 @@ void flecsEngine_textureArray_blitTextures(
     const ecs_world_t *world,
     FlecsEngineImpl *impl);
 
+/* Copy BC7 source textures directly into BC7 bucket arrays, preserving
+ * their authored mip chains. See render_texture_blit.c. */
+void flecsEngine_textureArray_copyTextures_bc7(
+    const ecs_world_t *world,
+    FlecsEngineImpl *impl);
+
+/* Encode a solid-color 4x4 BC7 block (Mode 5). Used by the BC7 fallback
+ * fill in render_texture_arrays.c. See render_texture_blit.c. */
+void flecsEngine_bc7_encodeSolidBlock(
+    uint8_t block[16],
+    uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+
 /* Release blit pipeline, mip-gen pipeline, and associated state.
  * See render_texture_blit.c. */
 void flecsEngine_textureBlit_release(

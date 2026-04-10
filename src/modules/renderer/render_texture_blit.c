@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "renderer.h"
 #include "flecs_engine.h"
 
@@ -293,9 +295,9 @@ void flecsEngine_textureArray_blitTextures(
     WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(
         impl->device, &(WGPUCommandEncoderDescriptor){0});
 
-    /* Pass 1: blit each material's source textures into mip 0 of its
-     * assigned (bucket, channel, slot). Each channel uses its own
-     * per-material layer index. */
+    /* Blit each material's source textures into mip 0 of its assigned
+     * (bucket, channel, slot). Only operates on RGBA8 buckets — BC7
+     * buckets are handled by flecsEngine_textureArray_copyTextures_bc7. */
     ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
     while (ecs_query_next(&it)) {
         const FlecsPbrTextures *textures =
@@ -313,6 +315,7 @@ void flecsEngine_textureArray_blitTextures(
             if (bucket >= FLECS_ENGINE_TEXTURE_BUCKET_COUNT) continue;
 
             flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket];
+            if (bk->is_bc7) continue;  /* handled by BC7 copy path */
 
             ecs_entity_t tex_entities[4] = {
                 textures[i].albedo,
@@ -368,12 +371,11 @@ void flecsEngine_textureArray_blitTextures(
         }
     }
 
-    /* Pass 2: generate mips 1..N for every populated (bucket, channel).
-     * Each channel uses its own layer count; channels with no
-     * allocation are skipped. */
+    /* Generate mips 1..N for every populated RGBA8 (bucket, channel).
+     * BC7 buckets use source mips directly — no generation needed. */
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
         flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[b];
-        if (bk->mip_count <= 1) continue;
+        if (bk->is_bc7 || bk->mip_count <= 1) continue;
         for (int ch = 0; ch < 4; ch++) {
             if (!bk->layer_counts[ch] || !bk->texture_arrays[ch]) continue;
             flecsEngine_textureArray_genMipsForChannel(
@@ -387,6 +389,221 @@ void flecsEngine_textureArray_blitTextures(
     WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(
         encoder, &(WGPUCommandBufferDescriptor){0});
     wgpuQueueSubmit(impl->queue, 1, &cmd);
+    wgpuCommandBufferRelease(cmd);
+    wgpuCommandEncoderRelease(encoder);
+}
+
+/* ---- BC7 solid-color block encoder ---- */
+
+/* Encode a solid-color 4x4 BC7 block using Mode 5 (no partitions,
+ * 7-bit color endpoints, 8-bit alpha endpoints). Both endpoints are
+ * set to the same value and all indices are 0, producing a uniform
+ * block. The 7-bit quantization rounds to the nearest representable
+ * value (±1 from the 8-bit input). */
+void flecsEngine_bc7_encodeSolidBlock(
+    uint8_t block[16],
+    uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+    memset(block, 0, 16);
+
+    uint8_t r7 = r >> 1, g7 = g >> 1, b7 = b >> 1;
+
+    /* Pack bits LSB-first into 128-bit block:
+     *   [5:0]   mode = 000001 (mode 5)
+     *   [7:6]   rotation = 00
+     *   [14:8]  ep0.R (7 bits)
+     *   [21:15] ep0.G (7 bits)
+     *   [28:22] ep0.B (7 bits)
+     *   [35:29] ep1.R (7 bits)
+     *   [42:36] ep1.G (7 bits)
+     *   [49:43] ep1.B (7 bits)
+     *   [57:50] ep0.A (8 bits)
+     *   [65:58] ep1.A (8 bits)
+     *   [96:66] color indices (31 bits, all 0)
+     *   [127:97] alpha indices (31 bits, all 0) */
+    uint64_t lo = 0, hi = 0;
+    int bit = 0;
+
+    #define WB(val, cnt) do { \
+        uint64_t _v = (uint64_t)(val); \
+        for (int _i = 0; _i < (cnt); _i++, bit++) { \
+            if (bit < 64) lo |= ((_v >> _i) & 1) << bit; \
+            else          hi |= ((_v >> _i) & 1) << (bit - 64); \
+        } \
+    } while(0)
+
+    WB(1 << 5, 6);   /* mode 5 */
+    WB(0, 2);        /* rotation */
+    WB(r7, 7);       /* ep0.R */
+    WB(g7, 7);       /* ep0.G */
+    WB(b7, 7);       /* ep0.B */
+    WB(r7, 7);       /* ep1.R */
+    WB(g7, 7);       /* ep1.G */
+    WB(b7, 7);       /* ep1.B */
+    WB(a, 8);        /* ep0.A */
+    WB(a, 8);        /* ep1.A */
+    /* indices: all 0 — already zeroed by memset */
+
+    #undef WB
+
+    memcpy(block, &lo, 8);
+    memcpy(block + 8, &hi, 8);
+}
+
+/* ---- BC7 direct-copy path ---- */
+
+static bool flecsEngine_textureArray_isBC7(WGPUTextureFormat fmt)
+{
+    return fmt == WGPUTextureFormat_BC7RGBAUnorm
+        || fmt == WGPUTextureFormat_BC7RGBAUnormSrgb;
+}
+
+void flecsEngine_textureArray_copyTextures_bc7(
+    const ecs_world_t *world,
+    FlecsEngineImpl *impl)
+{
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(
+        impl->device, &(WGPUCommandEncoderDescriptor){0});
+
+    bool any_work = false;
+
+    ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
+    while (ecs_query_next(&it)) {
+        const FlecsPbrTextures *textures =
+            ecs_field(&it, FlecsPbrTextures, 0);
+        const FlecsMaterialId *mat_ids =
+            ecs_field(&it, FlecsMaterialId, 1);
+
+        for (int32_t i = 0; i < it.count; i++) {
+            uint32_t mat_id = mat_ids[i].value;
+            if (mat_id >= impl->materials.count) continue;
+
+            const FlecsGpuMaterial *gm =
+                &impl->materials.cpu_materials[mat_id];
+            uint8_t bucket = (uint8_t)gm->texture_bucket;
+            if (bucket >= FLECS_ENGINE_TEXTURE_BUCKET_COUNT) continue;
+
+            flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket];
+            if (!bk->is_bc7) continue;  /* RGBA8 buckets handled by blit */
+
+            ecs_entity_t tex_entities[4] = {
+                textures[i].albedo,
+                textures[i].emissive,
+                textures[i].roughness,
+                textures[i].normal
+            };
+            uint32_t per_channel_slot[4] = {
+                gm->layer_albedo,
+                gm->layer_emissive,
+                gm->layer_mr,
+                gm->layer_normal
+            };
+
+            for (int ch = 0; ch < 4; ch++) {
+                if (!tex_entities[ch]) continue;
+                if (!bk->texture_arrays[ch]) continue;
+                uint32_t slot = per_channel_slot[ch];
+                if (slot == 0) continue;
+                if (slot >= bk->layer_counts[ch]) continue;
+
+                const FlecsTextureImpl *ti =
+                    ecs_get(world, tex_entities[ch], FlecsTextureImpl);
+                if (!ti || !ti->texture) continue;
+
+                /* Only copy BC7 sources. Non-BC7 sources that ended up
+                 * in a BC7 bucket were redirected during survey — they
+                 * shouldn't appear here. Log and skip if they do. */
+                if (!flecsEngine_textureArray_isBC7(
+                        wgpuTextureGetFormat(ti->texture)))
+                {
+                    continue;
+                }
+
+                uint32_t src_w = wgpuTextureGetWidth(ti->texture);
+                uint32_t src_h = wgpuTextureGetHeight(ti->texture);
+                uint32_t src_mips = wgpuTextureGetMipLevelCount(ti->texture);
+
+                /* Match source and bucket dimensions at the copy point.
+                 *  - Oversized source (e.g. 4096 → 2048 bucket):
+                 *    skip high source mips (src_mip_start > 0).
+                 *  - Undersized source (e.g. 1024 → 2048 bucket):
+                 *    start at a lower bucket mip (dst_mip_start > 0);
+                 *    higher bucket mips keep the fallback fill.
+                 *  - Non-square source can't match a square bucket at
+                 *    any mip level — skip entirely. */
+                uint32_t src_mip_start = 0;
+                uint32_t dst_mip_start = 0;
+                uint32_t src_max = src_w > src_h ? src_w : src_h;
+
+                if (src_max > bk->width) {
+                    while ((src_max >> src_mip_start) > bk->width &&
+                           src_mip_start + 1 < src_mips)
+                    {
+                        src_mip_start++;
+                    }
+                } else if (src_max < bk->width) {
+                    while ((bk->width >> dst_mip_start) > src_max &&
+                           dst_mip_start + 1 < bk->mip_count)
+                    {
+                        dst_mip_start++;
+                    }
+                }
+
+                /* Verify dimensions actually match at the copy point. */
+                uint32_t eff_src_w = src_w >> src_mip_start;
+                uint32_t eff_src_h = src_h >> src_mip_start;
+                if (!eff_src_w) eff_src_w = 1;
+                if (!eff_src_h) eff_src_h = 1;
+                uint32_t eff_dst_w = bk->width >> dst_mip_start;
+                uint32_t eff_dst_h = bk->height >> dst_mip_start;
+                if (eff_src_w != eff_dst_w || eff_src_h != eff_dst_h) {
+                    continue;  /* non-square or mismatched — keep fallback */
+                }
+
+                uint32_t avail_src = src_mips > src_mip_start
+                    ? src_mips - src_mip_start : 0;
+                uint32_t avail_dst = bk->mip_count > dst_mip_start
+                    ? bk->mip_count - dst_mip_start : 0;
+                uint32_t copy_mips = avail_src < avail_dst
+                    ? avail_src : avail_dst;
+
+                for (uint32_t mi = 0; mi < copy_mips; mi++) {
+                    uint32_t mw = bk->width >> (dst_mip_start + mi);
+                    uint32_t mh = bk->height >> (dst_mip_start + mi);
+                    if (!mw) mw = 1;
+                    if (!mh) mh = 1;
+
+                    /* CopyTextureToTexture requires block-aligned extents
+                     * for BC formats. Sub-block mips (< 4×4) can't satisfy
+                     * this, so stop here — they keep the fallback fill. */
+                    if (mw < 4 || mh < 4) break;
+
+                    WGPUTexelCopyTextureInfo src = {
+                        .texture = ti->texture,
+                        .mipLevel = src_mip_start + mi,
+                        .origin = { 0, 0, 0 },
+                        .aspect = WGPUTextureAspect_All
+                    };
+                    WGPUTexelCopyTextureInfo dst = {
+                        .texture = bk->texture_arrays[ch],
+                        .mipLevel = dst_mip_start + mi,
+                        .origin = { 0, 0, slot },
+                        .aspect = WGPUTextureAspect_All
+                    };
+                    WGPUExtent3D size = { mw, mh, 1 };
+                    wgpuCommandEncoderCopyTextureToTexture(
+                        encoder, &src, &dst, &size);
+                    any_work = true;
+                }
+            }
+        }
+    }
+
+    WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(
+        encoder, &(WGPUCommandBufferDescriptor){0});
+    if (any_work) {
+        wgpuQueueSubmit(impl->queue, 1, &cmd);
+    }
     wgpuCommandBufferRelease(cmd);
     wgpuCommandEncoderRelease(encoder);
 }

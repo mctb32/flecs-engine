@@ -57,6 +57,7 @@ typedef struct {
     uint32_t mip_count;
     uint32_t width;
     uint32_t height;
+    bool is_bc7;
 } flecs_engine_texture_bucket_t;
 
 typedef struct {
