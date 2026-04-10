@@ -399,6 +399,7 @@ static void FlecsEngineRender(
     ecs_iter_t *it)
 {
     FLECS_TRACY_ZONE_BEGIN("Render");
+    flecsEngine_debugServer_dequeue(it->delta_time);
     FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
 
     const FlecsEngineSurfaceInterface *surface_impl = impl->surface_impl;
@@ -683,4 +684,6 @@ void FlecsEngineRendererImport(
 
     ECS_SYSTEM(world, FlecsEngineRender, EcsOnStore,
         flecs.engine.EngineImpl);
+
+    flecsEngine_debugServer_init(world);
 }

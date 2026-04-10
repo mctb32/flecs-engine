@@ -15,22 +15,22 @@ static ecs_entity_t flecsEngine_createBatchSet_geometry_materialData(
         world, batch_set_entity, FlecsRenderBatchSet);
 
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_boxes(world, batch_set_entity, NULL);
+        flecsEngine_createBatch_boxes(world, batch_set_entity, "Boxes");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_quads(world, batch_set_entity, NULL);
+        flecsEngine_createBatch_quads(world, batch_set_entity, "Quads");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_triangles(world, batch_set_entity, NULL);
+        flecsEngine_createBatch_triangles(world, batch_set_entity, "Triangles");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_right_triangles(world, batch_set_entity, NULL);
+        flecsEngine_createBatch_right_triangles(world, batch_set_entity, "RightTriangles");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_triangle_prisms(world, batch_set_entity, NULL);
+        flecsEngine_createBatch_triangle_prisms(world, batch_set_entity, "TrianglePrisms");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
         flecsEngine_createBatch_right_triangle_prisms(
-            world, batch_set_entity, NULL);
+            world, batch_set_entity, "RightTrianglePrisms");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_bevel_boxes(world, batch_set_entity, NULL);
+        flecsEngine_createBatch_bevel_boxes(world, batch_set_entity, "BevelBoxes");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_mesh_materialData(world, batch_set_entity, NULL);
+        flecsEngine_createBatch_mesh_materialData(world, batch_set_entity, "Meshes");
 
     ecs_set_ptr(world, batch_set_entity, FlecsRenderBatchSet, &batch_set);
     return batch_set_entity;
@@ -46,26 +46,26 @@ static ecs_entity_t flecsEngine_createBatchSet_geometry_materialIndex(
         world, batch_set_entity, FlecsRenderBatchSet);
 
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_boxes_materialIndex(world, batch_set_entity, NULL);
+        flecsEngine_createBatch_boxes_materialIndex(world, batch_set_entity, "Boxes");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_quads_materialIndex(world, batch_set_entity, NULL);
+        flecsEngine_createBatch_quads_materialIndex(world, batch_set_entity, "Quads");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
         flecsEngine_createBatch_triangles_materialIndex(
-            world, batch_set_entity, NULL);
+            world, batch_set_entity, "Triangles");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
         flecsEngine_createBatch_right_triangles_materialIndex(
-            world, batch_set_entity, NULL);
+            world, batch_set_entity, "RightTriangles");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
         flecsEngine_createBatch_triangle_prisms_materialIndex(
-            world, batch_set_entity, NULL);
+            world, batch_set_entity, "TrianglePrisms");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
         flecsEngine_createBatch_right_triangle_prisms_materialIndex(
-            world, batch_set_entity, NULL);
+            world, batch_set_entity, "RightTrianglePrisms");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
         flecsEngine_createBatch_bevel_boxes_materialIndex(
-            world, batch_set_entity, NULL);
+            world, batch_set_entity, "BevelBoxes");
     ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
-        flecsEngine_createBatch_mesh_materialIndex(world, batch_set_entity, NULL);
+        flecsEngine_createBatch_mesh_materialIndex(world, batch_set_entity, "Meshes");
 
     ecs_set_ptr(world, batch_set_entity, FlecsRenderBatchSet, &batch_set);
     return batch_set_entity;
@@ -86,18 +86,18 @@ static void FlecsOnAddGeometryBatch(
 
         ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
             flecsEngine_createBatchSet_geometry_materialData(
-                it->world, batch_set_entity, NULL);
+                it->world, batch_set_entity, "ColoredGeometry");
         ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
             flecsEngine_createBatchSet_geometry_materialIndex(
-                it->world, batch_set_entity, NULL);
+                it->world, batch_set_entity, "MaterialGeometry");
         ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
             flecsEngine_createBatch_textured_mesh(
-                it->world, batch_set_entity, NULL);
+                it->world, batch_set_entity, "TexturedMeshes");
 
         /* Transparent batches must render last (after all opaques) */
         ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
             flecsEngine_createBatch_mesh_transparent(
-                it->world, batch_set_entity, NULL);
+                it->world, batch_set_entity, "TransparentMeshes");
 
         ecs_set_ptr(it->world, batch_set_entity, FlecsRenderBatchSet,
             &batch_set);

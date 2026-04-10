@@ -423,6 +423,11 @@ void flecsEngine_texture_onSet(
 const char* flecsEngine_texture_formatName(
     WGPUTextureFormat format);
 
+/* Debug HTTP server (port 8000) — see debug_server.c */
+void flecsEngine_debugServer_init(ecs_world_t *world);
+void flecsEngine_debugServer_fini(void);
+void flecsEngine_debugServer_dequeue(float delta_time);
+
 // Import renderer module
 void FlecsEngineRendererImport(
     ecs_world_t *world);
