@@ -64,16 +64,6 @@ void flecsEngine_ibl_releaseRuntimeResources(
         ibl->ibl_sampler = NULL;
     }
 
-    if (ibl->ibl_brdf_lut_texture_view) {
-        wgpuTextureViewRelease(ibl->ibl_brdf_lut_texture_view);
-        ibl->ibl_brdf_lut_texture_view = NULL;
-    }
-
-    if (ibl->ibl_brdf_lut_texture) {
-        wgpuTextureRelease(ibl->ibl_brdf_lut_texture);
-        ibl->ibl_brdf_lut_texture = NULL;
-    }
-
     if (ibl->ibl_prefiltered_cubemap_view) {
         wgpuTextureViewRelease(ibl->ibl_prefiltered_cubemap_view);
         ibl->ibl_prefiltered_cubemap_view = NULL;

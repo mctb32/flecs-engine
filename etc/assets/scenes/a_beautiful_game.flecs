@@ -8,11 +8,16 @@ using flecs.script
     Rgba: {0, 0, 0}
 }
 
+light {
+    DirectionalLight: {intensity: 1}
+    Position3: {-2, 5, 1}
+}
+
 prefab ABeautifulGame {
     Gltf: {"etc/assets/gltf/ABeautifulGame/ABeautifulGame.gltf"}
 }
 
 _ : ABeautifulGame {
-    Position3: {}
-    Scale3: {5, 5, 5}
+    Position3: {z: 1}
+    Scale3: {8, 8, 8}
 }

@@ -53,7 +53,7 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
         }
     }
 
-    WGPUBindGroupLayoutEntry layout_entries[12] = {
+    WGPUBindGroupLayoutEntry layout_entries[11] = {
         { /* 0: Frame uniform (FlecsUniform) */
             .binding = 0,
             .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
@@ -76,15 +76,6 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
             .visibility = WGPUShaderStage_Fragment,
             .sampler = {
                 .type = WGPUSamplerBindingType_Filtering
-            }
-        },
-        { /* 3: IBL BRDF LUT */
-            .binding = 3,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
             }
         },
         { /* 4: IBL irradiance cubemap */
@@ -157,7 +148,7 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
     impl->ibl_shadow_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device,
         &(WGPUBindGroupLayoutDescriptor){
-            .entryCount = 12,
+            .entryCount = 11,
             .entries = layout_entries
         });
 
@@ -203,8 +194,8 @@ bool flecsEngine_globals_createBindGroup(
         engine->device,
         &(WGPUBindGroupDescriptor){
             .layout = bind_layout,
-            .entryCount = 12,
-            .entries = (WGPUBindGroupEntry[12]){
+            .entryCount = 11,
+            .entries = (WGPUBindGroupEntry[11]){
                 {
                     .binding = 0,
                     .buffer = engine->frame_uniform_buffer,
@@ -217,10 +208,6 @@ bool flecsEngine_globals_createBindGroup(
                 {
                     .binding = 2,
                     .sampler = ibl->ibl_sampler
-                },
-                {
-                    .binding = 3,
-                    .textureView = ibl->ibl_brdf_lut_texture_view
                 },
                 {
                     .binding = 4,

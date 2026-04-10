@@ -143,7 +143,7 @@ void initEngine(
       .bias = 0.0001
     },
     .background = {
-      .sky_color = {5, 45, 100},
+      .sky_color = {100, 100, 100},
       .haze_color = {255, 255, 255},
       .horizon_color = {250, 255, 255},
       .ground_color = {60, 60, 60},

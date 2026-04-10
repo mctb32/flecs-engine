@@ -93,7 +93,6 @@ static void page_bindings(ecs_strbuf_t *b, const FlecsEngineImpl *impl)
         {"0",  "uniform",          "Frame uniforms (FlecsUniform)"},
         {"1",  "texture_cube",     "IBL prefiltered env cubemap"},
         {"2",  "sampler",          "IBL sampler"},
-        {"3",  "texture_2d",       "IBL BRDF LUT"},
         {"4",  "texture_cube",     "IBL irradiance cubemap"},
         {"5",  "texture_depth_2d_array", "Shadow depth (CSM)"},
         {"6",  "sampler_comparison","Shadow sampler"},
@@ -103,7 +102,7 @@ static void page_bindings(ecs_strbuf_t *b, const FlecsEngineImpl *impl)
         {"10", "storage (ro)",     "Lights (point + spot)"},
         {"11", "storage (ro)",     "Materials (FlecsGpuMaterial)"},
     };
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 11; i++) {
         ecs_strbuf_append(b,
             "<tr><td class='num'>%s</td><td>%s</td><td>%s</td></tr>",
             g0[i][0], g0[i][1], g0[i][2]);

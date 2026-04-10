@@ -29,7 +29,7 @@
     "  let max_mip = max(f32(textureNumLevels(ibl_prefiltered_env)) - 1.0, 0.0);\n" \
     "  let lod = roughness * max_mip;\n" \
     "  let prefiltered_color = textureSampleLevel(ibl_prefiltered_env, ibl_sampler, r, lod).rgb;\n" \
-    "  let brdf = textureSample(ibl_brdf_lut, ibl_sampler, vec2<f32>(ndotv, roughness)).rg;\n" \
+    "  let brdf = envBRDFApprox(roughness, ndotv);\n" \
     "  let F = fresnelSchlickRoughness(ndotv, f0, roughness);\n" \
     "  let specular_ibl = prefiltered_color * computeSplitSumSpecularTerm(f0, brdf) * uniforms.ambient_light.w;\n" \
     "  let irradiance = textureSampleLevel(ibl_irradiance_env, ibl_sampler, n, 0.0).rgb;\n" \

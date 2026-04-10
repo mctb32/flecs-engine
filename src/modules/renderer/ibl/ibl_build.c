@@ -8,7 +8,7 @@
 #include "flecs_engine.h"
 
 #define FLECS_ENGINE_IBL_ENV_SIZE (512u)
-#define FLECS_ENGINE_IBL_BRDF_LUT_SIZE (256u)
+/* BRDF LUT replaced by analytical Karis/Lazarov approximation in shader */
 #define FLECS_ENGINE_IBL_IRRADIANCE_SIZE (32u)
 #define FLECS_ENGINE_IBL_FALLBACK_IMAGE_SIZE (1u)
 
@@ -604,38 +604,6 @@ static bool flecsIblCreateCubeTexture(
     return true;
 }
 
-static bool flecsIblCreateBrdfLutTexture(
-    const FlecsEngineImpl *engine,
-    FlecsHdriImpl *ibl)
-{
-    WGPUTextureDescriptor desc = {
-        .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment,
-        .dimension = WGPUTextureDimension_2D,
-        .size = (WGPUExtent3D){
-            .width = FLECS_ENGINE_IBL_BRDF_LUT_SIZE,
-            .height = FLECS_ENGINE_IBL_BRDF_LUT_SIZE,
-            .depthOrArrayLayers = 1
-        },
-        .format = WGPUTextureFormat_RG16Float,
-        .mipLevelCount = 1,
-        .sampleCount = 1
-    };
-
-    ibl->ibl_brdf_lut_texture = wgpuDeviceCreateTexture(engine->device, &desc);
-    if (!ibl->ibl_brdf_lut_texture) {
-        return false;
-    }
-
-    ibl->ibl_brdf_lut_texture_view = flecsIblCreateTexture2DView(
-        ibl->ibl_brdf_lut_texture,
-        WGPUTextureFormat_RG16Float);
-    if (!ibl->ibl_brdf_lut_texture_view) {
-        return false;
-    }
-
-    return true;
-}
-
 static bool flecsIblCreateSampler(
     const FlecsEngineImpl *engine,
     FlecsHdriImpl *ibl)
@@ -987,14 +955,6 @@ static bool flecsIblRunPreprocessPasses(
         }
     }
 
-    if (!flecsIblSubmitFullscreenPass(
-        engine,
-        ibl->ibl_brdf_lut_texture_view,
-        brdf_pipeline,
-        brdf_bind_group))
-    {
-        goto cleanup;
-    }
     result = true;
 
 cleanup:
@@ -1120,10 +1080,6 @@ bool flecsEngine_ibl_initResources(
         &ibl->ibl_irradiance_cubemap,
         &ibl->ibl_irradiance_cubemap_view))
     {
-        goto done;
-    }
-
-    if (!flecsIblCreateBrdfLutTexture(engine, ibl)) {
         goto done;
     }
 
