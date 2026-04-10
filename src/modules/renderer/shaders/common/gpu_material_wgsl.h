@@ -12,7 +12,12 @@
     "  layer_albedo : u32,\n" \
     "  layer_emissive : u32,\n" \
     "  layer_mr : u32,\n" \
-    "  layer_normal : u32\n" \
+    "  layer_normal : u32,\n" \
+    "  transmission_factor : f32,\n" \
+    "  ior : f32,\n" \
+    "  thickness_factor : f32,\n" \
+    "  attenuation_distance : f32,\n" \
+    "  attenuation_color : u32\n" \
     "};\n" \
     "@group(0) @binding(11) var<storage, read> materials : array<GpuMaterial>;\n"
 

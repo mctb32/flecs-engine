@@ -6,6 +6,7 @@ ECS_COMPONENT_DECLARE(FlecsEmissive);
 ECS_COMPONENT_DECLARE(FlecsMaterialId);
 ECS_COMPONENT_DECLARE(FlecsPbrTextures);
 ECS_TAG_DECLARE(FlecsAlphaBlend);
+ECS_COMPONENT_DECLARE(FlecsTransmission);
 
 static void FlecsMaterialIdInit(
     ecs_iter_t *it)
@@ -35,6 +36,7 @@ void FlecsEngineMaterialImport(
     ECS_COMPONENT_DEFINE(world, FlecsRgba);
     ECS_COMPONENT_DEFINE(world, FlecsEmissive);
     ECS_TAG_DEFINE(world, FlecsAlphaBlend);
+    ECS_COMPONENT_DEFINE(world, FlecsTransmission);
 
     ecs_struct(world, {
         .entity = ecs_id(FlecsMaterialId),
@@ -79,11 +81,23 @@ void FlecsEngineMaterialImport(
         }
     });
 
+    ecs_struct(world, {
+        .entity = ecs_id(FlecsTransmission),
+        .members = {
+            { .name = "transmission_factor", .type = ecs_id(ecs_f32_t) },
+            { .name = "ior", .type = ecs_id(ecs_f32_t) },
+            { .name = "thickness_factor", .type = ecs_id(ecs_f32_t) },
+            { .name = "attenuation_distance", .type = ecs_id(ecs_f32_t) },
+            { .name = "attenuation_color", .type = ecs_id(FlecsRgba) }
+        }
+    });
+
     ecs_add_pair(world, ecs_id(FlecsMaterialId), EcsOnInstantiate, EcsInherit);
     ecs_add_pair(world, ecs_id(FlecsPbrMaterial), EcsOnInstantiate, EcsInherit);
     ecs_add_pair(world, ecs_id(FlecsPbrTextures), EcsOnInstantiate, EcsInherit);
     ecs_add_pair(world, ecs_id(FlecsRgba), EcsOnInstantiate, EcsInherit);
     ecs_add_pair(world, ecs_id(FlecsEmissive), EcsOnInstantiate, EcsInherit);
+    ecs_add_pair(world, ecs_id(FlecsTransmission), EcsOnInstantiate, EcsInherit);
     ecs_add_pair(world, FlecsAlphaBlend, EcsOnInstantiate, EcsInherit);
 
     ecs_add_pair(world, ecs_id(FlecsRgba), EcsWith, ecs_id(FlecsMaterialId));

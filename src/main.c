@@ -139,7 +139,7 @@ void initEngine(
     .shadow = {
       .enabled = true,
       .map_size = 4096,
-      .max_range = 300,
+      .max_range = 100,
       .bias = 0.0001
     },
     .background = {
@@ -177,8 +177,8 @@ void initEngine(
   view.camera = ecs_entity(world, { .name = "camera" });
   ecs_set(world, view.camera, FlecsCamera, {
       .fov = glm_rad(60.0f),
-      .near_ = 0.2f,
-      .far_ = 1000.0f,
+      .near_ = 0.01f,
+      .far_ = 100.0f,
       .aspect_ratio = options.width / (float)options.height
   });
   ecs_add(world, view.camera, FlecsCameraController);

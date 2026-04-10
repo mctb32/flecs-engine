@@ -376,6 +376,8 @@ typedef struct {
     bool has_textures;
     FlecsPbrTextures textures;
     bool alpha_blend;
+    bool has_transmission;
+    FlecsTransmission transmission;
 } flecsEngine_gltf_materialDesc;
 
 static void flecsEngine_gltf_computeMaterial(
@@ -475,16 +477,31 @@ static void flecsEngine_gltf_computeMaterial(
         desc->alpha_blend = true;
     }
 
-    /* Approximate KHR_materials_transmission as alpha blending */
+    /* KHR_materials_transmission */
     if (mat->has_transmission &&
         mat->transmission.transmission_factor > 0.0f)
     {
-        float alpha = 1.0f - mat->transmission.transmission_factor;
-        if (!desc->has_rgba) {
-            desc->has_rgba = true;
+        desc->has_transmission = true;
+        desc->transmission.transmission_factor =
+            mat->transmission.transmission_factor;
+        desc->transmission.ior = mat->has_ior ? mat->ior.ior : 1.5f;
+        if (mat->has_volume) {
+            desc->transmission.thickness_factor =
+                mat->volume.thickness_factor;
+            desc->transmission.attenuation_distance =
+                mat->volume.attenuation_distance;
+            desc->transmission.attenuation_color = (flecs_rgba_t){
+                (uint8_t)(mat->volume.attenuation_color[0] * 255.0f),
+                (uint8_t)(mat->volume.attenuation_color[1] * 255.0f),
+                (uint8_t)(mat->volume.attenuation_color[2] * 255.0f),
+                255
+            };
+        } else {
+            desc->transmission.thickness_factor = 0.0f;
+            desc->transmission.attenuation_distance = 1e10f;
+            desc->transmission.attenuation_color =
+                (flecs_rgba_t){255, 255, 255, 255};
         }
-        desc->rgba.a = (uint8_t)(alpha * 255.0f);
-        desc->alpha_blend = true;
     }
 }
 
@@ -578,6 +595,10 @@ static void flecsEngine_gltf_applyMaterial(
 
     if (desc->has_textures) {
         ecs_set_ptr(world, entity, FlecsPbrTextures, &desc->textures);
+    }
+
+    if (desc->has_transmission) {
+        ecs_set_ptr(world, entity, FlecsTransmission, &desc->transmission);
     }
 
     if (desc->alpha_blend) {

@@ -33,4 +33,7 @@ bool flecsEngine_shader_usesTextures(
 ecs_entity_t flecsEngine_shader_pbrTextured(
     ecs_world_t *world);
 
+ecs_entity_t flecsEngine_shader_pbrTransmission(
+    ecs_world_t *world);
+
 #endif

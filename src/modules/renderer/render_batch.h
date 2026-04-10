@@ -237,4 +237,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
     ecs_entity_t parent,
     const char *name);
 
+ecs_entity_t flecsEngine_createBatch_mesh_transmission(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name);
+
 #endif

@@ -20,6 +20,12 @@ typedef struct {
     uint32_t layer_emissive;
     uint32_t layer_mr;
     uint32_t layer_normal;
+    /* Transmission (KHR_materials_transmission + volume + ior) */
+    float transmission_factor;
+    float ior;
+    float thickness_factor;
+    float attenuation_distance;
+    uint32_t attenuation_color;  /* packed RGBA8 */
 } FlecsGpuMaterial;
 
 typedef struct {

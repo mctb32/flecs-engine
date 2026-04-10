@@ -270,7 +270,8 @@ static bool flecsEngine_renderView_createTargets(
     }
 
     WGPUTextureDescriptor color_desc = {
-        .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+        .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding
+               | WGPUTextureUsage_CopySrc,
         .dimension = WGPUTextureDimension_2D,
         .size = (WGPUExtent3D){
             .width = width,

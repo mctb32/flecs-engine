@@ -63,4 +63,14 @@ extern ECS_COMPONENT_DECLARE(FlecsPbrTextures);
 
 extern ECS_TAG_DECLARE(FlecsAlphaBlend);
 
+ECS_STRUCT(FlecsTransmission, {
+    float transmission_factor;
+    float ior;
+    float thickness_factor;
+    float attenuation_distance;
+    flecs_rgba_t attenuation_color;
+});
+
+extern ECS_COMPONENT_DECLARE(FlecsTransmission);
+
 #endif

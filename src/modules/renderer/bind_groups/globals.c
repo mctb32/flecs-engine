@@ -53,7 +53,7 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
         }
     }
 
-    WGPUBindGroupLayoutEntry layout_entries[11] = {
+    WGPUBindGroupLayoutEntry layout_entries[12] = {
         { /* 0: Frame uniform (FlecsUniform) */
             .binding = 0,
             .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
@@ -76,6 +76,15 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
             .visibility = WGPUShaderStage_Fragment,
             .sampler = {
                 .type = WGPUSamplerBindingType_Filtering
+            }
+        },
+        { /* 3: Opaque scene snapshot (for transmission rendering) */
+            .binding = 3,
+            .visibility = WGPUShaderStage_Fragment,
+            .texture = {
+                .sampleType = WGPUTextureSampleType_Float,
+                .viewDimension = WGPUTextureViewDimension_2D,
+                .multisampled = false
             }
         },
         { /* 4: IBL irradiance cubemap */
@@ -148,7 +157,7 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
     impl->ibl_shadow_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device,
         &(WGPUBindGroupLayoutDescriptor){
-            .entryCount = 11,
+            .entryCount = 12,
             .entries = layout_entries
         });
 
@@ -168,6 +177,9 @@ bool flecsEngine_globals_createBindGroup(
     if (!bind_layout) {
         return false;
     }
+
+    /* Ensure fallback textures exist before we reference them */
+    flecsEngine_pbr_texture_ensureFallbacks((FlecsEngineImpl*)engine);
 
     if (!engine->shadow.texture_view || !engine->shadow.sampler) {
         return false;
@@ -194,8 +206,8 @@ bool flecsEngine_globals_createBindGroup(
         engine->device,
         &(WGPUBindGroupDescriptor){
             .layout = bind_layout,
-            .entryCount = 11,
-            .entries = (WGPUBindGroupEntry[11]){
+            .entryCount = 12,
+            .entries = (WGPUBindGroupEntry[12]){
                 {
                     .binding = 0,
                     .buffer = engine->frame_uniform_buffer,
@@ -208,6 +220,13 @@ bool flecsEngine_globals_createBindGroup(
                 {
                     .binding = 2,
                     .sampler = ibl->ibl_sampler
+                },
+                {   /* Opaque snapshot for transmission. Uses the snapshot
+                     * view if available, otherwise the 2D white fallback. */
+                    .binding = 3,
+                    .textureView = engine->opaque_snapshot_view
+                        ? engine->opaque_snapshot_view
+                        : engine->materials.fallback_white_2d_view
                 },
                 {
                     .binding = 4,

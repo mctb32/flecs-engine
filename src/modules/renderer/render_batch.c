@@ -656,8 +656,6 @@ void flecsEngine_renderBatch_renderShadow(
 
     if (batch->shadow_callback) {
         batch->shadow_callback(world, engine, pass, batch);
-    } else {
-        batch->callback(world, engine, pass, batch);
     }
     FLECS_TRACY_ZONE_END;
 }

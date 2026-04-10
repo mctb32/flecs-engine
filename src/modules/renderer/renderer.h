@@ -74,6 +74,7 @@ ECS_PRIVATE
     flecs_render_batch_callback shadow_callback;
     void *ctx;
     void (*free_ctx)(void *ctx);
+    bool render_after_snapshot;
 });
 
 // Fullscreen post-process effect. Input uses chain indexing:
@@ -422,6 +423,17 @@ void flecsEngine_texture_onSet(
 
 const char* flecsEngine_texture_formatName(
     WGPUTextureFormat format);
+
+/* Transmission snapshot — see render_transmission.c */
+void flecsEngine_transmission_updateSnapshot(
+    FlecsEngineImpl *engine,
+    WGPUCommandEncoder encoder,
+    WGPUTexture src_texture,
+    uint32_t width,
+    uint32_t height);
+
+void flecsEngine_transmission_release(
+    FlecsEngineImpl *engine);
 
 /* Debug HTTP server (port 8000) — see debug_server.c */
 void flecsEngine_debugServer_init(ecs_world_t *world);

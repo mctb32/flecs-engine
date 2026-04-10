@@ -306,6 +306,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
                 .oper = EcsNot },
             { .id = FlecsAlphaBlend, .src.id = EcsUp, .trav = EcsIsA,
                 .oper = EcsNot },
+            { .id = ecs_id(FlecsTransmission), .src.id = EcsUp, .trav = EcsIsA,
+                .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto,
         .group_by = EcsIsA,
@@ -438,6 +440,8 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
             { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA },
             { .id = ecs_id(FlecsPbrTextures), .src.id = EcsUp, .trav = EcsIsA },
             { .id = FlecsAlphaBlend, .src.id = EcsUp, .trav = EcsIsA,
+                .oper = EcsNot },
+            { .id = ecs_id(FlecsTransmission), .src.id = EcsUp, .trav = EcsIsA,
                 .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto,
@@ -743,6 +747,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
             { .id = ecs_id(FlecsWorldTransform3), .src.id = EcsSelf },
             { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA },
             { .id = FlecsAlphaBlend, .src.id = EcsUp, .trav = EcsIsA },
+            { .id = ecs_id(FlecsTransmission), .src.id = EcsUp, .trav = EcsIsA,
+                .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto,
         .group_by = EcsIsA,
@@ -777,7 +783,89 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
         .extract_callback = flecsEngine_mesh_extract,
         .callback = flecsEngine_transparent_mesh_render,
         .ctx = flecsEngine_transparent_mesh_createCtx(batch, textured_helper),
-        .free_ctx = flecsEngine_transparent_mesh_deleteCtx
+        .free_ctx = flecsEngine_transparent_mesh_deleteCtx,
+        .render_after_snapshot = true
+    });
+
+    return batch;
+}
+
+/* --- Transmissive mesh batch --- */
+
+static void flecsEngine_transmission_mesh_render(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+    FLECS_TRACY_ZONE_BEGIN("TransmissionMeshRender");
+
+    /* PBR material textures live at @group(1). */
+    if (!engine->materials.texture_array_bind_group) {
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+    wgpuRenderPassEncoderSetBindGroup(
+        pass, 1,
+        engine->materials.texture_array_bind_group, 0, NULL);
+
+    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
+    ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    ecs_map_iter_t git = ecs_map_iter(groups);
+    while (ecs_map_next(&git)) {
+        uint64_t group_id = ecs_map_key(&git);
+        if (!group_id) continue;
+
+        flecsEngine_batch_t *ctx =
+            ecs_query_get_group_ctx(batch->query, group_id);
+        ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
+
+        ctx->vertex_buffer = ctx->mesh.vertex_uv_buffer;
+        flecsEngine_batch_draw(engine, pass, ctx);
+    }
+
+    FLECS_TRACY_ZONE_END;
+}
+
+ecs_entity_t flecsEngine_createBatch_mesh_transmission(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name)
+{
+    ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
+    ecs_entity_t shader = flecsEngine_shader_pbrTransmission(world);
+
+    ecs_query_t *q = ecs_query(world, {
+        .entity = batch,
+        .terms = {
+            { .id = ecs_id(FlecsMesh3Impl), .src.id = EcsUp, .trav = EcsIsA },
+            { .id = ecs_id(FlecsWorldTransform3), .src.id = EcsSelf },
+            { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA },
+            { .id = ecs_id(FlecsTransmission), .src.id = EcsUp, .trav = EcsIsA },
+        },
+        .cache_kind = EcsQueryCacheAuto,
+        .group_by = EcsIsA,
+        .group_by_callback = flecsEngine_mesh_groupByMesh,
+        .on_group_create = flecsEngine_mesh_onGroupCreate,
+        .on_group_delete = flecsEngine_mesh_onGroupDelete
+    });
+
+    ecs_set(world, batch, FlecsRenderBatch, {
+        .shader = shader,
+        .query = q,
+        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .instance_types = {
+            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsMaterialId)
+        },
+        .depth_write = false,
+        .extract_callback = flecsEngine_mesh_extract,
+        .callback = flecsEngine_transmission_mesh_render,
+        .ctx = flecsEngine_mesh_createCtx(false),
+        .free_ctx = flecsEngine_mesh_deleteCtx,
+        .render_after_snapshot = true
     });
 
     return batch;

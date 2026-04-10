@@ -71,6 +71,7 @@ typedef struct {
     WGPUSampler pbr_sampler;
     WGPUTexture fallback_white_tex;
     WGPUTextureView fallback_white_view;
+    WGPUTextureView fallback_white_2d_view;  /* 2D view for transmission fallback */
     WGPUTexture fallback_black_tex;
     WGPUTextureView fallback_black_view;
     WGPUTexture fallback_normal_tex;
@@ -164,6 +165,13 @@ typedef struct {
     ecs_query_t *view_query;
     WGPURenderPipeline last_pipeline;
     float camera_pos[3];
+
+    /* Opaque scene snapshot for transmission rendering. Captured after
+     * opaques render, sampled by transmissive objects at @group(0) @binding(3). */
+    WGPUTexture opaque_snapshot;
+    WGPUTextureView opaque_snapshot_view;
+    uint32_t opaque_snapshot_width;
+    uint32_t opaque_snapshot_height;
 
     flecs_engine_shadow_t shadow;
     flecs_engine_lighting_t lighting;

@@ -7,7 +7,8 @@ static WGPURenderPassEncoder flecsEngine_renderBatch_beginPass(
     const FlecsRenderView *view,
     WGPUCommandEncoder encoder,
     WGPUTextureView color_view,
-    WGPULoadOp color_load_op)
+    WGPULoadOp color_load_op,
+    WGPULoadOp depth_load_op)
 {
     WGPUColor sky_color = {
         .r = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.r),
@@ -29,7 +30,7 @@ static WGPURenderPassEncoder flecsEngine_renderBatch_beginPass(
 
     WGPURenderPassDepthStencilAttachment depth_attachment = {
         .view = msaa ? impl->depth.msaa_depth_texture_view : impl->depth.depth_texture_view,
-        .depthLoadOp = WGPULoadOp_Clear,
+        .depthLoadOp = depth_load_op,
         .depthStoreOp = WGPUStoreOp_Store,
         .depthClearValue = 1.0f,
         .depthReadOnly = false,
@@ -85,6 +86,7 @@ static void flecsEngine_renderBatch_visitSet(
 typedef struct {
     const WGPURenderPassEncoder pass;
     const FlecsRenderView *view;
+    int phase; /* 0 = all, 1 = opaque only, 2 = post-snapshot only */
 } flecsEngine_renderVisitorCtx_t;
 
 static void flecsEngine_renderBatch_renderVisitor(
@@ -94,6 +96,18 @@ static void flecsEngine_renderBatch_renderVisitor(
     void *ctx)
 {
     flecsEngine_renderVisitorCtx_t *render_ctx = ctx;
+
+    /* Phase filtering: skip batches that don't belong to this phase */
+    if (render_ctx->phase != 0) {
+        const FlecsRenderBatch *batch = ecs_get(
+            world, batch_entity, FlecsRenderBatch);
+        if (batch) {
+            bool after = batch->render_after_snapshot;
+            if (render_ctx->phase == 1 && after) return;  /* skip post-snapshot */
+            if (render_ctx->phase == 2 && !after) return; /* skip opaques */
+        }
+    }
+
     flecsEngine_renderBatch_render(
         world, engine, render_ctx->pass, render_ctx->view, batch_entity);
 }
@@ -267,30 +281,59 @@ void flecsEngine_renderView_renderBatches(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    /* Batches always render into the first effect target. A passthrough
-     * effect (or the user's effect chain) blits to the final view texture. */
     WGPUTextureView batch_target = viewImpl->effect_target_views[0];
 
-    WGPURenderPassEncoder batch_pass = flecsEngine_renderBatch_beginPass(
-        engine,
-        view,
-        encoder,
-        batch_target,
-        WGPULoadOp_Clear);
+    /* Pass 1: render opaque batches (render_after_snapshot = false) */
+    {
+        WGPURenderPassEncoder pass = flecsEngine_renderBatch_beginPass(
+            engine, view, encoder, batch_target,
+            WGPULoadOp_Clear, WGPULoadOp_Clear);
+        engine->last_pipeline = NULL;
 
-    /* Always set pipeline/uniforms for first batch in view */
-    engine->last_pipeline = NULL;
+        flecsEngine_renderVisitorCtx_t ctx = {
+            .pass = pass,
+            .view = view,
+            .phase = 1
+        };
+        flecsEngine_renderBatch_visitSet(
+            world, engine, batch_set,
+            flecsEngine_renderBatch_renderVisitor, &ctx);
 
-    flecsEngine_renderVisitorCtx_t batch_ctx = {
-        .pass = batch_pass,
-        .view = view
-    };
+        wgpuRenderPassEncoderEnd(pass);
+        wgpuRenderPassEncoderRelease(pass);
+    }
 
-    flecsEngine_renderBatch_visitSet(
-        world, engine, batch_set,
-        flecsEngine_renderBatch_renderVisitor, &batch_ctx);
+    /* Snapshot the opaque result for transmission sampling */
+    {
+        WGPUTexture src_tex = viewImpl->effect_target_textures[0];
+        if (src_tex) {
+            flecsEngine_transmission_updateSnapshot(
+                engine, encoder, src_tex,
+                viewImpl->effect_target_width,
+                viewImpl->effect_target_height);
+        }
+    }
 
-    wgpuRenderPassEncoderEnd(batch_pass);
-    wgpuRenderPassEncoderRelease(batch_pass);
+    /* Pass 2: render post-snapshot batches (transmission + transparent).
+     * LoadOp_Load preserves both color and depth from pass 1. */
+    {
+        WGPURenderPassEncoder pass = flecsEngine_renderBatch_beginPass(
+            engine, view, encoder, batch_target,
+            WGPULoadOp_Load, WGPULoadOp_Load);
+        engine->last_pipeline = NULL;
+
+        flecsEngine_renderVisitorCtx_t ctx = {
+            .pass = pass,
+            .view = view,
+            .phase = 2
+        };
+        flecsEngine_renderBatch_visitSet(
+            world, engine, batch_set,
+            flecsEngine_renderBatch_renderVisitor, &ctx);
+
+        wgpuRenderPassEncoderEnd(pass);
+        wgpuRenderPassEncoderRelease(pass);
+    }
+
     FLECS_TRACY_ZONE_END;
 }

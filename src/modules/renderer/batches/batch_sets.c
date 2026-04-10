@@ -94,6 +94,12 @@ static void FlecsOnAddGeometryBatch(
             flecsEngine_createBatch_textured_mesh(
                 it->world, batch_set_entity, "TexturedMeshes");
 
+        /* Transmissive objects render after opaques, before transparents.
+         * They sample the opaque scene snapshot for refraction. */
+        ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
+            flecsEngine_createBatch_mesh_transmission(
+                it->world, batch_set_entity, "TransmissiveMeshes");
+
         /* Transparent batches must render last (after all opaques) */
         ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
             flecsEngine_createBatch_mesh_transparent(

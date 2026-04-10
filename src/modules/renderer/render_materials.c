@@ -174,7 +174,8 @@ redo: {
                     em_color = (flecs_rgba_t){255, 255, 255, 255};
                 }
 
-                impl->materials.cpu_materials[index] = (FlecsGpuMaterial){
+                FlecsGpuMaterial *gm = &impl->materials.cpu_materials[index];
+                *gm = (FlecsGpuMaterial){
                     .color = colors[ci],
                     .metallic = materials[mi].metallic,
                     .roughness = materials[mi].roughness,
@@ -189,6 +190,19 @@ redo: {
                      * default to 0 (the reserved neutral slot). */
                     .texture_bucket = 1
                 };
+
+                const FlecsTransmission *tx = ecs_get(
+                    world, it.entities[i], FlecsTransmission);
+                if (tx) {
+                    gm->transmission_factor = tx->transmission_factor;
+                    gm->ior = tx->ior;
+                    gm->thickness_factor = tx->thickness_factor;
+                    gm->attenuation_distance = tx->attenuation_distance;
+                    flecs_rgba_t ac = tx->attenuation_color;
+                    gm->attenuation_color =
+                        (uint32_t)ac.r | ((uint32_t)ac.g << 8) |
+                        ((uint32_t)ac.b << 16) | ((uint32_t)ac.a << 24);
+                }
             }
         }
 

@@ -24,7 +24,7 @@ You should probably not use this, unless:
 - Movement systems
 - Instancing
 - PBR materials
-- Transparency
+- Transmissive materials
 - Directional light
 - Pointlights
 - Spotlights
