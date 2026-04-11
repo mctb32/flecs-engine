@@ -305,6 +305,7 @@ int flecsEngine_initRenderer(
             { .id = ecs_id(FlecsPbrMaterial) },
             { .id = ecs_id(FlecsMaterialId), .src.id = EcsSelf },
             { .id = ecs_id(FlecsEmissive), .oper = EcsOptional },
+            { .id = ecs_id(FlecsTransmission), .oper = EcsOptional },
             { .id = EcsPrefab, .src.id = EcsSelf }
         },
         .cache_kind = EcsQueryCacheAuto

@@ -207,26 +207,48 @@ static const char *kShaderSource =
     "  let bucket = mat.texture_bucket;\n"
     "  let dx = dpdx(input.uv);\n"
     "  let dy = dpdy(input.uv);\n"
-    "  let base_color = sample_albedo(input.uv, mat.layer_albedo, bucket, dx, dy);\n"
     "  let mat_color = unpack4x8unorm(mat.color);\n"
-    "  let albedo = base_color.rgb * mat_color.rgb;\n"
-    "\n"
-    "  let mr = sample_roughness(input.uv, mat.layer_mr, bucket, dx, dy);\n"
-    "  let roughness = mr.g * mat.roughness;\n"
-    "  let metallic = mr.b * mat.metallic;\n"
-    "\n"
-    "  let emissive_sample = sample_emissive(input.uv, mat.layer_emissive, bucket, dx, dy).rgb;\n"
-    "  let em_color = unpack4x8unorm(mat.emissive_color).rgb;\n"
-    "  let emissive = emissive_sample * em_color * max(mat.emissive_strength, 0.0);\n"
-    "\n"
-    "  let normal_sample = sample_normal(input.uv, mat.layer_normal, bucket, dx, dy).rgb;\n"
-    "  let tangent_normal = normal_sample * 2.0 - 1.0;\n"
-    "  let N = normalize(input.normal);\n"
-    "  let T_raw = input.tangent;\n"
-    "  let T = normalize(T_raw - N * dot(N, T_raw));\n"
-    "  let B = cross(N, T) * input.bitangent_sign;\n"
-    "  let tbn = mat3x3<f32>(T, B, N);\n"
-    "  let n = normalize(tbn * tangent_normal);\n"
+
+    /* Sample albedo only if the material has an albedo texture
+     * (layer 0 is the reserved neutral slot — always white). */
+    "  var albedo = mat_color.rgb;\n"
+    "  if (mat.layer_albedo != 0u) {\n"
+    "    let base_color = sample_albedo(input.uv, mat.layer_albedo, bucket, dx, dy);\n"
+    "    albedo = base_color.rgb * mat_color.rgb;\n"
+    "  }\n"
+
+    /* Sample metallic-roughness only if the material has an MR texture. */
+    "  var roughness = mat.roughness;\n"
+    "  var metallic = mat.metallic;\n"
+    "  if (mat.layer_mr != 0u) {\n"
+    "    let mr = sample_roughness(input.uv, mat.layer_mr, bucket, dx, dy);\n"
+    "    roughness = mr.g * mat.roughness;\n"
+    "    metallic = mr.b * mat.metallic;\n"
+    "  }\n"
+
+    /* Sample emissive only if the material actually emits. */
+    "  var emissive = vec3<f32>(0.0);\n"
+    "  if (mat.emissive_strength > 0.0) {\n"
+    "    let em_color = unpack4x8unorm(mat.emissive_color).rgb;\n"
+    "    var em_sample = vec3<f32>(1.0);\n"
+    "    if (mat.layer_emissive != 0u) {\n"
+    "      em_sample = sample_emissive(input.uv, mat.layer_emissive, bucket, dx, dy).rgb;\n"
+    "    }\n"
+    "    emissive = em_sample * em_color * mat.emissive_strength;\n"
+    "  }\n"
+
+    /* Apply normal map only if the material has one; otherwise use
+     * the geometric normal directly and skip the TBN reconstruction. */
+    "  var n = normalize(input.normal);\n"
+    "  if (mat.layer_normal != 0u) {\n"
+    "    let normal_sample = sample_normal(input.uv, mat.layer_normal, bucket, dx, dy).rgb;\n"
+    "    let tangent_normal = normal_sample * 2.0 - 1.0;\n"
+    "    let T_raw = input.tangent;\n"
+    "    let T = normalize(T_raw - n * dot(n, T_raw));\n"
+    "    let B = cross(n, T) * input.bitangent_sign;\n"
+    "    let tbn = mat3x3<f32>(T, B, n);\n"
+    "    n = normalize(tbn * tangent_normal);\n"
+    "  }\n"
     "\n"
     "  let v = getViewDirection(input.world_pos);\n"
     "  let ndotv = saturate(dot(n, v));\n"
@@ -236,7 +258,6 @@ static const char *kShaderSource =
     "  let F = f0_ior + (1.0 - f0_ior) * pow(1.0 - ndotv, 5.0);\n"
 
     /* Screen-space refraction: project refracted exit point through VP */
-    "  let snap_size = vec2<f32>(textureDimensions(opaque_snapshot));\n"
     "  let refracted = refract(-v, n, 1.0 / mat.ior);\n"
     "  let exit_pos = input.world_pos + normalize(refracted)\n"
     "    * mat.thickness_factor * input.model_scale;\n"
@@ -245,9 +266,13 @@ static const char *kShaderSource =
     "    + vec2<f32>(0.5, 0.5);\n"
     "  screen_uv = clamp(screen_uv, vec2<f32>(0.0), vec2<f32>(1.0));\n"
 
-    /* Sample opaque scene at refracted UV */
-    "  let bg_coord = vec2<i32>(screen_uv * snap_size);\n"
-    "  let background = textureLoad(opaque_snapshot, bg_coord, 0).rgb;\n"
+    /* Sample opaque scene at refracted UV using a roughness-dependent LOD.
+     * Rough transmission (frosted glass) sees a blurred background by
+     * selecting a higher mip level of the pre-generated pyramid. */
+    "  let max_mip = max(f32(textureNumLevels(opaque_snapshot)) - 1.0, 0.0);\n"
+    "  let bg_lod = roughness * max_mip;\n"
+    "  let background = textureSampleLevel(\n"
+    "    opaque_snapshot, ibl_sampler, screen_uv, bg_lod).rgb;\n"
 
     /* Beer-Lambert absorption (glTF KHR_materials_volume spec):
      * transmittance = pow(attenuation_color, thickness / attenuation_distance).

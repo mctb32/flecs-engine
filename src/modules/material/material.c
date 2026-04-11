@@ -17,10 +17,24 @@ static void FlecsMaterialIdInit(
 
     for (int32_t i = 0; i < it->count; i ++) {
         ecs_entity_t e = it->entities[i];
+        (void)e;
 
         material_id[i].value = impl->materials.next_id;
         impl->materials.next_id ++;
     }
+
+    /* New materials need to be uploaded on the next frame. */
+    impl->materials.dirty_version ++;
+}
+
+/* OnSet observer shared by all material property components. Mutations to
+ * any of these components mark the material buffer as dirty so the upload
+ * path re-runs on the next frame. */
+static void FlecsMaterialDirty(
+    ecs_iter_t *it)
+{
+    FlecsEngineImpl *impl = ecs_singleton_ensure(it->world, FlecsEngineImpl);
+    impl->materials.dirty_version ++;
 }
 
 void FlecsEngineMaterialImport(
@@ -116,5 +130,42 @@ void FlecsEngineMaterialImport(
         .events = {EcsOnAdd},
         .yield_existing = true,
         .callback = FlecsMaterialIdInit
+    });
+
+    /* OnSet observers that mark the material buffer dirty whenever any
+     * material property component is written. This is the cheap path for
+     * propagating in-place material edits (e.g. tweaking a transmission
+     * factor at runtime) to the GPU without scanning the query each frame. */
+    ecs_observer(world, {
+        .query.terms = {
+            { .id = ecs_id(FlecsRgba), .src.id = EcsSelf },
+            { .id = EcsPrefab, .src.id = EcsSelf }
+        },
+        .events = {EcsOnSet, EcsOnRemove},
+        .callback = FlecsMaterialDirty
+    });
+    ecs_observer(world, {
+        .query.terms = {
+            { .id = ecs_id(FlecsPbrMaterial), .src.id = EcsSelf },
+            { .id = EcsPrefab, .src.id = EcsSelf }
+        },
+        .events = {EcsOnSet, EcsOnRemove},
+        .callback = FlecsMaterialDirty
+    });
+    ecs_observer(world, {
+        .query.terms = {
+            { .id = ecs_id(FlecsEmissive), .src.id = EcsSelf },
+            { .id = EcsPrefab, .src.id = EcsSelf }
+        },
+        .events = {EcsOnSet, EcsOnRemove},
+        .callback = FlecsMaterialDirty
+    });
+    ecs_observer(world, {
+        .query.terms = {
+            { .id = ecs_id(FlecsTransmission), .src.id = EcsSelf },
+            { .id = EcsPrefab, .src.id = EcsSelf }
+        },
+        .events = {EcsOnSet, EcsOnRemove},
+        .callback = FlecsMaterialDirty
     });
 }

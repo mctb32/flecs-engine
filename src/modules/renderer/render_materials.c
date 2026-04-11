@@ -111,7 +111,7 @@ void flecsEngine_material_uploadBuffer(
      * defined yet — see flecsEngine_material_ensureBuffer. */
     flecsEngine_material_ensureBuffer(impl);
 
-    if (impl->materials.last_id == impl->materials.next_id) {
+    if (impl->materials.dirty_version == impl->materials.uploaded_version) {
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -121,6 +121,11 @@ void flecsEngine_material_uploadBuffer(
         FLECS_TRACY_ZONE_END;
         return;
     }
+
+    /* Snapshot the dirty version before iterating so that any mutations
+     * that happen between now and the end of the upload get picked up on
+     * the next frame. */
+    uint32_t snapshot_version = impl->materials.dirty_version;
 
     ecs_trace("upload materials buffer (last material id = %u)",
         impl->materials.next_id);
@@ -143,10 +148,13 @@ redo: {
                 ecs_field(&it, FlecsMaterialId, 2);
             const FlecsEmissive *emissives =
                 ecs_field(&it, FlecsEmissive, 3);
+            const FlecsTransmission *transmissions =
+                ecs_field(&it, FlecsTransmission, 4);
 
             bool colors_self = ecs_field_is_self(&it, 0);
             bool materials_self = ecs_field_is_self(&it, 1);
             bool emissives_self = ecs_field_is_self(&it, 3);
+            bool transmissions_self = ecs_field_is_self(&it, 4);
 
             for (int32_t i = 0; i < it.count; i ++) {
                 uint32_t index = material_ids[i].value;
@@ -161,6 +169,7 @@ redo: {
                 int32_t ci = colors_self ? i : 0;
                 int32_t mi = materials_self ? i : 0;
                 int32_t ei = emissives_self ? i : 0;
+                int32_t ti = transmissions_self ? i : 0;
 
                 FlecsEmissive emissive = {0};
                 if (emissives) {
@@ -191,9 +200,8 @@ redo: {
                     .texture_bucket = 1
                 };
 
-                const FlecsTransmission *tx = ecs_get(
-                    world, it.entities[i], FlecsTransmission);
-                if (tx) {
+                if (transmissions) {
+                    const FlecsTransmission *tx = &transmissions[ti];
                     gm->transmission_factor = tx->transmission_factor;
                     gm->ior = tx->ior;
                     gm->thickness_factor = tx->thickness_factor;
@@ -229,6 +237,7 @@ redo: {
         flecsEngine_textureArray_release(impl);
 
         impl->materials.last_id = impl->materials.next_id;
+        impl->materials.uploaded_version = snapshot_version;
     }
     FLECS_TRACY_ZONE_END;
 }
