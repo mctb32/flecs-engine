@@ -53,6 +53,16 @@ void flecsEngine_batch_draw(
             pass, 3, buf->instance_pbr, pbr_offset, pbr_size);
         wgpuRenderPassEncoderSetVertexBuffer(
             pass, 4, buf->instance_emissive, emissive_offset, emissive_size);
+
+        if (buf->owns_transmission_data && buf->instance_transmission) {
+            uint64_t trans_offset =
+                (uint64_t)ctx->offset * sizeof(FlecsTransmission);
+            uint64_t trans_size =
+                (uint64_t)ctx->count * sizeof(FlecsTransmission);
+            wgpuRenderPassEncoderSetVertexBuffer(
+                pass, 5, buf->instance_transmission,
+                trans_offset, trans_size);
+        }
     } else {
         uint64_t matid_offset =
             (uint64_t)ctx->offset * sizeof(FlecsMaterialId);

@@ -1,0 +1,33 @@
+using flecs.engine.*
+using flecs.script
+
+{
+    Position3: {}
+    Quad: {100, 100}
+    Rotation3: {-math.PI / 2}
+    Rgba: {50, 50, 50}
+}
+
+for x in 0..10 {{
+    Position3: {x * 2 - 10, y: 0.7, z: 0.5}
+    Sphere: {20, true, 0.75}
+    Rgba: {150, 200, 100}
+    Rotation3: {0, 1}
+    PbrMaterial: {roughness: x / 10 + 0.1}
+    Transmission: {
+        transmission_factor: 1 - x / 10 + 0.1
+        ior: 1.1
+        thickness_factor: 2
+        attenuation_distance: 1e7
+    }
+}}
+
+for x in 0..10 {
+    for y in 0..10 {
+        {
+            Position3: {x * 2 - 10, 0, y * 2 - 10}
+            Box: {1, 0.5, 1}
+            Rgba: {10, 10, 10}
+        }
+    }
+}

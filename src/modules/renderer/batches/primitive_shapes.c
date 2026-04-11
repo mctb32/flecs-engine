@@ -18,7 +18,7 @@ static void* flecsEngine_primitive_createCtx(
 {
     flecsEngine_primitive_ctx_t *ctx =
         ecs_os_calloc_t(flecsEngine_primitive_ctx_t);
-    flecsEngine_batch_buffers_init(&ctx->buffers, owns_material_data);
+    flecsEngine_batch_buffers_init(&ctx->buffers, owns_material_data, false);
     flecsEngine_batch_init(&ctx->group, world, mesh, 0, owns_material_data,
         component, scale_callback);
     ctx->group.buffers = &ctx->buffers;

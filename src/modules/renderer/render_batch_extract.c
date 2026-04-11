@@ -39,12 +39,16 @@ void flecsEngine_batch_extractInstances(
         const FlecsRgba *colors = NULL;
         const FlecsPbrMaterial *materials = NULL;
         const FlecsEmissive *emissives = NULL;
+        const FlecsTransmission *transmissions = NULL;
         const FlecsMaterialId *material_id = NULL;
 
         if (buf->owns_material_data) {
             colors = ecs_field(&it, FlecsRgba, 2);
             materials = ecs_field(&it, FlecsPbrMaterial, 3);
             emissives = ecs_field(&it, FlecsEmissive, 4);
+            if (buf->owns_transmission_data) {
+                transmissions = ecs_field(&it, FlecsTransmission, 5);
+            }
         } else {
             material_id = ecs_field(&it, FlecsMaterialId, 2);
         }
@@ -97,6 +101,9 @@ void flecsEngine_batch_extractInstances(
                 buf->cpu_emissives[out] = emissives
                     ? emissives[i]
                     : flecsEngine_defaultAttrCache_getEmissive(engine, 1)[0];
+                if (buf->owns_transmission_data) {
+                    buf->cpu_transmissions[out] = transmissions[i];
+                }
             } else {
                 buf->cpu_material_ids[out] = material_id[0];
             }

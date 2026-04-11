@@ -36,4 +36,7 @@ ecs_entity_t flecsEngine_shader_pbrTextured(
 ecs_entity_t flecsEngine_shader_pbrTransmission(
     ecs_world_t *world);
 
+ecs_entity_t flecsEngine_shader_pbrTransmissionColored(
+    ecs_world_t *world);
+
 #endif

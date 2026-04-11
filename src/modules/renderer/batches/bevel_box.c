@@ -341,7 +341,7 @@ static flecsEngine_bevel_box_batch_t* flecsEngine_bevel_box_createCtx(
     flecsEngine_bevel_box_batch_t *ctx =
         ecs_os_calloc_t(flecsEngine_bevel_box_batch_t);
     ctx->owns_material_data = owns_material_data;
-    flecsEngine_batch_buffers_init(&ctx->buffers, owns_material_data);
+    flecsEngine_batch_buffers_init(&ctx->buffers, owns_material_data, false);
 
     flecsEngine_batch_init(&ctx->quad_batch, world,
         flecsEngine_quad_getAsset(world), 0, owns_material_data, 0, NULL);

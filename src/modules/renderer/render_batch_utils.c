@@ -7,10 +7,12 @@
 
 void flecsEngine_batch_buffers_init(
     flecsEngine_batch_buffers_t *buf,
-    bool owns_material_data)
+    bool owns_material_data,
+    bool owns_transmission_data)
 {
     ecs_os_memset_t(buf, 0, flecsEngine_batch_buffers_t);
     buf->owns_material_data = owns_material_data;
+    buf->owns_transmission_data = owns_transmission_data;
 }
 
 static void flecsEngine_batch_buffers_releaseShadowGpu(
@@ -53,6 +55,10 @@ static void flecsEngine_batch_buffers_releaseGpu(
         wgpuBufferRelease(buf->instance_emissive);
         buf->instance_emissive = NULL;
     }
+    if (buf->instance_transmission) {
+        wgpuBufferRelease(buf->instance_transmission);
+        buf->instance_transmission = NULL;
+    }
     if (buf->instance_material_id) {
         wgpuBufferRelease(buf->instance_material_id);
         buf->instance_material_id = NULL;
@@ -70,6 +76,8 @@ static void flecsEngine_batch_buffers_freeCpu(
     buf->cpu_pbr_materials = NULL;
     ecs_os_free(buf->cpu_emissives);
     buf->cpu_emissives = NULL;
+    ecs_os_free(buf->cpu_transmissions);
+    buf->cpu_transmissions = NULL;
     ecs_os_free(buf->cpu_material_ids);
     buf->cpu_material_ids = NULL;
 }
@@ -166,12 +174,24 @@ static void flecsEngine_batch_buffers_resizeMaterialData(
             .size = (uint64_t)new_capacity * sizeof(FlecsEmissive)
         });
 
+    if (buf->owns_transmission_data) {
+        buf->instance_transmission = wgpuDeviceCreateBuffer(engine->device,
+            &(WGPUBufferDescriptor){
+                .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                .size = (uint64_t)new_capacity * sizeof(FlecsTransmission)
+            });
+    }
+
     buf->cpu_transforms =
         ecs_os_malloc_n(FlecsInstanceTransform, new_capacity);
     buf->cpu_colors = ecs_os_malloc_n(FlecsRgba, new_capacity);
     buf->cpu_pbr_materials =
         ecs_os_malloc_n(FlecsPbrMaterial, new_capacity);
     buf->cpu_emissives = ecs_os_malloc_n(FlecsEmissive, new_capacity);
+    if (buf->owns_transmission_data) {
+        buf->cpu_transmissions =
+            ecs_os_malloc_n(FlecsTransmission, new_capacity);
+    }
     buf->capacity = new_capacity;
 }
 
@@ -261,6 +281,15 @@ void flecsEngine_batch_buffers_upload(
             0,
             buf->cpu_emissives,
             (uint64_t)count * sizeof(FlecsEmissive));
+
+        if (buf->owns_transmission_data && buf->instance_transmission) {
+            wgpuQueueWriteBuffer(
+                engine->queue,
+                buf->instance_transmission,
+                0,
+                buf->cpu_transmissions,
+                (uint64_t)count * sizeof(FlecsTransmission));
+        }
     } else {
         wgpuQueueWriteBuffer(
             engine->queue,

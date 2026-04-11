@@ -16,7 +16,7 @@ static flecs_engine_skybox_ctx_t* flecsEngine_skybox_createCtx(
 {
     flecs_engine_skybox_ctx_t *result =
         ecs_os_calloc_t(flecs_engine_skybox_ctx_t);
-    flecsEngine_batch_buffers_init(&result->buffers, true);
+    flecsEngine_batch_buffers_init(&result->buffers, true, false);
     flecsEngine_batch_init(
         &result->batch, world, flecsEngine_quad_getAsset(world), 0, true, 0, NULL);
     result->batch.buffers = &result->buffers;

@@ -13,15 +13,18 @@ typedef struct {
     WGPUBuffer instance_color;
     WGPUBuffer instance_pbr;
     WGPUBuffer instance_emissive;
+    WGPUBuffer instance_transmission;
     WGPUBuffer instance_material_id;
     FlecsInstanceTransform *cpu_transforms;
     FlecsRgba *cpu_colors;
     FlecsPbrMaterial *cpu_pbr_materials;
     FlecsEmissive *cpu_emissives;
+    FlecsTransmission *cpu_transmissions;
     FlecsMaterialId *cpu_material_ids;
     int32_t count;
     int32_t capacity;
     bool owns_material_data;
+    bool owns_transmission_data;
 
     /* Per-cascade shadow transform buffers (only transforms needed) */
     WGPUBuffer shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
@@ -54,7 +57,8 @@ typedef struct {
 
 void flecsEngine_batch_buffers_init(
     flecsEngine_batch_buffers_t *buf,
-    bool owns_material_data);
+    bool owns_material_data,
+    bool owns_transmission_data);
 
 void flecsEngine_batch_buffers_fini(
     flecsEngine_batch_buffers_t *buf);
@@ -238,6 +242,11 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
     const char *name);
 
 ecs_entity_t flecsEngine_createBatch_mesh_transmission(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name);
+
+ecs_entity_t flecsEngine_createBatch_mesh_transmissionData(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name);
