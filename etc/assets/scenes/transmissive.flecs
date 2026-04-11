@@ -1,6 +1,8 @@
 using flecs.engine.*
 using flecs.script
 
+const rnd = math.Rng: {0}
+
 {
     Position3: {}
     Quad: {100, 100}
@@ -8,26 +10,35 @@ using flecs.script
     Rgba: {50, 50, 50}
 }
 
-for x in 0..10 {{
-    Position3: {x * 2 - 10, y: 0.7, z: 0.5}
-    Sphere: {20, true, 0.75}
-    Rgba: {150, 200, 100}
-    Rotation3: {0, 1}
-    PbrMaterial: {roughness: x / 10 + 0.1}
-    Transmission: {
-        transmission_factor: 1 - x / 10 + 0.1
-        ior: 1.1
-        thickness_factor: 2
-        attenuation_distance: 1e7
-    }
-}}
+camera {
+    Position3: {-1.914, 7.035, -13.393}
+    LookAt: {-1.909, 6.432, -12.598}
+}
 
-for x in 0..10 {
-    for y in 0..10 {
+for x in 0..4 {
+    for y in 0..4 {{
+        Position3: {x * 4 - 8, y: 1.5, z: y * 4 - 8 + 1}
+        Sphere: {8, false, 1}
+        Rgba: {250, 230, 180}
+        PbrMaterial: {roughness: x / 4}
+        Transmission: {
+            transmission_factor: 0.9
+            ior: 1.0 + y / 10
+            thickness_factor: 2
+            attenuation_distance: 1e7
+        }
+    }}
+}
+
+for x in 0..25 {
+    for y in 0..25 {
         {
-            Position3: {x * 2 - 10, 0, y * 2 - 10}
+            Position3: {x * 2 - 25, 0.25, y * 2 - 25}
             Box: {1, 0.5, 1}
             Rgba: {10, 10, 10}
+            PbrMaterial: {
+                metallic: 1
+            }
         }
     }
 }
