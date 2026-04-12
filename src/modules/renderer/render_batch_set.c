@@ -89,6 +89,25 @@ typedef struct {
     int phase; /* 0 = all, 1 = opaque only, 2 = post-snapshot only */
 } flecsEngine_renderVisitorCtx_t;
 
+static void flecsEngine_renderBatch_transmissionCheckVisitor(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    ecs_entity_t batch_entity,
+    void *ctx)
+{
+    (void)engine;
+    bool *has_transmission = ctx;
+    if (*has_transmission) {
+        return;
+    }
+
+    const FlecsRenderBatch *batch = ecs_get(
+        world, batch_entity, FlecsRenderBatch);
+    if (batch && batch->needs_transmission && ecs_query_is_true(batch->query)) {
+        *has_transmission = true;
+    }
+}
+
 static void flecsEngine_renderBatch_renderVisitor(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
@@ -283,8 +302,68 @@ void flecsEngine_renderView_renderBatches(
 
     WGPUTextureView batch_target = viewImpl->effect_target_views[0];
 
-    /* Pass 1: render opaque batches (render_after_snapshot = false) */
-    {
+    /* Check if any transmission batch has matching entities. If not, we can
+     * skip the expensive opaque snapshot + prefilter and render everything
+     * in a single pass. */
+    bool has_transmission = false;
+    flecsEngine_renderBatch_visitSet(
+        world, engine, batch_set,
+        flecsEngine_renderBatch_transmissionCheckVisitor, &has_transmission);
+
+    if (has_transmission) {
+        /* Pass 1: render opaque batches (render_after_snapshot = false) */
+        {
+            WGPURenderPassEncoder pass = flecsEngine_renderBatch_beginPass(
+                engine, view, encoder, batch_target,
+                WGPULoadOp_Clear, WGPULoadOp_Clear);
+            engine->last_pipeline = NULL;
+
+            flecsEngine_renderVisitorCtx_t ctx = {
+                .pass = pass,
+                .view = view,
+                .phase = 1
+            };
+            flecsEngine_renderBatch_visitSet(
+                world, engine, batch_set,
+                flecsEngine_renderBatch_renderVisitor, &ctx);
+
+            wgpuRenderPassEncoderEnd(pass);
+            wgpuRenderPassEncoderRelease(pass);
+        }
+
+        /* Snapshot the opaque result for transmission sampling */
+        {
+            WGPUTexture src_tex = viewImpl->effect_target_textures[0];
+            if (src_tex) {
+                flecsEngine_transmission_updateSnapshot(
+                    engine, encoder, src_tex,
+                    viewImpl->effect_target_width,
+                    viewImpl->effect_target_height);
+            }
+        }
+
+        /* Pass 2: render post-snapshot batches (transmission + transparent).
+         * LoadOp_Load preserves both color and depth from pass 1. */
+        {
+            WGPURenderPassEncoder pass = flecsEngine_renderBatch_beginPass(
+                engine, view, encoder, batch_target,
+                WGPULoadOp_Load, WGPULoadOp_Load);
+            engine->last_pipeline = NULL;
+
+            flecsEngine_renderVisitorCtx_t ctx = {
+                .pass = pass,
+                .view = view,
+                .phase = 2
+            };
+            flecsEngine_renderBatch_visitSet(
+                world, engine, batch_set,
+                flecsEngine_renderBatch_renderVisitor, &ctx);
+
+            wgpuRenderPassEncoderEnd(pass);
+            wgpuRenderPassEncoderRelease(pass);
+        }
+    } else {
+        /* No transmissive materials — single pass, no snapshot needed */
         WGPURenderPassEncoder pass = flecsEngine_renderBatch_beginPass(
             engine, view, encoder, batch_target,
             WGPULoadOp_Clear, WGPULoadOp_Clear);
@@ -293,39 +372,7 @@ void flecsEngine_renderView_renderBatches(
         flecsEngine_renderVisitorCtx_t ctx = {
             .pass = pass,
             .view = view,
-            .phase = 1
-        };
-        flecsEngine_renderBatch_visitSet(
-            world, engine, batch_set,
-            flecsEngine_renderBatch_renderVisitor, &ctx);
-
-        wgpuRenderPassEncoderEnd(pass);
-        wgpuRenderPassEncoderRelease(pass);
-    }
-
-    /* Snapshot the opaque result for transmission sampling */
-    {
-        WGPUTexture src_tex = viewImpl->effect_target_textures[0];
-        if (src_tex) {
-            flecsEngine_transmission_updateSnapshot(
-                engine, encoder, src_tex,
-                viewImpl->effect_target_width,
-                viewImpl->effect_target_height);
-        }
-    }
-
-    /* Pass 2: render post-snapshot batches (transmission + transparent).
-     * LoadOp_Load preserves both color and depth from pass 1. */
-    {
-        WGPURenderPassEncoder pass = flecsEngine_renderBatch_beginPass(
-            engine, view, encoder, batch_target,
-            WGPULoadOp_Load, WGPULoadOp_Load);
-        engine->last_pipeline = NULL;
-
-        flecsEngine_renderVisitorCtx_t ctx = {
-            .pass = pass,
-            .view = view,
-            .phase = 2
+            .phase = 0
         };
         flecsEngine_renderBatch_visitSet(
             world, engine, batch_set,

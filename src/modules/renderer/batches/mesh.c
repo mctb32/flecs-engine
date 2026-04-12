@@ -878,7 +878,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmission(
         .callback = flecsEngine_transmission_mesh_render,
         .ctx = flecsEngine_mesh_createCtx(false),
         .free_ctx = flecsEngine_mesh_deleteCtx,
-        .render_after_snapshot = true
+        .render_after_snapshot = true,
+        .needs_transmission = true
     });
 
     return batch;
@@ -966,7 +967,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmissionData(
         .callback = flecsEngine_transmissionData_mesh_render,
         .ctx = flecsEngine_mesh_createTransmissionDataCtx(),
         .free_ctx = flecsEngine_mesh_deleteCtx,
-        .render_after_snapshot = true
+        .render_after_snapshot = true,
+        .needs_transmission = true
     });
 
     return batch;

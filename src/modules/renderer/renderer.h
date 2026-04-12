@@ -75,6 +75,7 @@ ECS_PRIVATE
     void *ctx;
     void (*free_ctx)(void *ctx);
     bool render_after_snapshot;
+    bool needs_transmission;
 });
 
 // Fullscreen post-process effect. Input uses chain indexing:
