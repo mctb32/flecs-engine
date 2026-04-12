@@ -15,17 +15,22 @@ camera {
     LookAt: {-1.909, 6.432, -12.598}
 }
 
+light {
+    Position3: {1, 1, 1}
+}
+
 for x in 0..4 {
     for y in 0..4 {{
         Position3: {x * 4 - 8, y: 1.5, z: y * 4 - 8 + 1}
-        Sphere: {8, false, 1}
+        IcoSphere: {1, false, 1}
         Rgba: {250, 230, 180}
         PbrMaterial: {roughness: x / 4}
         Transmission: {
             transmission_factor: 0.9
             ior: 1.0 + y / 10
             thickness_factor: 2
-            attenuation_distance: 1e7
+            attenuation_distance: 2
+            attenuation_color: {75, 200, 255}
         }
     }}
 }
@@ -33,11 +38,12 @@ for x in 0..4 {
 for x in 0..25 {
     for y in 0..25 {
         {
-            Position3: {x * 2 - 25, 0.25, y * 2 - 25}
-            Box: {1, 0.5, 1}
-            Rgba: {10, 10, 10}
+            Position3: {x * 2 - 25, 0.15, y * 2 - 25}
+            Box: {1, 0.3, 1}
+            Rgba: {0, 2 * x + 25, 2 * y + 25}
             PbrMaterial: {
                 metallic: 1
+                roughness: 0.2
             }
         }
     }
