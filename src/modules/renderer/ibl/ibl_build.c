@@ -27,10 +27,7 @@ typedef struct FlecsIblBrdfUniform {
 } FlecsIblBrdfUniform;
 
 static const char *kPrefilterShaderSource =
-    "struct VertexOutput {\n"
-    "  @builtin(position) pos : vec4<f32>,\n"
-    "  @location(0) uv : vec2<f32>\n"
-    "};\n"
+    FLECS_ENGINE_FULLSCREEN_VS_WGSL
     "struct FaceUniform {\n"
     "  data : vec4<f32>\n"
     "};\n"
@@ -38,17 +35,6 @@ static const char *kPrefilterShaderSource =
     "@group(0) @binding(1) var env_sampler : sampler;\n"
     "@group(0) @binding(2) var<uniform> face_uniform : FaceUniform;\n"
     "const PI : f32 = 3.141592653589793;\n"
-    "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VertexOutput {\n"
-    "  var out : VertexOutput;\n"
-    "  var pos = array<vec2<f32>, 3>(\n"
-    "    vec2<f32>(-1.0, -1.0),\n"
-    "    vec2<f32>(3.0, -1.0),\n"
-    "    vec2<f32>(-1.0, 3.0));\n"
-    "  let p = pos[vid];\n"
-    "  out.pos = vec4<f32>(p, 0.0, 1.0);\n"
-    "  out.uv = vec2<f32>((p.x + 1.0) * 0.5, (1.0 - p.y) * 0.5);\n"
-    "  return out;\n"
-    "}\n"
     "fn cubeFaceUvToDir(face : u32, uv : vec2<f32>, face_size : f32) -> vec3<f32> {\n"
     "  let scale = max(1.0 - (1.0 / max(face_size, 1.0)), 0.0);\n"
     "  let st = (uv * 2.0 - vec2<f32>(1.0, 1.0)) * scale;\n"
@@ -126,10 +112,7 @@ static const char *kPrefilterShaderSource =
     "}\n";
 
 static const char *kIrradianceShaderSource =
-    "struct VertexOutput {\n"
-    "  @builtin(position) pos : vec4<f32>,\n"
-    "  @location(0) uv : vec2<f32>\n"
-    "};\n"
+    FLECS_ENGINE_FULLSCREEN_VS_WGSL
     "struct FaceUniform {\n"
     "  data : vec4<f32>\n"
     "};\n"
@@ -137,17 +120,6 @@ static const char *kIrradianceShaderSource =
     "@group(0) @binding(1) var env_sampler : sampler;\n"
     "@group(0) @binding(2) var<uniform> face_uniform : FaceUniform;\n"
     "const PI : f32 = 3.141592653589793;\n"
-    "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VertexOutput {\n"
-    "  var out : VertexOutput;\n"
-    "  var pos = array<vec2<f32>, 3>(\n"
-    "    vec2<f32>(-1.0, -1.0),\n"
-    "    vec2<f32>(3.0, -1.0),\n"
-    "    vec2<f32>(-1.0, 3.0));\n"
-    "  let p = pos[vid];\n"
-    "  out.pos = vec4<f32>(p, 0.0, 1.0);\n"
-    "  out.uv = vec2<f32>((p.x + 1.0) * 0.5, (1.0 - p.y) * 0.5);\n"
-    "  return out;\n"
-    "}\n"
     "fn cubeFaceUvToDir(face : u32, uv : vec2<f32>, face_size : f32) -> vec3<f32> {\n"
     "  let scale = max(1.0 - (1.0 / max(face_size, 1.0)), 0.0);\n"
     "  let st = (uv * 2.0 - vec2<f32>(1.0, 1.0)) * scale;\n"
@@ -201,10 +173,7 @@ static const char *kIrradianceShaderSource =
     "}\n";
 
 static const char *kBrdfLutShaderSource =
-    "struct VertexOutput {\n"
-    "  @builtin(position) pos : vec4<f32>,\n"
-    "  @location(0) uv : vec2<f32>\n"
-    "};\n"
+    FLECS_ENGINE_FULLSCREEN_VS_WGSL
     "struct BrdfUniform {\n"
     "  sample_count : u32,\n"
     "  _padding0 : u32,\n"
@@ -213,17 +182,6 @@ static const char *kBrdfLutShaderSource =
     "};\n"
     "@group(0) @binding(0) var<uniform> brdf_uniform : BrdfUniform;\n"
     "const PI : f32 = 3.141592653589793;\n"
-    "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VertexOutput {\n"
-    "  var out : VertexOutput;\n"
-    "  var pos = array<vec2<f32>, 3>(\n"
-    "    vec2<f32>(-1.0, -1.0),\n"
-    "    vec2<f32>(3.0, -1.0),\n"
-    "    vec2<f32>(-1.0, 3.0));\n"
-    "  let p = pos[vid];\n"
-    "  out.pos = vec4<f32>(p, 0.0, 1.0);\n"
-    "  out.uv = vec2<f32>((p.x + 1.0) * 0.5, (1.0 - p.y) * 0.5);\n"
-    "  return out;\n"
-    "}\n"
     "fn radicalInverseVdC(bits_in : u32) -> f32 {\n"
     "  var bits = bits_in;\n"
     "  bits = (bits << 16u) | (bits >> 16u);\n"

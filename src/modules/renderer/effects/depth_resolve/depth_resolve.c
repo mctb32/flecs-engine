@@ -5,21 +5,7 @@
  * texture and outputs it via @builtin(frag_depth) into the 1-sample depth
  * attachment. */
 static const char *kShaderSource =
-    "struct VertexOutput {\n"
-    "  @builtin(position) pos : vec4<f32>,\n"
-    "  @location(0) uv : vec2<f32>\n"
-    "};\n"
-    "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VertexOutput {\n"
-    "  var out : VertexOutput;\n"
-    "  var pos = array<vec2<f32>, 3>(\n"
-    "      vec2<f32>(-1.0, -1.0),\n"
-    "      vec2<f32>(3.0, -1.0),\n"
-    "      vec2<f32>(-1.0, 3.0));\n"
-    "  let p = pos[vid];\n"
-    "  out.pos = vec4<f32>(p, 0.0, 1.0);\n"
-    "  out.uv = vec2<f32>((p.x + 1.0) * 0.5, (1.0 - p.y) * 0.5);\n"
-    "  return out;\n"
-    "}\n"
+    FLECS_ENGINE_FULLSCREEN_VS_WGSL
     "@group(0) @binding(0) var ms_depth : texture_depth_multisampled_2d;\n"
     "struct FragOut {\n"
     "  @builtin(frag_depth) depth : f32\n"
