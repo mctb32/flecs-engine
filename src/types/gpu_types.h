@@ -26,6 +26,11 @@ typedef struct {
     float thickness_factor;
     float attenuation_distance;
     uint32_t attenuation_color;  /* packed RGBA8 */
+    /* UV transform (KHR_texture_transform) */
+    float uv_scale_x;
+    float uv_scale_y;
+    float uv_offset_x;
+    float uv_offset_y;
 } FlecsGpuMaterial;
 
 typedef struct {

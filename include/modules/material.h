@@ -73,4 +73,13 @@ ECS_STRUCT(FlecsTransmission, {
 
 extern ECS_COMPONENT_DECLARE(FlecsTransmission);
 
+ECS_STRUCT(FlecsTextureTransform, {
+    float scale_x;
+    float scale_y;
+    float offset_x;
+    float offset_y;
+});
+
+extern ECS_COMPONENT_DECLARE(FlecsTextureTransform);
+
 #endif

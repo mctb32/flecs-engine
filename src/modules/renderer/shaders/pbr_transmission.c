@@ -205,15 +205,17 @@ static const char *kShaderSource =
     "@fragment fn fs_main(input : VertexOutput) -> @location(0) vec4<f32> {\n"
     "  let mat = materials[input.material_id];\n"
     "  let bucket = mat.texture_bucket;\n"
-    "  let dx = dpdx(input.uv);\n"
-    "  let dy = dpdy(input.uv);\n"
+    "  let uv = input.uv * vec2<f32>(mat.uv_scale_x, mat.uv_scale_y)\n"
+    "         + vec2<f32>(mat.uv_offset_x, mat.uv_offset_y);\n"
+    "  let dx = dpdx(uv);\n"
+    "  let dy = dpdy(uv);\n"
     "  let mat_color = unpack4x8unorm(mat.color);\n"
 
     /* Sample albedo only if the material has an albedo texture
      * (layer 0 is the reserved neutral slot — always white). */
     "  var albedo = mat_color.rgb;\n"
     "  if (mat.layer_albedo != 0u) {\n"
-    "    let base_color = sample_albedo(input.uv, mat.layer_albedo, bucket, dx, dy);\n"
+    "    let base_color = sample_albedo(uv, mat.layer_albedo, bucket, dx, dy);\n"
     "    albedo = base_color.rgb * mat_color.rgb;\n"
     "  }\n"
 
@@ -221,7 +223,7 @@ static const char *kShaderSource =
     "  var roughness = mat.roughness;\n"
     "  var metallic = mat.metallic;\n"
     "  if (mat.layer_mr != 0u) {\n"
-    "    let mr = sample_roughness(input.uv, mat.layer_mr, bucket, dx, dy);\n"
+    "    let mr = sample_roughness(uv, mat.layer_mr, bucket, dx, dy);\n"
     "    roughness = mr.g * mat.roughness;\n"
     "    metallic = mr.b * mat.metallic;\n"
     "  }\n"
@@ -232,7 +234,7 @@ static const char *kShaderSource =
     "    let em_color = unpack4x8unorm(mat.emissive_color).rgb;\n"
     "    var em_sample = vec3<f32>(1.0);\n"
     "    if (mat.layer_emissive != 0u) {\n"
-    "      em_sample = sample_emissive(input.uv, mat.layer_emissive, bucket, dx, dy).rgb;\n"
+    "      em_sample = sample_emissive(uv, mat.layer_emissive, bucket, dx, dy).rgb;\n"
     "    }\n"
     "    emissive = em_sample * em_color * mat.emissive_strength;\n"
     "  }\n"
@@ -241,7 +243,7 @@ static const char *kShaderSource =
      * the geometric normal directly and skip the TBN reconstruction. */
     "  var n = normalize(input.normal);\n"
     "  if (mat.layer_normal != 0u) {\n"
-    "    let normal_sample = sample_normal(input.uv, mat.layer_normal, bucket, dx, dy).rgb;\n"
+    "    let normal_sample = sample_normal(uv, mat.layer_normal, bucket, dx, dy).rgb;\n"
     "    let tangent_normal = normal_sample * 2.0 - 1.0;\n"
     "    let T_raw = input.tangent;\n"
     "    let T = normalize(T_raw - n * dot(n, T_raw));\n"

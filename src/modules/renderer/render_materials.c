@@ -150,11 +150,14 @@ redo: {
                 ecs_field(&it, FlecsEmissive, 3);
             const FlecsTransmission *transmissions =
                 ecs_field(&it, FlecsTransmission, 4);
+            const FlecsTextureTransform *tex_transforms =
+                ecs_field(&it, FlecsTextureTransform, 5);
 
             bool colors_self = ecs_field_is_self(&it, 0);
             bool materials_self = ecs_field_is_self(&it, 1);
             bool emissives_self = ecs_field_is_self(&it, 3);
             bool transmissions_self = ecs_field_is_self(&it, 4);
+            bool tex_transforms_self = ecs_field_is_self(&it, 5);
 
             for (int32_t i = 0; i < it.count; i ++) {
                 uint32_t index = material_ids[i].value;
@@ -197,7 +200,9 @@ redo: {
                      * because its bind group plugs source textures into
                      * the bucket-1 slots. All per-channel layer fields
                      * default to 0 (the reserved neutral slot). */
-                    .texture_bucket = 1
+                    .texture_bucket = 1,
+                    .uv_scale_x = 1.0f,
+                    .uv_scale_y = 1.0f
                 };
 
                 if (transmissions) {
@@ -210,6 +215,14 @@ redo: {
                     gm->attenuation_color =
                         (uint32_t)ac.r | ((uint32_t)ac.g << 8) |
                         ((uint32_t)ac.b << 16) | ((uint32_t)ac.a << 24);
+                }
+
+                if (tex_transforms) {
+                    int32_t tti = tex_transforms_self ? i : 0;
+                    gm->uv_scale_x = tex_transforms[tti].scale_x;
+                    gm->uv_scale_y = tex_transforms[tti].scale_y;
+                    gm->uv_offset_x = tex_transforms[tti].offset_x;
+                    gm->uv_offset_y = tex_transforms[tti].offset_y;
                 }
             }
         }

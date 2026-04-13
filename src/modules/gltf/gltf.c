@@ -378,6 +378,8 @@ typedef struct {
     bool alpha_blend;
     bool has_transmission;
     FlecsTransmission transmission;
+    bool has_texture_transform;
+    FlecsTextureTransform texture_transform;
 } flecsEngine_gltf_materialDesc;
 
 static void flecsEngine_gltf_computeMaterial(
@@ -459,6 +461,19 @@ static void flecsEngine_gltf_computeMaterial(
 
         albedo_tv = &pbr->base_color_texture;
         roughness_tv = &pbr->metallic_roughness_texture;
+    }
+
+    /* Extract UV transform from the albedo texture view (KHR_texture_transform).
+     * A single transform per material covers the common case where all
+     * channels share the same scale/offset. */
+    if (albedo_tv && albedo_tv->has_transform) {
+        desc->has_texture_transform = true;
+        desc->texture_transform = (FlecsTextureTransform){
+            .scale_x = albedo_tv->transform.scale[0],
+            .scale_y = albedo_tv->transform.scale[1],
+            .offset_x = albedo_tv->transform.offset[0],
+            .offset_y = albedo_tv->transform.offset[1]
+        };
     }
 
     desc->textures.albedo = flecsEngine_gltf_getImageEntity(
@@ -551,6 +566,18 @@ static bool flecsEngine_gltf_matchMaterial(
         if (tex) return false;
     }
 
+    const FlecsTextureTransform *tt =
+        ecs_get(world, entity, FlecsTextureTransform);
+    if (desc->has_texture_transform) {
+        if (!tt) return false;
+        if (tt->scale_x != desc->texture_transform.scale_x ||
+            tt->scale_y != desc->texture_transform.scale_y ||
+            tt->offset_x != desc->texture_transform.offset_x ||
+            tt->offset_y != desc->texture_transform.offset_y) return false;
+    } else {
+        if (tt) return false;
+    }
+
     bool has_alpha = ecs_has(world, entity, FlecsAlphaBlend);
     if (desc->alpha_blend != has_alpha) return false;
 
@@ -599,6 +626,11 @@ static void flecsEngine_gltf_applyMaterial(
 
     if (desc->has_transmission) {
         ecs_set_ptr(world, entity, FlecsTransmission, &desc->transmission);
+    }
+
+    if (desc->has_texture_transform) {
+        ecs_set_ptr(world, entity, FlecsTextureTransform,
+            &desc->texture_transform);
     }
 
     if (desc->alpha_blend) {

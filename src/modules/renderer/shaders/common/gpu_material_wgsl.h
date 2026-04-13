@@ -17,7 +17,11 @@
     "  ior : f32,\n" \
     "  thickness_factor : f32,\n" \
     "  attenuation_distance : f32,\n" \
-    "  attenuation_color : u32\n" \
+    "  attenuation_color : u32,\n" \
+    "  uv_scale_x : f32,\n" \
+    "  uv_scale_y : f32,\n" \
+    "  uv_offset_x : f32,\n" \
+    "  uv_offset_y : f32\n" \
     "};\n" \
     "@group(0) @binding(11) var<storage, read> materials : array<GpuMaterial>;\n"
 
