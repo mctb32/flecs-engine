@@ -2,9 +2,6 @@
 #ifndef FLECS_ENGINE_WGPU_COMPAT_H
 #define FLECS_ENGINE_WGPU_COMPAT_H
 
-/* WGPURenderPassColorAttachment.depthSlice — not present in emscripten's
-   WebGPU header.  Place this macro inside a designated initializer to
-   emit the field on native and nothing on emscripten. */
 #ifdef __EMSCRIPTEN__
 #define WGPU_DEPTH_SLICE
 #else
@@ -39,20 +36,12 @@ typedef WGPUBufferMapAsyncStatus WGPUMapAsyncStatus;
 
 /* ---- WGPUStringView compat ---- */
 
-/* wgpu-native v27 uses WGPUStringView for entryPoint / shader code.
-   Emscripten uses plain const char *. We define WGPUStringView so the
-   struct literal compiles, and WGPU_STR() so call sites compile on both
-   platforms.  The struct is never passed to emscripten APIs directly —
-   only .data is used via the macros below. */
 typedef struct WGPUStringView {
     char const *data;
     size_t length;
 } WGPUStringView;
 #define WGPU_STRLEN SIZE_MAX
 
-/* Macro to initialise an entryPoint / code field.
-   On wgpu-native the field IS a WGPUStringView.
-   On emscripten the field is const char *, so we emit just the pointer. */
 #define WGPU_STR(s) (s)
 
 /* Shader source code field — emscripten struct uses `const char *code` */
@@ -60,18 +49,11 @@ typedef struct WGPUStringView {
 
 /* ---- Multisample mask compat ---- */
 
-/* wgpu-native defaults WGPUMultisampleState.mask to 0xFFFFFFFF when
-   zero-initialized via designated initializers. Emscripten's webgpu.h
-   does not apply defaults, so mask=0 disables all sample writes.
-   Provide a macro so `.multisample = WGPU_MULTISAMPLE_DEFAULT` works. */
 #define WGPU_MULTISAMPLE_DEFAULT { .count = 1, .mask = 0xFFFFFFFF }
 #define WGPU_MULTISAMPLE(n) { .count = (n), .mask = 0xFFFFFFFF }
 
 /* ---- depthSlice compat ---- */
 
-/* Emscripten's WGPURenderPassColorAttachment does not have depthSlice.
-   We define the constant so references compile, but the field itself
-   must be guarded with #ifndef __EMSCRIPTEN__ at each call site. */
 #define WGPU_DEPTH_SLICE_UNDEFINED 0
 
 /* ---- WGPUOptionalBool compat ---- */
@@ -86,9 +68,6 @@ typedef enum WGPUOptionalBool {
 
 /* ---- Surface / SwapChain compat ---- */
 
-/* Emscripten doesn't have the new Surface configure / present API.
-   The window surface implementation handles this with #ifdef blocks,
-   but the FlecsEngineSurface struct references this enum. */
 typedef enum WGPUSurfaceGetCurrentTextureStatus {
     WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal = 0,
     WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal = 1,

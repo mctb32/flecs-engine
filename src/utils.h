@@ -32,9 +32,6 @@ bool flecsEngine_lightDirFromRotation(
 WGPUTextureFormat flecsEngine_getHdrFormat(
     const FlecsEngineImpl *impl);
 
-/* Returns the format for the texture that the effect chain ultimately writes
- * to.  On native this is the surface format; on Emscripten it is the HDR
- * format (the gamma-correction pass converts to the surface format). */
 WGPUTextureFormat flecsEngine_getViewTargetFormat(
     const FlecsEngineImpl *impl);
 

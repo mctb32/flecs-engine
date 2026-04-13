@@ -22,10 +22,6 @@ ECS_MOVE(FlecsRenderBatch, dst, src, {
     ecs_os_zeromem(src);
 })
 
-/* Lazily create an empty bind group layout used as a placeholder for the
- * @group(1) PBR textures slot when a pipeline does not sample any material
- * textures. Keeps pipeline bind group indices contiguous so WebGPU accepts
- * pipeline switches between textured and non-textured draws. */
 static WGPUBindGroupLayout flecsEngine_renderBatch_ensureEmptyBindLayout(
     FlecsEngineImpl *engine)
 {
@@ -41,10 +37,6 @@ static WGPUBindGroupLayout flecsEngine_renderBatch_ensureEmptyBindLayout(
     return engine->empty_bind_layout;
 }
 
-/* Lazily create an empty bind group matching the empty bind layout. Used to
- * "unbind" a slot when switching from a pipeline that uses it to one that
- * does not — WebGPU keeps previously bound groups across pipeline switches,
- * so a stale non-empty bind group at an empty layout slot fails validation. */
 static WGPUBindGroup flecsEngine_renderBatch_ensureEmptyBindGroup(
     FlecsEngineImpl *engine)
 {
@@ -237,14 +229,6 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     WGPUTextureFormat color_format,
     uint32_t sample_count)
 {
-    /* Bind group layout order is fixed by update frequency:
-     *   group 0 = scene globals (frame uniform, IBL, shadow, cluster, materials)
-     *   group 1 = PBR material textures (scene-stable)
-     *
-     * Group 0 is always populated because every PBR shader samples the
-     * frame uniform buffer at binding 0. Group 1 is populated iff the
-     * pipeline samples PBR textures; otherwise a shared empty placeholder
-     * keeps bind group indices contiguous across pipeline switches. */
     if (!engine->ibl_shadow_bind_layout) {
         return NULL;
     }
@@ -376,9 +360,6 @@ static void flecsEngine_renderBatch_setupShadowPipeline(
     if (impl->uses_textures &&
         rb->vertex_type == ecs_id(FlecsLitVertexUv))
     {
-        /* For textured batches, build the shadow pipeline with
-         * the non-UV vertex layout so that instance transform
-         * locations match the shadow shader expectations. */
         WGPUVertexAttribute shadow_vert_attrs[16];
         WGPUVertexAttribute shadow_inst_attrs[256] = {0};
         WGPUVertexBufferLayout shadow_vbufs[1 + FLECS_ENGINE_INSTANCE_TYPES_MAX] = {0};
@@ -551,11 +532,6 @@ void flecsEngine_renderBatch_render(
         engine->last_pipeline = pipeline;
     }
 
-    /* WebGPU keeps previously bound bind groups across pipeline switches.
-     * If a prior textured draw bound a non-empty group at @group(1), this
-     * pipeline (which expects an empty layout there) would fail validation.
-     * Reset the slot with an empty bind group when this pipeline doesn't use
-     * textures; the textured render callbacks overwrite @group(1) themselves. */
     if (!impl->uses_textures) {
         WGPUBindGroup empty = flecsEngine_renderBatch_ensureEmptyBindGroup(
             (FlecsEngineImpl*)engine);
@@ -564,9 +540,6 @@ void flecsEngine_renderBatch_render(
         }
     }
 
-    /* Every shader samples the frame uniform buffer at group(0) binding(0),
-     * so the scene-globals bind group is always bound — regardless of
-     * whether the shader uses IBL, shadow, cluster, or materials. */
     {
         ecs_entity_t hdri = view->hdri;
         if (!hdri) {
@@ -576,9 +549,6 @@ void flecsEngine_renderBatch_render(
         FlecsHdriImpl *ibl = ecs_get_mut(world, hdri, FlecsHdriImpl);
         ecs_assert(ibl != NULL, ECS_INTERNAL_ERROR, NULL);
 
-        /* Recreate combined bind group if scene resources changed
-         * (shadow atlas resize, cluster reallocation, or materials
-         * buffer reallocation). */
         if (ibl->scene_bind_version != engine->scene_bind_version) {
             flecsEngine_globals_createBindGroup(engine, ibl);
         }

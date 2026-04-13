@@ -41,9 +41,6 @@
     "    f0, ndotv, ggx_v, cluster_idx);\n" \
     "  return diffuse_ibl + direct + cluster_light + specular_ibl + emissive;\n" \
     "}\n" \
-    /* Split PBR lighting into diffuse and specular for transmission blending.
-     * Per the glTF spec, transmission replaces only the diffuse component;
-     * specular reflections are added on top unattenuated. */ \
     "struct PbrLightingSplit {\n" \
     "  diffuse : vec3<f32>,\n" \
     "  specular : vec3<f32>\n" \

@@ -1,7 +1,3 @@
-/* Platform compatibility layer.
- *
- */
-
 #ifndef FLECS_ENGINE_PLATFORM_H
 #define FLECS_ENGINE_PLATFORM_H
 
@@ -40,9 +36,6 @@ typedef void (*FlecsCompatBufferMapCallback)(
     const char *message,   /* may be NULL */
     void *userdata);
 
-/* Map a buffer asynchronously.  The compat layer adapts between the
-   emscripten (single-userdata) and native (WGPUBufferMapCallbackInfo)
-   calling conventions. */
 void flecsEngine_bufferMapAsync(
     WGPUBuffer buffer,
     WGPUMapMode mode,
@@ -53,9 +46,6 @@ void flecsEngine_bufferMapAsync(
 
 /* ---- Surface / swap-chain ---- */
 
-/* Create a WGPUSurface from a GLFW window.
-   On emscripten this uses a canvas HTML selector; on native it creates
-   a Metal layer surface. */
 WGPUSurface flecsEngine_createSurface(
     WGPUInstance instance,
     GLFWwindow *window);
@@ -65,9 +55,6 @@ WGPUSurface flecsEngine_createSurface(
 int flecsEngine_configureSurface(
     FlecsEngineImpl *impl);
 
-/* Re-configure the surface / recreate the swap chain after a resize.
-   Caller must have already updated impl->surface_config with the new
-   width and height. */
 void flecsEngine_reconfigureSurface(
     FlecsEngineImpl *impl);
 
@@ -78,9 +65,6 @@ void flecsEngine_getFramebufferSize(
     int *width,
     int *height);
 
-/* Acquire the current frame's texture view from the swap chain (emscripten)
-   or surface (native).  Populates *target.
-   Returns 0 on success, 1 if the frame should be skipped, -1 on error. */
 int flecsEngine_acquireFrame(
     FlecsEngineImpl *impl,
     FlecsEngineSurface *target);

@@ -135,19 +135,6 @@ static bool flecsEngine_gltf_readMesh(
         ecs_vec_set_count_t(NULL, &mesh3->uvs, flecs_vec2_t, 0);
     }
 
-    /* glTF tangents are stored as vec4 (xyz = tangent, w = bitangent sign).
-     * Read them when present so the textured PBR shader can build a stable
-     * TBN frame instead of relying on screen-space derivatives, which break
-     * down at close camera distances.
-     *
-     * Some exporters (notably the Kenney asset toolchain for low-poly palette
-     * models) emit tangents that are zero-length or parallel to the vertex
-     * normal on faces where MikkTSpace cannot derive a meaningful tangent.
-     * Loading those values leads to NaN-normals in the shader because the
-     * per-fragment Gram-Schmidt step collapses to zero. Detect that case and
-     * drop the accessor, so geometry3.c falls back to its own Lengyel
-     * computation (whose own degenerate-case fallback picks a stable
-     * arbitrary axis perpendicular to N, which is what we actually want). */
     if (tan_acc && (int32_t)tan_acc->count == vert_count) {
         ecs_vec_set_count_t(NULL, &mesh3->tangents, flecs_vec4_t, vert_count);
         flecsEngine_gltf_readAccessor_f32(
@@ -186,11 +173,6 @@ static bool flecsEngine_gltf_readMesh(
     flecsEngine_gltf_readIndices(
         idx_acc, ecs_vec_first_t(&mesh3->indices, uint32_t));
 
-    /* Fix degenerate UV triangles. Some models map every vertex of a face to 
-     * the same UV point on a color atlas. This produces zero UV gradients in 
-     * the fragment shader, which makes the cotangent-frame normal mapping 
-     * generate NaN normals. Apply a sub-texel perturbation so the TBN 
-     * construction has valid gradients. */
     if (uv_acc) {
         flecs_vec2_t *uvs = ecs_vec_first_t(&mesh3->uvs, flecs_vec2_t);
         uint32_t *indices = ecs_vec_first_t(&mesh3->indices, uint32_t);
@@ -422,11 +404,6 @@ static void flecsEngine_gltf_computeMaterial(
             (uint8_t)(sg->diffuse_factor[3] * 255.0f)
         };
 
-        /* Scale glossiness by sqrt of specular intensity to approximate the
-         * spec-gloss model in metal-rough. Without this, low-specular
-         * materials (like fabric) end up with low roughness and look like
-         * shiny plastic, because the metal-rough model can't represent
-         * "smooth but not reflective" without per-material F0. */
         float max_spec = fmaxf(fmaxf(
             sg->specular_factor[0], sg->specular_factor[1]),
             sg->specular_factor[2]);
@@ -437,10 +414,6 @@ static void flecsEngine_gltf_computeMaterial(
         };
 
         albedo_tv = &sg->diffuse_texture;
-        /* Don't use the specular-glossiness texture as roughness texture.
-         * The shader expects metal-rough layout (G=roughness, B=metallic)
-         * but spec-gloss textures store specular in RGB and glossiness in
-         * A, so the channels don't match. */
     } else if (mat->has_pbr_metallic_roughness) {
         const cgltf_pbr_metallic_roughness *pbr =
             &mat->pbr_metallic_roughness;
@@ -463,9 +436,6 @@ static void flecsEngine_gltf_computeMaterial(
         roughness_tv = &pbr->metallic_roughness_texture;
     }
 
-    /* Extract UV transform from the albedo texture view (KHR_texture_transform).
-     * A single transform per material covers the common case where all
-     * channels share the same scale/offset. */
     if (albedo_tv && albedo_tv->has_transform) {
         desc->has_texture_transform = true;
         desc->texture_transform = (FlecsTextureTransform){
@@ -832,9 +802,6 @@ static void flecsEngine_gltf_load(
         }
     }
 
-    /* Detect primitive GLTF: single root node, no children, one triangle
-     * primitive. In this case we apply the mesh directly to the root entity
-     * instead of creating a child node. */
     bool is_primitive = false;
     const cgltf_node *prim_node = NULL;
     {

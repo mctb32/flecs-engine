@@ -218,9 +218,6 @@ void flecsEngine_renderView_renderShadow(
         return;
     }
 
-    /* Cascade light VP matrices and frustum planes were already computed
-     * during the extract phase. Upload VP matrices to GPU buffers before
-     * encoding any render passes. */
     for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
         wgpuQueueWriteBuffer(
             engine->queue,
@@ -302,9 +299,6 @@ void flecsEngine_renderView_renderBatches(
 
     WGPUTextureView batch_target = viewImpl->effect_target_views[0];
 
-    /* Check if any transmission batch has matching entities. If not, we can
-     * skip the expensive opaque snapshot + prefilter and render everything
-     * in a single pass. */
     bool has_transmission = false;
     flecsEngine_renderBatch_visitSet(
         world, engine, batch_set,

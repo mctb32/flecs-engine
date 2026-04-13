@@ -42,10 +42,6 @@ typedef struct {
     ecs_query_t *spot_light_query;
 } flecs_engine_lighting_t;
 
-/* PBR texture buckets: textures are normalized into one of 3 size buckets
- * (512², 1024², 2048²) so the shader can pick the right binding via a
- * per-material `texture_bucket` field. Each bucket holds 4 channel arrays
- * (albedo, emissive, roughness, normal), all at the bucket's dimensions. */
 #define FLECS_ENGINE_TEXTURE_BUCKET_COUNT 3
 
 typedef struct {
@@ -79,11 +75,6 @@ typedef struct {
     uint32_t next_id;
     uint32_t last_id;
 
-    /* Bumped by OnSet observers on material components (FlecsRgba,
-     * FlecsPbrMaterial, FlecsEmissive, FlecsTransmission) and on new
-     * material entity creation. The upload path re-uploads whenever
-     * `dirty_version != uploaded_version`. This lets in-place material
-     * mutations propagate to the GPU without needing ecs_query_changed. */
     uint32_t dirty_version;
     uint32_t uploaded_version;
 
@@ -94,10 +85,6 @@ typedef struct {
     flecs_engine_texture_bucket_t buckets[FLECS_ENGINE_TEXTURE_BUCKET_COUNT];
     WGPUBindGroup texture_array_bind_group;
 
-    /* Cached pipelines for the texture-array build pass. The blit
-     * pipeline normalizes arbitrary source textures to one slice of a
-     * bucket array; the mip-gen compute pipeline downsamples mip N to
-     * mip N+1 across all slices in one dispatch. */
     WGPURenderPipeline blit_pipeline;
     WGPUBindGroupLayout blit_bind_layout;
     WGPUSampler blit_sampler;
@@ -165,22 +152,12 @@ typedef struct {
     WGPUBindGroup empty_bind_group;
     uint32_t scene_bind_version;
 
-    /* Per-frame / per-view shader uniforms. Single global buffer bound at
-     * group(0) binding(0), written by render_view before each view's
-     * batches are encoded. */
     WGPUBuffer frame_uniform_buffer;
 
     ecs_query_t *view_query;
     WGPURenderPipeline last_pipeline;
     float camera_pos[3];
 
-    /* Opaque scene snapshot for transmission rendering. Captured after
-     * opaques render, sampled by transmissive objects at @group(0) @binding(3).
-     *
-     * Gaussian blur pyramid built with a Jimenez 13-tap downsample: mip 0 is
-     * the raw opaque color target, mips 1..N are successive blurs. The
-     * transmission shader samples at LOD = roughness * (mip_count - 1) so
-     * rough materials see a blurred background. */
     WGPUTexture opaque_snapshot;
     WGPUTextureView opaque_snapshot_view;
     WGPUTextureView *opaque_snapshot_mip_views; /* per-mip render attachments */
@@ -211,9 +188,6 @@ typedef struct {
     float cascade_frustum_planes[FLECS_ENGINE_SHADOW_CASCADE_COUNT][6][4];
     bool cascade_frustum_valid;
 
-    /* Screen-size culling state (computed once per frame during extract).
-     * Objects whose projected screen area is below the threshold are culled.
-     * screen_cull_factor = (viewport_height / tan(fov/2))^2 */
     float screen_cull_factor;
     float screen_cull_threshold;
     bool screen_cull_valid;

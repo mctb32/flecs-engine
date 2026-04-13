@@ -5,14 +5,6 @@
 #include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
-/* ---- Material buffer management ----
- *
- * Manages the CPU-side FlecsGpuMaterial array and its backing GPU storage
- * buffer. The buffer is bound at @group(0) @binding(11) and indexed
- * per-fragment by material_id. Texture array building (bucket system)
- * lives in render_texture_arrays.c; the blit/mipgen build pass lives in
- * render_texture_blit.c. */
-
 static void flecsEngine_material_ensureBufferCapacity(
     FlecsEngineImpl *impl,
     uint32_t required_count)
@@ -45,8 +37,6 @@ static void flecsEngine_material_ensureBufferCapacity(
         ecs_os_malloc_n(FlecsGpuMaterial, new_capacity);
     ecs_assert(new_cpu_materials != NULL, ECS_OUT_OF_MEMORY, NULL);
 
-    /* Preserve existing data so that per-channel layer values (and any
-     * other fields written by buildTextureArrays) survive a reallocation. */
     if (impl->materials.cpu_materials && impl->materials.buffer_capacity) {
         ecs_os_memcpy_n(new_cpu_materials, impl->materials.cpu_materials,
             FlecsGpuMaterial, (int32_t)impl->materials.buffer_capacity);
@@ -69,9 +59,6 @@ static void flecsEngine_material_ensureBufferCapacity(
     impl->materials.cpu_materials = new_cpu_materials;
     impl->materials.buffer_capacity = new_capacity;
 
-    /* The materials storage buffer lives in the group-0 scene-globals bind
-     * group. Bump scene_bind_version so the cached bind group is rebuilt
-     * against the new buffer handle on the next frame. */
     impl->scene_bind_version ++;
 }
 
@@ -107,8 +94,6 @@ void flecsEngine_material_uploadBuffer(
 {
     FLECS_TRACY_ZONE_BEGIN("MaterialUpload");
 
-    /* Guarantee a non-null buffer regardless of whether any material is
-     * defined yet — see flecsEngine_material_ensureBuffer. */
     flecsEngine_material_ensureBuffer(impl);
 
     if (impl->materials.dirty_version == impl->materials.uploaded_version) {
@@ -122,9 +107,6 @@ void flecsEngine_material_uploadBuffer(
         return;
     }
 
-    /* Snapshot the dirty version before iterating so that any mutations
-     * that happen between now and the end of the upload get picked up on
-     * the next frame. */
     uint32_t snapshot_version = impl->materials.dirty_version;
 
     ecs_trace("upload materials buffer (last material id = %u)",
@@ -193,13 +175,6 @@ redo: {
                     .roughness = materials[mi].roughness,
                     .emissive_strength = emissive.strength,
                     .emissive_color = em_color,
-                    /* Default to bucket 1 (1024). The array build pass
-                     * will override this for materials with PBR textures
-                     * once it has assigned them to a real bucket. The
-                     * per-prefab fallback path also relies on this default
-                     * because its bind group plugs source textures into
-                     * the bucket-1 slots. All per-channel layer fields
-                     * default to 0 (the reserved neutral slot). */
                     .texture_bucket = 1,
                     .uv_scale_x = 1.0f,
                     .uv_scale_y = 1.0f
@@ -245,8 +220,6 @@ redo: {
             (uint64_t)required_count * sizeof(FlecsGpuMaterial));
         impl->materials.count = required_count;
 
-        /* Materials changed — invalidate texture arrays so they are
-         * rebuilt on the next check with up-to-date layer assignments. */
         flecsEngine_textureArray_release(impl);
 
         impl->materials.last_id = impl->materials.next_id;

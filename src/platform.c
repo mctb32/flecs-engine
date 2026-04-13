@@ -1,8 +1,3 @@
-/* Platform compatibility layer — implementation.
- *
- * All #ifdef __EMSCRIPTEN__ blocks for WebGPU API differences live here
- * so the rest of the engine code stays platform-agnostic. */
-
 #include "platform.h"
 
 #ifdef __EMSCRIPTEN__

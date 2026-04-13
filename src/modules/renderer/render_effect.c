@@ -167,9 +167,6 @@ void flecsEngine_renderEffect_render(
     wgpuBindGroupRelease(bind_group);
 }
 
-/* Resolve the input index for an effect, scanning back past any disabled
- * effects to find the first enabled effect's output. Returns 0 (the batch
- * framebuffer) if no enabled effect is found before the batch output. */
 static int32_t flecsEngine_resolveEffectInput(
     const flecs_render_view_effect_t *effects,
     int32_t input)

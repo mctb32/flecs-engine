@@ -114,9 +114,6 @@ void flecsEngine_batch_drawShadow(
         pass, 1, buf->shadow_transforms[cascade],
         transform_offset, transform_size);
 
-    /* Bind remaining instance buffers (material data / material id) that the
-     * shadow pipeline layout expects, even though the shadow shader does not
-     * read from them. Use the main batch buffers for this. */
     if (buf->owns_material_data) {
         if (buf->instance_color) {
             wgpuRenderPassEncoderSetVertexBuffer(

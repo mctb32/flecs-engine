@@ -65,17 +65,6 @@ void flecsEngine_textureArray_release(
     }
 }
 
-/* ---- Format census ----
- * Count BC7 vs non-BC7 sources per bucket and decide each bucket's format.
- *
- * Rules:
- *   - All sources BC7          → bucket is BC7 (direct copy, preserve mips)
- *   - All sources non-BC7      → bucket is RGBA8 (blit + mipgen)
- *   - Mixed, top bucket (2048) → bucket is BC7; non-BC7 sources redirected
- *     to the next-smaller bucket (downsampled via blit)
- *   - Mixed, other buckets     → bucket is RGBA8 (BC7 decoded by sampler
- *     during the blit — this already works today) */
-
 typedef struct {
     uint32_t bc7_count;
     uint32_t other_count;
@@ -122,10 +111,6 @@ static void flecsEngine_textureArray_censusFormats(
                 if (tw > max_w) max_w = tw;
                 if (th > max_h) max_h = th;
 
-                /* A source is BC7-copy-compatible only if it is BC7
-                 * format AND square. Non-square BC7 sources can't be
-                 * directly copied into the square bucket arrays, so
-                 * they route through the blit path like RGBA8 sources. */
                 if (flecsEngine_textureArray_isBC7(
                         wgpuTextureGetFormat(ti->texture)) && tw == th)
                 {
@@ -230,9 +215,6 @@ static bool flecsEngine_textureArray_survey(
 
             uint8_t bucket = flecsEngine_textureArray_pickBucket(max_w, max_h);
 
-            /* If this material has non-BC7 sources and its bucket is BC7,
-             * redirect it to the next-smaller bucket (where it'll be blit
-             * as RGBA8, downsampled to fit). */
             if (any_non_bc7 && impl->materials.buckets[bucket].is_bc7
                 && bucket > 0)
             {
@@ -255,9 +237,6 @@ static bool flecsEngine_textureArray_survey(
                 gm->layer_normal = bucket_channel_layers[bucket][3]++;
             }
 
-            /* Write actual (bucket) info to each texture's
-             * FlecsTextureInfo. If a texture appears in multiple
-             * materials, the last write wins — fine for inspection. */
             uint32_t bk_dim = flecs_engine_bucket_dim[bucket];
             bool bk_bc7 = impl->materials.buckets[bucket].is_bc7;
             uint32_t bk_mips =

@@ -1,10 +1,6 @@
 #include <math.h>
 #include "frustum_cull.h"
 
-/* Extract 6 frustum planes from a view-projection matrix (Gribb-Hartmann).
- * Each plane (a,b,c,d) satisfies: ax+by+cz+d >= 0 for points inside.
- * Planes are normalized so that (a,b,c) is a unit normal.
- * Order: left, right, bottom, top, near, far. */
 void flecsEngine_frustum_extractPlanes(
     const float m[4][4],
     float planes[6][4])
@@ -64,10 +60,6 @@ void flecsEngine_frustum_extractPlanes(
     }
 }
 
-/* Compute world-space AABB from local AABB + world transform + scale
- * using the Arvo method.
- * world_pos = M * local_pos, where M is column-major m[col][row].
- * world[i] = m[0][i]*p.x + m[1][i]*p.y + m[2][i]*p.z + m[3][i] */
 void flecsEngine_computeWorldAABB(
     const FlecsWorldTransform3 *wt,
     const float local_min[3],
@@ -97,12 +89,6 @@ void flecsEngine_computeWorldAABB(
     }
 }
 
-/* Test whether a world-space AABB projects to at least `threshold` pixels²
- * on screen, using a bounding-sphere approximation.
- *   screen_area ≈ r² * screen_cull_factor / d²
- * where r = AABB half-diagonal, d = distance from camera to AABB center,
- * and screen_cull_factor = (viewport_height / tan(fov/2))².
- * Returns true when the object is large enough to keep. */
 bool flecsEngine_testScreenSize(
     const float camera_pos[3],
     const float world_min[3],
@@ -129,9 +115,6 @@ bool flecsEngine_testScreenSize(
     return r_sq * screen_cull_factor >= threshold * d_sq;
 }
 
-/* Test a world-space AABB against 6 frustum planes (P-vertex approach).
- * For each plane, the corner most aligned with the plane normal is tested.
- * If that corner is behind the plane, the AABB is fully outside. */
 bool flecsEngine_testAABBFrustum(
     const float planes[6][4],
     const float world_min[3],

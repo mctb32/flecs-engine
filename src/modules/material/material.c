@@ -28,9 +28,6 @@ static void FlecsMaterialIdInit(
     impl->materials.dirty_version ++;
 }
 
-/* OnSet observer shared by all material property components. Mutations to
- * any of these components mark the material buffer as dirty so the upload
- * path re-runs on the next frame. */
 static void FlecsMaterialDirty(
     ecs_iter_t *it)
 {
@@ -145,10 +142,6 @@ void FlecsEngineMaterialImport(
         .callback = FlecsMaterialIdInit
     });
 
-    /* OnSet observers that mark the material buffer dirty whenever any
-     * material property component is written. This is the cheap path for
-     * propagating in-place material edits (e.g. tweaking a transmission
-     * factor at runtime) to the GPU without scanning the query each frame. */
     ecs_observer(world, {
         .query.terms = {
             { .id = ecs_id(FlecsRgba), .src.id = EcsSelf },

@@ -368,26 +368,14 @@ void flecsEngine_material_buildTextureArrays(
     ecs_world_t *world,
     FlecsEngineImpl *impl);
 
-/* Ensure the materials storage buffer exists. Allocates a single-entry
- * dummy on first call so bind groups that reference the materials buffer
- * (group 0) can be constructed before any material has been defined. */
 void flecsEngine_material_ensureBuffer(
     FlecsEngineImpl *impl);
 
-/* Bucket arrays are always RGBA8Unorm. The blit pass converts arbitrary
- * source formats (BC7, RGBA8, etc.) to this canonical format on the GPU,
- * and the mip-gen compute shader writes mips back through the same format. */
 #define FLECS_ENGINE_BUCKET_FORMAT WGPUTextureFormat_RGBA8Unorm
 
-/* Invalidate the texture array bind group and release bucket arrays so
- * they are rebuilt on the next frame. Does NOT release blit/mipgen
- * pipelines. See render_texture_arrays.c. */
 void flecsEngine_textureArray_release(
     FlecsEngineImpl *impl);
 
-/* Blit source textures into bucket arrays and generate mip chains.
- * Called from flecsEngine_material_buildTextureArrays.
- * See render_texture_blit.c. */
 void flecsEngine_textureArray_blitTextures(
     const ecs_world_t *world,
     FlecsEngineImpl *impl);

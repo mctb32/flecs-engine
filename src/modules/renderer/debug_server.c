@@ -306,11 +306,6 @@ static void page_textures(
                                 "<td class='muted'>?</td>");
                         }
 
-                        /* Compute actual info from the material's bucket
-                         * directly, not from FlecsTextureInfo.actual
-                         * (which is per-entity and misleading when a
-                         * texture is shared across materials in different
-                         * buckets). */
                         const char *a_fmt = bk->is_bc7 ? "BC7" : "RGBA8";
                         ecs_strbuf_append(b,
                             "<td>%ux%u %s (%u mips)</td>",
@@ -346,15 +341,8 @@ static void page_textures(
         "<p>Material texture arrays: <b>%.1f MiB</b> (%.2f GiB)</p>",
         (double)total_mib, (double)(total_mib / 1024.0f));
 
-    /* Hypothetical memory if every texture were stored at its source
-     * format and dimensions (no upscaling, no format conversion).
-     * Iterate all textured materials and sum per-channel source sizes,
-     * deduplicating by texture entity (a shared texture is counted once). */
     ecs_strbuf_appendlit(b, "<h2>Source Memory (hypothetical)</h2>");
     if (impl->materials.texture_query) {
-        /* Use a simple seen-set: track entity ids we've already counted.
-         * Allocate generously — 4 channels * material count is an upper
-         * bound on unique texture entities. */
         uint32_t seen_cap = (impl->materials.count + 1) * 4;
         ecs_entity_t *seen = ecs_os_calloc_n(ecs_entity_t, seen_cap);
         uint32_t seen_count = 0;

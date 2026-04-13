@@ -403,9 +403,6 @@ static void flecsEngine_textured_mesh_render(
     (void)world;
     FLECS_TRACY_ZONE_BEGIN("TexturedMeshRender");
 
-    /* PBR material textures live at @group(1). The array build pass
-     * always populates this bind group when there are any textured
-     * materials in the scene; otherwise this batch has nothing to draw. */
     if (!engine->materials.texture_array_bind_group) {
         FLECS_TRACY_ZONE_END;
         return;
@@ -639,9 +636,6 @@ static void flecsEngine_transparent_mesh_render(
                     active_pipeline = tex_pipeline;
                 }
 
-                /* Same scene-wide texture array bind group as the opaque
-                 * textured path. The shader looks up the right slot via
-                 * the per-instance material id. */
                 wgpuRenderPassEncoderSetBindGroup(
                     pass, 1,
                     engine->materials.texture_array_bind_group,
@@ -717,9 +711,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
     ecs_entity_t batch = ecs_entity(world, {
         .parent = parent, .name = name });
 
-    /* Create helper entity for textured transparent pipeline. This entity
-     * is not added to any batch set; it exists solely so that the normal
-     * FlecsRenderBatch on_set hook creates a pipeline we can reference. */
     ecs_entity_t textured_helper = ecs_entity(world, {
         .parent = batch });
     ecs_set(world, textured_helper, FlecsRenderBatch, {
@@ -884,13 +875,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmission(
 
     return batch;
 }
-
-/* --- Per-instance colored transmission mesh batch ---
- *
- * Takes FlecsTransmission (plus optional FlecsRgba / FlecsPbrMaterial /
- * FlecsEmissive) directly from the entity as per-instance vertex
- * attributes. Mirrors the pbr_colored pattern: no material buffer
- * indirection, no texture sampling. */
 
 static void flecsEngine_transmissionData_mesh_render(
     const ecs_world_t *world,

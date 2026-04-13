@@ -13,17 +13,6 @@ bool flecsIblBuildDefaultImage(
     const flecs_rgba_t *horizon_color,
     FlecsHdriImage *image)
 {
-    /* Build a 1×N equirectangular fallback that mimics a simple outdoor
-     * environment:
-     *  - Sky gradient: deeper at zenith, lighter near the horizon
-     *  - Ground gradient: configured color at horizon, darker at nadir
-     *  - Horizon glow: subtle bright band at the sky/ground boundary
-     *
-     * haze_color:    the color the sky lerps toward near the horizon
-     *                (defaults to white if zero/not provided)
-     * horizon_color: the color of the bright horizon glow band
-     *                (defaults to luminance-scaled white if zero/not provided)
-     */
     const int fallback_h = 1024;
     image->width = 1;
     image->height = fallback_h;
@@ -61,10 +50,6 @@ bool flecsIblBuildDefaultImage(
         float *px = &image->pixels_rgba32f[row * 4];
 
         if (v < 0.5f) {
-            /* Sky: lerp toward haze color near horizon.
-             * haze_start: fraction of the sky half where haze begins
-             *   0.0 = haze across entire sky, 1.0 = no haze at all
-             *   0.7 = pure sky color in the top 70%, haze in bottom 30% */
             float haze_start = 0.7f;
             float t = v / 0.5f;
             float haze = (t > haze_start)

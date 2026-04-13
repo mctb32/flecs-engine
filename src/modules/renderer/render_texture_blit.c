@@ -3,18 +3,6 @@
 #include "renderer.h"
 #include "flecs_engine.h"
 
-/* ---- Blit + mip-gen pipelines ----
- *
- * The blit pipeline normalizes arbitrary source textures (any format,
- * any dimension) into a single RGBA8 slice of a bucket array.  The
- * mip-gen compute pipeline then fills mips 1..N from the blitted mip 0.
- *
- * Both pipelines are created lazily on first use and live on the shared
- * engine state (impl->materials.blit_*, impl->materials.mipgen_*). */
-
-/* Fullscreen-triangle blit shader. Reads a single 2D source texture and
- * writes it (with bilinear filtering) to the bound render target, which
- * is a single (slice, mip 0) view of a bucket array. */
 static const char *kBlitShaderSource =
     "struct VertexOut {\n"
     "  @builtin(position) pos : vec4<f32>,\n"
@@ -34,9 +22,6 @@ static const char *kBlitShaderSource =
     "  return textureSample(src_tex, src_samp, in.uv);\n"
     "}\n";
 
-/* Mip-gen compute shader. Reads mip N of a bucket array as a 2DArray
- * sampled texture and writes mip N+1 via a 2DArray storage texture. The
- * dispatch z dimension covers all slices in one shot. */
 static const char *kMipGenShaderSource =
     "@group(0) @binding(0) var src : texture_2d_array<f32>;\n"
     "@group(0) @binding(1) var dst : texture_storage_2d_array<rgba8unorm, write>;\n"
@@ -295,9 +280,6 @@ void flecsEngine_textureArray_blitTextures(
     WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(
         impl->device, &(WGPUCommandEncoderDescriptor){0});
 
-    /* Blit each material's source textures into mip 0 of its assigned
-     * (bucket, channel, slot). Only operates on RGBA8 buckets — BC7
-     * buckets are handled by flecsEngine_textureArray_copyTextures_bc7. */
     ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
     while (ecs_query_next(&it)) {
         const FlecsPbrTextures *textures =
@@ -341,11 +323,6 @@ void flecsEngine_textureArray_blitTextures(
                     ecs_get(world, tex_entities[ch], FlecsTextureImpl);
                 if (!ti || !ti->texture) continue;
 
-                /* For albedo/emissive (ch 0,1): if the source is RGBA8Unorm
-                 * (PNG/JPG), sample through an sRGB view so the blit
-                 * auto-decodes sRGB→linear.  The destination bucket is
-                 * RGBA8Unorm so it stores the linear result directly.
-                 * Normal/MR channels (ch 2,3) stay linear. */
                 WGPUTextureFormat src_fmt = wgpuTextureGetFormat(ti->texture);
                 if ((ch == 0 || ch == 1)
                     && src_fmt == WGPUTextureFormat_RGBA8Unorm)
@@ -407,11 +384,6 @@ void flecsEngine_textureArray_blitTextures(
 
 /* ---- BC7 solid-color block encoder ---- */
 
-/* Encode a solid-color 4x4 BC7 block using Mode 5 (no partitions,
- * 7-bit color endpoints, 8-bit alpha endpoints). Both endpoints are
- * set to the same value and all indices are 0, producing a uniform
- * block. The 7-bit quantization rounds to the nearest representable
- * value (±1 from the 8-bit input). */
 void flecsEngine_bc7_encodeSolidBlock(
     uint8_t block[16],
     uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -420,19 +392,6 @@ void flecsEngine_bc7_encodeSolidBlock(
 
     uint8_t r7 = r >> 1, g7 = g >> 1, b7 = b >> 1;
 
-    /* Pack bits LSB-first into 128-bit block:
-     *   [5:0]   mode = 000001 (mode 5)
-     *   [7:6]   rotation = 00
-     *   [14:8]  ep0.R (7 bits)
-     *   [21:15] ep0.G (7 bits)
-     *   [28:22] ep0.B (7 bits)
-     *   [35:29] ep1.R (7 bits)
-     *   [42:36] ep1.G (7 bits)
-     *   [49:43] ep1.B (7 bits)
-     *   [57:50] ep0.A (8 bits)
-     *   [65:58] ep1.A (8 bits)
-     *   [96:66] color indices (31 bits, all 0)
-     *   [127:97] alpha indices (31 bits, all 0) */
     uint64_t lo = 0, hi = 0;
     int bit = 0;
 
@@ -522,9 +481,6 @@ void flecsEngine_textureArray_copyTextures_bc7(
                     ecs_get(world, tex_entities[ch], FlecsTextureImpl);
                 if (!ti || !ti->texture) continue;
 
-                /* Only copy BC7 sources. Non-BC7 sources that ended up
-                 * in a BC7 bucket were redirected during survey — they
-                 * shouldn't appear here. Log and skip if they do. */
                 if (!flecsEngine_textureArray_isBC7(
                         wgpuTextureGetFormat(ti->texture)))
                 {
@@ -535,14 +491,6 @@ void flecsEngine_textureArray_copyTextures_bc7(
                 uint32_t src_h = wgpuTextureGetHeight(ti->texture);
                 uint32_t src_mips = wgpuTextureGetMipLevelCount(ti->texture);
 
-                /* Match source and bucket dimensions at the copy point.
-                 *  - Oversized source (e.g. 4096 → 2048 bucket):
-                 *    skip high source mips (src_mip_start > 0).
-                 *  - Undersized source (e.g. 1024 → 2048 bucket):
-                 *    start at a lower bucket mip (dst_mip_start > 0);
-                 *    higher bucket mips keep the fallback fill.
-                 *  - Non-square source can't match a square bucket at
-                 *    any mip level — skip entirely. */
                 uint32_t src_mip_start = 0;
                 uint32_t dst_mip_start = 0;
                 uint32_t src_max = src_w > src_h ? src_w : src_h;
@@ -585,9 +533,6 @@ void flecsEngine_textureArray_copyTextures_bc7(
                     if (!mw) mw = 1;
                     if (!mh) mh = 1;
 
-                    /* CopyTextureToTexture requires block-aligned extents
-                     * for BC formats. Sub-block mips (< 4×4) can't satisfy
-                     * this, so stop here — they keep the fallback fill. */
                     if (mw < 4 || mh < 4) break;
 
                     WGPUTexelCopyTextureInfo src = {

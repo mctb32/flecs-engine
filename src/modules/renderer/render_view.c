@@ -99,17 +99,6 @@ ECS_MOVE(FlecsRenderViewImpl, dst, src, {
     ecs_os_zeromem(src);
 })
 
-/* --- Frame uniform buffer -------------------------------------------------
- *
- * FlecsUniform holds per-frame / per-view shader inputs (view matrices,
- * camera position, directional light, shadow cascades, sky / ambient).
- * The buffer itself is engine-global (engine->frame_uniform_buffer) and is
- * rewritten once per view immediately before that view's batches are
- * encoded. Because wgpuQueueWriteBuffer writes are applied atomically
- * before the submitted command buffer executes, rendering more than one
- * view against the same frame buffer handle yields only the last view's
- * uniforms — single-view rendering is the assumed case. */
-
 static void flecsEngine_renderView_logErr(
     const ecs_world_t *world,
     ecs_entity_t entity,
@@ -403,10 +392,6 @@ static void flecsEngine_renderView_render(
     flecsEngine_renderView_renderBatches(
         world, view_entity, engine, view, impl, encoder);
 
-    /* When MSAA is active, the batch pass writes to the MSAA depth texture
-     * rather than the 1-sample depth texture.  Resolve the multisampled depth
-     * into the 1-sample texture so that post-process effects (SSAO, fog, …)
-     * can read it. */
     if (engine->sample_count > 1) {
         flecsEngine_depthResolve(engine, encoder);
     }
@@ -446,9 +431,6 @@ static void flecsEngine_renderView_extract(
                 engine->frustum_planes);
             engine->frustum_valid = true;
 
-            /* Build a second frustum with far = max_range so that shadow
-             * casters beyond the camera far plane but within shadow range
-             * are not culled during batch extraction. */
             if (view->shadow.enabled && view->shadow.max_range > 0.0f) {
                 const FlecsCamera *cam = ecs_get(
                     world, view->camera, FlecsCamera);

@@ -661,11 +661,6 @@ void FlecsEngineRendererImport(
     });
     ecs_add_pair(world, ecs_id(FlecsTexture), EcsWith, ecs_id(FlecsTextureImpl));
 
-    /* Augment material component hooks with renderer-side on_set callbacks.
-     * Hooks fire immediately (even inside deferred contexts like GLTF loading),
-     * while observers would be deferred and miss the window for creating GPU
-     * resources before dependent components read them. Use ecs_get_type_info
-     * to preserve the lifecycle hooks already set by the material module. */
     {
         const ecs_type_info_t *ti;
         ecs_type_hooks_t hooks;

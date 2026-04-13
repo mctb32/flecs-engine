@@ -1,30 +1,6 @@
 #include "../renderer.h"
 #include "flecs_engine.h"
 
-/* Scene-globals bind group (group 0).
- *
- * This bind group bundles every per-frame / scene-stable resource that the
- * PBR shaders sample from: IBL probes, the cascaded shadow map, the clustered
- * light data, and the materials storage buffer. It lives on FlecsHdriImpl
- * because the IBL textures are HDRI-specific; switching HDRIs switches the
- * whole bind group. Non-HDRI state (shadow, cluster, materials) is taken from
- * the shared engine state.
- *
- * Binding layout:
- *    0: FlecsUniform (camera / view / shadow info — frame data)
- *    1: IBL prefiltered env cubemap
- *    2: IBL sampler
- *    3: IBL BRDF LUT
- *    4: IBL irradiance (Lambertian-convolved) env cubemap
- *    5: Shadow depth texture array
- *    6: Shadow comparison sampler
- *    7: Cluster info uniform
- *    8: Cluster grid storage
- *    9: Light indices storage
- *   10: Lights storage (unified point + spot)
- *   11: Materials storage (indexed by FlecsMaterialId)
- */
-
 WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
     FlecsEngineImpl *impl)
 {
@@ -32,15 +8,8 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
         return impl->ibl_shadow_bind_layout;
     }
 
-    /* The scene-globals bind group references the materials storage
-     * buffer and a frame uniform buffer. Allocate a dummy materials buffer
-     * up-front so HDRI init (which calls flecsEngine_globals_createBindGroup)
-     * can complete even before any material has been defined by the scene. */
     flecsEngine_material_ensureBuffer(impl);
 
-    /* Allocate the single engine-global frame uniform buffer. Contents are
-     * written once per view during rendering; the buffer handle itself is
-     * stable so the bind group never needs rebuilding for this binding. */
     if (!impl->frame_uniform_buffer) {
         impl->frame_uniform_buffer = wgpuDeviceCreateBuffer(
             impl->device,

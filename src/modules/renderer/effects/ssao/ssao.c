@@ -154,9 +154,6 @@ static const char *kShaderSource =
     "  return vec4<f32>(src.rgb * ao, src.a);\n"
     "}\n";
 
-/* Cross-bilateral blur + composite shader.
- * Blurs only the AO term using a 1-D cross pattern (horizontal + vertical),
- * giving O(n) cost instead of O(n^2), then composites with the scene. */
 static const char *kBlurShaderSource =
     FLECS_ENGINE_FULLSCREEN_VS_WGSL
     "struct SsaoUniforms {\n"
@@ -704,9 +701,6 @@ static bool flecsEngine_ssao_render(
         }
     }
 
-    /* Base intermediate resolution on display size so that resolution scaling
-     * does not degrade AO quality.  Cap at depth-buffer (effect-target)
-     * resolution since there is no extra detail to sample beyond that. */
     uint32_t ssao_width = engine->width > 1 ? (uint32_t)(engine->width / 2) : 1;
     uint32_t ssao_height = engine->height > 1 ? (uint32_t)(engine->height / 2) : 1;
     if (ssao_width > width) ssao_width = width;

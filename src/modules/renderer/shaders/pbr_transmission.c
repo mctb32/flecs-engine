@@ -138,17 +138,11 @@ static const char *kShaderSource =
     "    + vec2<f32>(0.5, 0.5);\n"
     "  screen_uv = clamp(screen_uv, vec2<f32>(0.0), vec2<f32>(1.0));\n"
 
-    /* Sample opaque scene at refracted UV using a roughness-dependent LOD.
-     * Rough transmission (frosted glass) sees a blurred background by
-     * selecting a higher mip level of the pre-generated pyramid. */
     "  let max_mip = max(f32(textureNumLevels(opaque_snapshot)) - 1.0, 0.0);\n"
     "  let bg_lod = roughness * max_mip;\n"
     "  let background = textureSampleLevel(\n"
     "    opaque_snapshot, ibl_sampler, screen_uv, bg_lod).rgb;\n"
 
-    /* Beer-Lambert absorption (glTF KHR_materials_volume spec):
-     * transmittance = pow(attenuation_color, thickness / attenuation_distance).
-     * Transmitted light is also tinted by the base color. */
     "  let att_color = max(unpack4x8unorm(mat.attenuation_color).rgb, vec3<f32>(0.001));\n"
     "  let att_ratio = mat.thickness_factor / mat.attenuation_distance;\n"
     "  let transmittance = pow(att_color, vec3<f32>(att_ratio));\n"

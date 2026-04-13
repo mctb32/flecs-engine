@@ -118,10 +118,6 @@ ECS_DTOR(FlecsGeometry3Cache, ptr, {
     ecs_map_fini(&ptr->bevel_corner_cache);
 })
 
-/* Compute per-vertex tangents (Lengyel) for meshes whose source asset did
- * not provide them. The result is in the same form as glTF tangents:
- * xyz is the surface tangent, w is the bitangent sign (+/- 1). The shader
- * reconstructs the bitangent as cross(N, T) * w. */
 static void flecsEngine_mesh_computeTangents(
     int32_t vert_count,
     int32_t idx_count,
@@ -303,9 +299,6 @@ static void FlecsMesh3_on_set(
             FlecsLitVertexUv *uv_verts = ecs_os_malloc_n(FlecsLitVertexUv, vert_count);
             flecs_vec2_t *mesh_uvs = ecs_vec_first_t(&mesh[i].uvs, flecs_vec2_t);
 
-            /* Use the asset's tangents if it provided any (e.g. from glTF
-             * TANGENT accessors). Otherwise compute them on the CPU so the
-             * shader always has a stable, scale-invariant TBN frame. */
             int32_t tan_count = ecs_vec_count(&mesh[i].tangents);
             flecs_vec4_t *tangents;
             bool owns_tangents = false;

@@ -2,10 +2,6 @@
 #include "mip_pyramid.h"
 #include "flecs_engine.h"
 
-
-/* Downsample shader: fullscreen triangle + 13-tap Jimenez / Call-of-Duty
- * style filter. Produces a gaussian-like blur pyramid — the transmission
- * shader samples this directly at roughness-dependent LOD. */
 static const char *kDownsampleShaderSource =
     FLECS_ENGINE_FULLSCREEN_VS_WGSL
     "@group(0) @binding(0) var src_tex : texture_2d<f32>;\n"
@@ -151,17 +147,11 @@ static bool flecsEngine_transmission_createTexture(
     uint32_t width,
     uint32_t height)
 {
-    /* Drop the 1x1 mip: the coarsest useful refraction blur is ~2x2, and a
-     * 1x1 mip collapses to the average scene color, which makes rough glass
-     * look uniformly gray rather than blurred. */
     uint32_t mip_count = flecsEngine_mipPyramid_maxMips(width, height);
     if (mip_count > 1u) {
         mip_count --;
     }
 
-    /* Single gaussian blur pyramid. Mip 0 is the raw opaque scene (CopyDst),
-     * mips 1..N are Jimenez-downsampled blurs (RenderAttachment). The
-     * transmission shader samples this at LOD = roughness * max_mip. */
     if (!flecsEngine_mipPyramid_create(
         engine->device, width, height, mip_count,
         engine->hdr_color_format,

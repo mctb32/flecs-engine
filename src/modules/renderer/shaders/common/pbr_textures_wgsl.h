@@ -1,12 +1,6 @@
 #ifndef FLECS_ENGINE_SHADER_COMMON_PBR_TEXTURES_WGSL_H
 #define FLECS_ENGINE_SHADER_COMMON_PBR_TEXTURES_WGSL_H
 
-/* PBR texture array bindings and per-channel sample helpers.
- * 12 array textures = 4 channels (albedo, emissive, MR, normal) x 3 size
- * buckets (512 / 1024 / 2048), plus a filtering sampler at binding 12.
- * The bucket index per material lives in GpuMaterial.texture_bucket; the
- * switch on `bucket` is non-uniform across fragments, so derivatives must
- * be lifted out of the switch and passed in via textureSampleGrad. */
 #define FLECS_ENGINE_SHADER_COMMON_PBR_TEXTURES_WGSL \
     "@group(1) @binding(0)  var albedo_tex_512    : texture_2d_array<f32>;\n" \
     "@group(1) @binding(1)  var albedo_tex_1024   : texture_2d_array<f32>;\n" \

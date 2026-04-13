@@ -8,10 +8,6 @@
 #include "common/pbr_lighting_wgsl.h"
 #include "common/ibl_bindings_wgsl.h"
 
-/* Transmission shader that takes material parameters (color, PBR,
- * emissive, transmission) as per-instance vertex attributes instead of
- * indexing into the materials storage buffer. Mirrors pbr_colored but
- * adds refraction via the opaque scene snapshot. No texture sampling. */
 static const char *kShaderSource =
     FLECS_ENGINE_SHADER_COMMON_UNIFORMS_WGSL
     FLECS_ENGINE_SHADER_COMMON_IBL_BINDINGS_WGSL

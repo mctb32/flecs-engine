@@ -1,9 +1,6 @@
 #include "../../renderer.h"
 #include "flecs_engine.h"
 
-/* Fullscreen-triangle shader that reads sample 0 from the multisampled depth
- * texture and outputs it via @builtin(frag_depth) into the 1-sample depth
- * attachment. */
 static const char *kShaderSource =
     FLECS_ENGINE_FULLSCREEN_VS_WGSL
     "@group(0) @binding(0) var ms_depth : texture_depth_multisampled_2d;\n"

@@ -11,11 +11,6 @@ typedef struct {
     float emissive_strength;
     flecs_rgba_t emissive_color;
     uint32_t texture_bucket;
-    /* Per-channel layer indices into the bucket's channel arrays.
-     * Layer 0 of each (bucket, channel) is reserved as a "neutral slot"
-     * pre-filled with the channel's fallback colour. Materials without a
-     * texture for a given channel leave the layer at 0, so the shader
-     * samples the neutral fill there. Contributors get 1..N. */
     uint32_t layer_albedo;
     uint32_t layer_emissive;
     uint32_t layer_mr;

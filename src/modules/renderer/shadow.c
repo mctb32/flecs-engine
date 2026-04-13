@@ -143,10 +143,6 @@ int flecsEngine_shadow_init(
         return -1;
     }
 
-    /* Create one VP buffer and bind group per cascade. Each cascade needs its
-     * own buffer because wgpuQueueWriteBuffer calls are all resolved before
-     * the command buffer executes, so a single shared buffer would only
-     * contain the last cascade's VP matrix by the time any render pass runs. */
     for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
         WGPUBufferDescriptor buf_desc = {
             .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,

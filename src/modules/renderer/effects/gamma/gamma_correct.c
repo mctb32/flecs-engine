@@ -1,14 +1,3 @@
-/*
- * Gamma correction effect for emscripten.
- *
- * Browser WebGPU canvas only supports bgra8unorm (not sRGB). The canvas
- * compositor expects sRGB-encoded values, but the render pipeline outputs
- * linear values. This effect applies linear->sRGB conversion (pow 1/2.2).
- *
- * On native platforms the surface already uses an sRGB format, so this
- * effect should be disabled.
- */
-
 #include "../../renderer.h"
 #include "flecs_engine.h"
 

@@ -1,25 +1,6 @@
 #include "../renderer.h"
 #include "flecs_engine.h"
 
-/* PBR material textures bind group (group 1).
- *
- * Holds 12 PBR texture arrays — 4 channels (albedo, emissive, roughness,
- * normal) × 3 size buckets (512², 1024², 2048²) — plus a single filtering
- * sampler. The shader picks the right bucket per fragment via a `bucket`
- * field on the material struct.
- *
- * A single bind group is built per scene by render_materials.c. Both the
- * opaque and transparent textured-mesh batches bind it once at @group(1)
- * for every draw call.
- *
- * Binding layout:
- *    0..2   albedo   2DArray  (bucket 0, 1, 2)
- *    3..5   emissive 2DArray  (bucket 0, 1, 2)
- *    6..8   roughness 2DArray (bucket 0, 1, 2)
- *    9..11  normal   2DArray  (bucket 0, 1, 2)
- *   12      filtering sampler
- */
-
 WGPUBindGroupLayout flecsEngine_textures_ensureBindLayout(
     FlecsEngineImpl *impl)
 {
