@@ -1,6 +1,7 @@
 #include <math.h>
 
 #include "../../renderer.h"
+#include "../../mip_pyramid.h"
 #include "flecs_engine.h"
 
 ECS_COMPONENT_DECLARE(FlecsBloom);
@@ -180,20 +181,8 @@ static void flecsEngine_bloom_computeTextureSize(
 static void flecsEngine_bloom_releaseTexture(
     FlecsBloomImpl *bloom)
 {
-    if (bloom->mip_views) {
-        for (uint32_t i = 0; i < bloom->mip_count; i ++) {
-            if (bloom->mip_views[i]) {
-                wgpuTextureViewRelease(bloom->mip_views[i]);
-            }
-        }
-        ecs_os_free(bloom->mip_views);
-        bloom->mip_views = NULL;
-    }
-
-    if (bloom->texture) {
-        wgpuTextureRelease(bloom->texture);
-        bloom->texture = NULL;
-    }
+    flecsEngine_mipPyramid_release(
+        &bloom->texture, &bloom->mip_views, bloom->mip_count);
 
     bloom->mip_count = 0;
     bloom->texture_width = 0;
@@ -265,47 +254,12 @@ static bool flecsEngine_bloom_createTexture(
     uint32_t mip_count,
     WGPUTextureFormat format)
 {
-    WGPUTextureDescriptor texture_desc = {
-        .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
-        .dimension = WGPUTextureDimension_2D,
-        .size = (WGPUExtent3D){
-            .width = width,
-            .height = height,
-            .depthOrArrayLayers = 1
-        },
-        .format = format,
-        .mipLevelCount = mip_count,
-        .sampleCount = 1
-    };
-
-    bloom->texture = wgpuDeviceCreateTexture(engine->device, &texture_desc);
-    if (!bloom->texture) {
+    if (!flecsEngine_mipPyramid_create(
+        engine->device, width, height, mip_count, format,
+        WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+        &bloom->texture, &bloom->mip_views))
+    {
         return false;
-    }
-
-    bloom->mip_views = ecs_os_calloc_n(WGPUTextureView, mip_count);
-    if (!bloom->mip_views) {
-        flecsEngine_bloom_releaseTexture(bloom);
-        return false;
-    }
-
-    for (uint32_t i = 0; i < mip_count; i ++) {
-        WGPUTextureViewDescriptor view_desc = {
-            .format = format,
-            .dimension = WGPUTextureViewDimension_2D,
-            .baseMipLevel = i,
-            .mipLevelCount = 1,
-            .baseArrayLayer = 0,
-            .arrayLayerCount = 1,
-            .aspect = WGPUTextureAspect_All
-        };
-
-        bloom->mip_views[i] = wgpuTextureCreateView(
-            bloom->texture, &view_desc);
-        if (!bloom->mip_views[i]) {
-            flecsEngine_bloom_releaseTexture(bloom);
-            return false;
-        }
     }
 
     bloom->mip_count = mip_count;
@@ -326,11 +280,7 @@ static bool flecsEngine_bloom_ensureTexture(
     uint32_t mip_count = flecsEngine_bloom_computeMipCount(bloom);
 
     /* Clamp to the maximum mip count the texture dimensions support */
-    uint32_t max_dim = width > height ? width : height;
-    uint32_t max_mips = 1u;
-    while ((1u << max_mips) <= max_dim) {
-        max_mips ++;
-    }
+    uint32_t max_mips = flecsEngine_mipPyramid_maxMips(width, height);
     if (mip_count > max_mips) {
         mip_count = max_mips;
     }
@@ -588,19 +538,7 @@ static bool flecsEngine_bloom_setup(
 
     FlecsBloomImpl bloom = {0};
 
-    WGPUSamplerDescriptor sampler_desc = {
-        .addressModeU = WGPUAddressMode_ClampToEdge,
-        .addressModeV = WGPUAddressMode_ClampToEdge,
-        .addressModeW = WGPUAddressMode_ClampToEdge,
-        .magFilter = WGPUFilterMode_Linear,
-        .minFilter = WGPUFilterMode_Linear,
-        .mipmapFilter = WGPUMipmapFilterMode_Linear,
-        .lodMinClamp = 0.0f,
-        .lodMaxClamp = 32.0f,
-        .maxAnisotropy = 1
-    };
-
-    bloom.sampler = wgpuDeviceCreateSampler(engine->device, &sampler_desc);
+    bloom.sampler = flecsEngine_mipPyramid_createFilteredSampler(engine->device);
     if (!bloom.sampler) {
         return false;
     }

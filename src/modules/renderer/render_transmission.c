@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "mip_pyramid.h"
 #include "flecs_engine.h"
 
 
@@ -34,37 +35,17 @@ static const char *kDownsampleShaderSource =
     "  return vec4<f32>(sample, 1.0);\n"
     "}\n";
 
-static uint32_t flecsEngine_transmission_computeMipCount(
-    uint32_t width,
-    uint32_t height)
-{
-    uint32_t max_dim = width > height ? width : height;
-    uint32_t mips = 1u;
-    while ((max_dim >> mips) > 0u) {
-        mips ++;
-    }
-    return mips > 1u ? mips - 1u : mips;
-}
-
 static void flecsEngine_transmission_releaseTexture(
     FlecsEngineImpl *engine)
 {
-    if (engine->opaque_snapshot_mip_views) {
-        for (uint32_t i = 0; i < engine->opaque_snapshot_mip_count; i ++) {
-            if (engine->opaque_snapshot_mip_views[i]) {
-                wgpuTextureViewRelease(engine->opaque_snapshot_mip_views[i]);
-            }
-        }
-        ecs_os_free(engine->opaque_snapshot_mip_views);
-        engine->opaque_snapshot_mip_views = NULL;
-    }
+    flecsEngine_mipPyramid_release(
+        &engine->opaque_snapshot,
+        &engine->opaque_snapshot_mip_views,
+        engine->opaque_snapshot_mip_count);
+
     if (engine->opaque_snapshot_view) {
         wgpuTextureViewRelease(engine->opaque_snapshot_view);
         engine->opaque_snapshot_view = NULL;
-    }
-    if (engine->opaque_snapshot) {
-        wgpuTextureRelease(engine->opaque_snapshot);
-        engine->opaque_snapshot = NULL;
     }
 
     engine->opaque_snapshot_width = 0;
@@ -80,18 +61,8 @@ static bool flecsEngine_transmission_ensureDownsamplePipeline(
     }
 
     if (!engine->opaque_snapshot_sampler) {
-        engine->opaque_snapshot_sampler = wgpuDeviceCreateSampler(
-            engine->device, &(WGPUSamplerDescriptor){
-                .addressModeU = WGPUAddressMode_ClampToEdge,
-                .addressModeV = WGPUAddressMode_ClampToEdge,
-                .addressModeW = WGPUAddressMode_ClampToEdge,
-                .magFilter = WGPUFilterMode_Linear,
-                .minFilter = WGPUFilterMode_Linear,
-                .mipmapFilter = WGPUMipmapFilterMode_Linear,
-                .lodMinClamp = 0.0f,
-                .lodMaxClamp = 32.0f,
-                .maxAnisotropy = 1
-            });
+        engine->opaque_snapshot_sampler =
+            flecsEngine_mipPyramid_createFilteredSampler(engine->device);
         if (!engine->opaque_snapshot_sampler) {
             return false;
         }
@@ -180,23 +151,26 @@ static bool flecsEngine_transmission_createTexture(
     uint32_t width,
     uint32_t height)
 {
-    uint32_t mip_count = flecsEngine_transmission_computeMipCount(width, height);
+    /* Drop the 1x1 mip: the coarsest useful refraction blur is ~2x2, and a
+     * 1x1 mip collapses to the average scene color, which makes rough glass
+     * look uniformly gray rather than blurred. */
+    uint32_t mip_count = flecsEngine_mipPyramid_maxMips(width, height);
+    if (mip_count > 1u) {
+        mip_count --;
+    }
 
     /* Single gaussian blur pyramid. Mip 0 is the raw opaque scene (CopyDst),
      * mips 1..N are Jimenez-downsampled blurs (RenderAttachment). The
      * transmission shader samples this at LOD = roughness * max_mip. */
-    engine->opaque_snapshot = wgpuDeviceCreateTexture(
-        engine->device, &(WGPUTextureDescriptor){
-            .usage = WGPUTextureUsage_TextureBinding
-                   | WGPUTextureUsage_CopyDst
-                   | WGPUTextureUsage_RenderAttachment,
-            .dimension = WGPUTextureDimension_2D,
-            .size = { width, height, 1 },
-            .format = engine->hdr_color_format,
-            .mipLevelCount = mip_count,
-            .sampleCount = 1
-        });
-    if (!engine->opaque_snapshot) {
+    if (!flecsEngine_mipPyramid_create(
+        engine->device, width, height, mip_count,
+        engine->hdr_color_format,
+        WGPUTextureUsage_TextureBinding
+            | WGPUTextureUsage_CopyDst
+            | WGPUTextureUsage_RenderAttachment,
+        &engine->opaque_snapshot,
+        &engine->opaque_snapshot_mip_views))
+    {
         return false;
     }
 
@@ -211,26 +185,6 @@ static bool flecsEngine_transmission_createTexture(
         });
     if (!engine->opaque_snapshot_view) {
         return false;
-    }
-
-    engine->opaque_snapshot_mip_views = ecs_os_calloc_n(
-        WGPUTextureView, mip_count);
-    if (!engine->opaque_snapshot_mip_views) {
-        return false;
-    }
-    for (uint32_t i = 0; i < mip_count; i ++) {
-        engine->opaque_snapshot_mip_views[i] = wgpuTextureCreateView(
-            engine->opaque_snapshot, &(WGPUTextureViewDescriptor){
-                .format = engine->hdr_color_format,
-                .dimension = WGPUTextureViewDimension_2D,
-                .baseMipLevel = i,
-                .mipLevelCount = 1,
-                .baseArrayLayer = 0,
-                .arrayLayerCount = 1
-            });
-        if (!engine->opaque_snapshot_mip_views[i]) {
-            return false;
-        }
     }
 
     engine->opaque_snapshot_width = width;
