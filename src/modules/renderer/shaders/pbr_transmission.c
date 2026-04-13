@@ -8,6 +8,7 @@
 #include "common/pbr_lighting_wgsl.h"
 #include "common/ibl_bindings_wgsl.h"
 #include "common/gpu_material_wgsl.h"
+#include "common/pbr_textures_wgsl.h"
 
 static const char *kShaderSource =
     FLECS_ENGINE_SHADER_COMMON_UNIFORMS_WGSL
@@ -20,20 +21,7 @@ static const char *kShaderSource =
     /* Opaque scene snapshot at group 0 binding 3 (was BRDF LUT) */
     "@group(0) @binding(3) var opaque_snapshot : texture_2d<f32>;\n"
 
-    /* PBR texture array bindings at group 1 (same layout as pbr_textured) */
-    "@group(1) @binding(0)  var albedo_tex_512    : texture_2d_array<f32>;\n"
-    "@group(1) @binding(1)  var albedo_tex_1024   : texture_2d_array<f32>;\n"
-    "@group(1) @binding(2)  var albedo_tex_2048   : texture_2d_array<f32>;\n"
-    "@group(1) @binding(3)  var emissive_tex_512  : texture_2d_array<f32>;\n"
-    "@group(1) @binding(4)  var emissive_tex_1024 : texture_2d_array<f32>;\n"
-    "@group(1) @binding(5)  var emissive_tex_2048 : texture_2d_array<f32>;\n"
-    "@group(1) @binding(6)  var roughness_tex_512  : texture_2d_array<f32>;\n"
-    "@group(1) @binding(7)  var roughness_tex_1024 : texture_2d_array<f32>;\n"
-    "@group(1) @binding(8)  var roughness_tex_2048 : texture_2d_array<f32>;\n"
-    "@group(1) @binding(9)  var normal_tex_512    : texture_2d_array<f32>;\n"
-    "@group(1) @binding(10) var normal_tex_1024   : texture_2d_array<f32>;\n"
-    "@group(1) @binding(11) var normal_tex_2048   : texture_2d_array<f32>;\n"
-    "@group(1) @binding(12) var tex_sampler : sampler;\n"
+    FLECS_ENGINE_SHADER_COMMON_PBR_TEXTURES_WGSL
 
     "struct VertexInput {\n"
     "  @location(0) pos : vec3<f32>,\n"
@@ -164,42 +152,6 @@ static const char *kShaderSource =
     "    cs += computeSpecular(n, ndv, gv, l, hc, dr, fc) * sc;\n"
     "  }\n"
     "  return PbrLightingSplit(di + dd + cd, si + ds + cs + emissive);\n"
-    "}\n"
-
-    /* Per-channel sample helpers (same as pbr_textured). The branch on
-     * `bucket` is non-uniform across fragments, so derivatives must be
-     * lifted out of the switch and passed in via textureSampleGrad. */
-    "fn sample_albedo(uv : vec2<f32>, layer : u32, bucket : u32,\n"
-    "                 dx : vec2<f32>, dy : vec2<f32>) -> vec4<f32> {\n"
-    "  switch (bucket) {\n"
-    "    case 0u: { return textureSampleGrad(albedo_tex_512,  tex_sampler, uv, layer, dx, dy); }\n"
-    "    case 1u: { return textureSampleGrad(albedo_tex_1024, tex_sampler, uv, layer, dx, dy); }\n"
-    "    default: { return textureSampleGrad(albedo_tex_2048, tex_sampler, uv, layer, dx, dy); }\n"
-    "  }\n"
-    "}\n"
-    "fn sample_emissive(uv : vec2<f32>, layer : u32, bucket : u32,\n"
-    "                   dx : vec2<f32>, dy : vec2<f32>) -> vec4<f32> {\n"
-    "  switch (bucket) {\n"
-    "    case 0u: { return textureSampleGrad(emissive_tex_512,  tex_sampler, uv, layer, dx, dy); }\n"
-    "    case 1u: { return textureSampleGrad(emissive_tex_1024, tex_sampler, uv, layer, dx, dy); }\n"
-    "    default: { return textureSampleGrad(emissive_tex_2048, tex_sampler, uv, layer, dx, dy); }\n"
-    "  }\n"
-    "}\n"
-    "fn sample_roughness(uv : vec2<f32>, layer : u32, bucket : u32,\n"
-    "                    dx : vec2<f32>, dy : vec2<f32>) -> vec4<f32> {\n"
-    "  switch (bucket) {\n"
-    "    case 0u: { return textureSampleGrad(roughness_tex_512,  tex_sampler, uv, layer, dx, dy); }\n"
-    "    case 1u: { return textureSampleGrad(roughness_tex_1024, tex_sampler, uv, layer, dx, dy); }\n"
-    "    default: { return textureSampleGrad(roughness_tex_2048, tex_sampler, uv, layer, dx, dy); }\n"
-    "  }\n"
-    "}\n"
-    "fn sample_normal(uv : vec2<f32>, layer : u32, bucket : u32,\n"
-    "                 dx : vec2<f32>, dy : vec2<f32>) -> vec4<f32> {\n"
-    "  switch (bucket) {\n"
-    "    case 0u: { return textureSampleGrad(normal_tex_512,  tex_sampler, uv, layer, dx, dy); }\n"
-    "    case 1u: { return textureSampleGrad(normal_tex_1024, tex_sampler, uv, layer, dx, dy); }\n"
-    "    default: { return textureSampleGrad(normal_tex_2048, tex_sampler, uv, layer, dx, dy); }\n"
-    "  }\n"
     "}\n"
 
     "@fragment fn fs_main(input : VertexOutput) -> @location(0) vec4<f32> {\n"
