@@ -30,6 +30,11 @@ static WGPUTexture flecsEngine_texture_createFromPixels(
     uint32_t mip_count = flecsEngine_computeMipCount(width, height);
     uint32_t bytes_per_pixel = 4;
 
+    /* Allow sRGB view creation for RGBA8Unorm textures so the blit can
+     * sample albedo/emissive through an sRGB view (auto sRGB→linear). */
+    WGPUTextureFormat srgb_fmt = WGPUTextureFormat_RGBA8UnormSrgb;
+    bool has_srgb_view = (format == WGPUTextureFormat_RGBA8Unorm);
+
     WGPUTextureDescriptor tex_desc = {
         .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst
                | WGPUTextureUsage_CopySrc,
@@ -37,7 +42,9 @@ static WGPUTexture flecsEngine_texture_createFromPixels(
         .size = { .width = width, .height = height, .depthOrArrayLayers = 1 },
         .format = format,
         .mipLevelCount = mip_count,
-        .sampleCount = 1
+        .sampleCount = 1,
+        .viewFormatCount = has_srgb_view ? 1 : 0,
+        .viewFormats = has_srgb_view ? &srgb_fmt : NULL
     };
 
     WGPUTexture texture = wgpuDeviceCreateTexture(device, &tex_desc);

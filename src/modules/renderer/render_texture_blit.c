@@ -341,9 +341,21 @@ void flecsEngine_textureArray_blitTextures(
                     ecs_get(world, tex_entities[ch], FlecsTextureImpl);
                 if (!ti || !ti->texture) continue;
 
+                /* For albedo/emissive (ch 0,1): if the source is RGBA8Unorm
+                 * (PNG/JPG), sample through an sRGB view so the blit
+                 * auto-decodes sRGB→linear.  The destination bucket is
+                 * RGBA8Unorm so it stores the linear result directly.
+                 * Normal/MR channels (ch 2,3) stay linear. */
+                WGPUTextureFormat src_fmt = wgpuTextureGetFormat(ti->texture);
+                if ((ch == 0 || ch == 1)
+                    && src_fmt == WGPUTextureFormat_RGBA8Unorm)
+                {
+                    src_fmt = WGPUTextureFormat_RGBA8UnormSrgb;
+                }
+
                 WGPUTextureView src_view = wgpuTextureCreateView(
                     ti->texture, &(WGPUTextureViewDescriptor){
-                        .format = wgpuTextureGetFormat(ti->texture),
+                        .format = src_fmt,
                         .dimension = WGPUTextureViewDimension_2D,
                         .baseMipLevel = 0,
                         .mipLevelCount = wgpuTextureGetMipLevelCount(
