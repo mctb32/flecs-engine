@@ -178,7 +178,7 @@ void initEngine(
   ecs_set(world, view.camera, FlecsCamera, {
       .fov = glm_rad(60.0f),
       .near_ = 0.01f,
-      .far_ = 100.0f,
+      .far_ = 300.0f,
       .aspect_ratio = options.width / (float)options.height
   });
   ecs_add(world, view.camera, FlecsCameraController);
