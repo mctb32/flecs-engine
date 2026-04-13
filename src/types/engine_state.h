@@ -177,20 +177,10 @@ typedef struct {
     /* Opaque scene snapshot for transmission rendering. Captured after
      * opaques render, sampled by transmissive objects at @group(0) @binding(3).
      *
-     * Two-texture pipeline:
-     * 1. `opaque_snapshot_source` holds a gaussian-like pyramid built with a
-     *    Jimenez 13-tap downsample: mip 0 is the raw opaque color target,
-     *    mips 1..N are successive blurs. Used as the sample source for the
-     *    GGX prefilter pass below.
-     * 2. `opaque_snapshot` holds the GGX-prefiltered pyramid: mip 0 is the
-     *    raw color target (copied from source mip 0 unchanged), mips 1..N
-     *    are each pre-integrated with a GGX lobe at a specific roughness
-     *    (alpha = i / (N-1)), sampled from the source pyramid with
-     *    Hammersley-importance-sampled taps.
-     *
-     * The transmission shader samples `opaque_snapshot` at
-     * LOD = roughness * (mip_count - 1) and relies on the per-mip GGX
-     * pre-integration for correct rough refraction. */
+     * Gaussian blur pyramid built with a Jimenez 13-tap downsample: mip 0 is
+     * the raw opaque color target, mips 1..N are successive blurs. The
+     * transmission shader samples at LOD = roughness * (mip_count - 1) so
+     * rough materials see a blurred background. */
     WGPUTexture opaque_snapshot;
     WGPUTextureView opaque_snapshot_view;
     WGPUTextureView *opaque_snapshot_mip_views; /* per-mip render attachments */
@@ -198,21 +188,10 @@ typedef struct {
     uint32_t opaque_snapshot_width;
     uint32_t opaque_snapshot_height;
 
-    /* Source pyramid for the GGX prefilter (Jimenez gaussian pyramid). */
-    WGPUTexture opaque_snapshot_source;
-    WGPUTextureView opaque_snapshot_source_view; /* full mip chain as SRV */
-    WGPUTextureView *opaque_snapshot_source_mip_views; /* per-mip RT */
-
-    /* Downsample (Jimenez) — builds the source pyramid. */
+    /* Downsample (Jimenez) — builds the gaussian blur pyramid. */
     WGPURenderPipeline opaque_snapshot_downsample_pipeline;
     WGPUBindGroupLayout opaque_snapshot_downsample_layout;
     WGPUSampler opaque_snapshot_sampler;
-
-    /* GGX prefilter — writes each mip of opaque_snapshot. */
-    WGPURenderPipeline opaque_snapshot_prefilter_pipeline;
-    WGPUBindGroupLayout opaque_snapshot_prefilter_layout;
-    WGPUBuffer opaque_snapshot_prefilter_uniforms; /* N * 256 bytes */
-    WGPUBindGroup opaque_snapshot_prefilter_bind_group; /* rebuilt on resize */
 
     flecs_engine_shadow_t shadow;
     flecs_engine_lighting_t lighting;

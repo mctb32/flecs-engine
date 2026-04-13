@@ -10,6 +10,6 @@ ground {
 
 cloth {
     Gltf: {"etc/assets/glTF-Sample-Assets/Models/SheenCloth/glTF/SheenCloth.gltf"}
-    Position3: {}
-    Scale3: {30, 30, 30}
+    Position3: {y: -1, z: 1}
+    Scale3: {55, 55, 55}
 }
