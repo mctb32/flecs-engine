@@ -391,45 +391,98 @@ static const char *kSkyViewShaderSource =
     "  return vec4<f32>(L, 1.0);\n"
     "}\n";
 
-/* -------- Aerial perspective LUT shader ----------------------------------- */
+/* -------- Compute: sky-view -> cube face + cube mip downsample ----------- */
 
-static const char *kAerialShaderSource =
-    FLECS_ENGINE_FULLSCREEN_VS_WGSL
-    "struct AerialSlice {\n"
-    "  slice_index : u32,\n"
-    "  slice_count : u32,\n"
-    "  _pad0 : f32,\n"
-    "  _pad1 : f32,\n"
-    "};\n"
+/* Single compute dispatch writes all 6 cube faces of mip 0, replacing the
+ * old 6 fragment passes. */
+static const char *kCubeFaceComputeShaderSource =
     "@group(0) @binding(0) var<uniform> u : AtmosUniforms;\n"
-    "@group(0) @binding(1) var<uniform> slice : AerialSlice;\n"
-    "@group(0) @binding(2) var trans_lut : texture_2d<f32>;\n"
-    "@group(0) @binding(3) var ms_lut : texture_2d<f32>;\n"
-    "@group(0) @binding(4) var lut_sampler : sampler;\n"
+    "@group(0) @binding(1) var skyview_lut : texture_2d<f32>;\n"
+    "@group(0) @binding(2) var lut_sampler : sampler;\n"
+    "@group(0) @binding(3) var cube_out : texture_storage_2d_array<rgba16float, write>;\n"
+    "fn face_direction(idx : u32, uv : vec2<f32>) -> vec3<f32> {\n"
+    "  let x = uv.x * 2.0 - 1.0;\n"
+    "  let y = 1.0 - uv.y * 2.0;\n"
+    "  var d : vec3<f32>;\n"
+    "  switch (idx) {\n"
+    "    case 0u: { d = vec3<f32>( 1.0,  y, -x); }\n"
+    "    case 1u: { d = vec3<f32>(-1.0,  y,  x); }\n"
+    "    case 2u: { d = vec3<f32>( x,  1.0, -y); }\n"
+    "    case 3u: { d = vec3<f32>( x, -1.0,  y); }\n"
+    "    case 4u: { d = vec3<f32>( x,  y,  1.0); }\n"
+    "    default: { d = vec3<f32>(-x,  y, -1.0); }\n"
+    "  }\n"
+    "  return normalize(d);\n"
+    "}\n"
+    "@compute @workgroup_size(8, 8, 1)\n"
+    "fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {\n"
+    "  let dims = textureDimensions(cube_out);\n"
+    "  if (gid.x >= dims.x || gid.y >= dims.y || gid.z >= 6u) { return; }\n"
+    "  let uv = (vec2<f32>(f32(gid.x), f32(gid.y)) + vec2<f32>(0.5)) /\n"
+    "    vec2<f32>(f32(dims.x), f32(dims.y));\n"
+    "  let dir = face_direction(gid.z, uv);\n"
+    "  let alt_km = u.camera_pos_world.w;\n"
+    "  let view_r = bottomR(u) + max(alt_km, PLANET_OFFSET);\n"
+    "  let sv_uv = dir_to_skyview_uv(dir, view_r, u);\n"
+    "  let sky = textureSampleLevel(skyview_lut, lut_sampler, sv_uv, 0.0).rgb;\n"
+    "  textureStore(cube_out, vec2<i32>(i32(gid.x), i32(gid.y)),\n"
+    "    i32(gid.z), vec4<f32>(sky, 1.0));\n"
+    "}\n";
+
+/* 2x box mip downsample — one dispatch per target mip, replacing 42
+ * fragment passes with 7 compute dispatches. */
+static const char *kCubeDownsampleComputeShaderSource =
+    "@group(0) @binding(0) var input_cube : texture_2d_array<f32>;\n"
+    "@group(0) @binding(1) var lin_samp : sampler;\n"
+    "@group(0) @binding(2) var output_cube : texture_storage_2d_array<rgba16float, write>;\n"
+    "@compute @workgroup_size(8, 8, 1)\n"
+    "fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {\n"
+    "  let dims = textureDimensions(output_cube);\n"
+    "  if (gid.x >= dims.x || gid.y >= dims.y || gid.z >= 6u) { return; }\n"
+    "  let uv = (vec2<f32>(f32(gid.x), f32(gid.y)) + vec2<f32>(0.5)) /\n"
+    "    vec2<f32>(f32(dims.x), f32(dims.y));\n"
+    "  let c = textureSampleLevel(input_cube, lin_samp, uv, i32(gid.z), 0.0);\n"
+    "  textureStore(output_cube, vec2<i32>(i32(gid.x), i32(gid.y)),\n"
+    "    i32(gid.z), c);\n"
+    "}\n";
+
+/* Aerial perspective compute shader — writes the full 32x32x32 LUT in a
+ * single dispatch, replacing 32 fragment passes. */
+static const char *kAerialComputeShaderSource =
+    "@group(0) @binding(0) var<uniform> u : AtmosUniforms;\n"
+    "@group(0) @binding(1) var trans_lut : texture_2d<f32>;\n"
+    "@group(0) @binding(2) var ms_lut : texture_2d<f32>;\n"
+    "@group(0) @binding(3) var lut_sampler : sampler;\n"
+    "@group(0) @binding(4) var aerial_out : texture_storage_2d_array<rgba16float, write>;\n"
     "const AP_STEPS : i32 = 6;\n"
-    "@fragment fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {\n"
+    "@compute @workgroup_size(8, 8, 1)\n"
+    "fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {\n"
+    "  let dims = textureDimensions(aerial_out);\n"
+    "  if (gid.x >= dims.x || gid.y >= dims.y || gid.z >= u32(u.misc.x)) { return; }\n"
+    "  let uv = (vec2<f32>(f32(gid.x), f32(gid.y)) + vec2<f32>(0.5)) /\n"
+    "    vec2<f32>(f32(dims.x), f32(dims.y));\n"
     /* NDC -> world-space view ray (direction only). */
-    "  let ndc = vec4<f32>(\n"
-    "    in.uv.x * 2.0 - 1.0,\n"
-    "    (1.0 - in.uv.y) * 2.0 - 1.0,\n"
-    "    1.0, 1.0);\n"
+    "  let ndc = vec4<f32>(uv.x * 2.0 - 1.0, (1.0 - uv.y) * 2.0 - 1.0, 1.0, 1.0);\n"
     "  let world_h = u.inv_vp * ndc;\n"
     "  var world_pos = world_h.xyz;\n"
     "  if (abs(world_h.w) > 1e-6) { world_pos = world_h.xyz / world_h.w; }\n"
     "  let view_dir_world = normalize(world_pos - u.camera_pos_world.xyz);\n"
-    /* Convert to atmosphere-local (atmosphere uses world-up). */
     "  let alt_km = u.camera_pos_world.w;\n"
     "  let r0 = bottomR(u) + max(alt_km, PLANET_OFFSET);\n"
     "  let ro = vec3<f32>(0.0, r0, 0.0);\n"
     "  let rd = view_dir_world;\n"
     "  let max_dist_km = u.mie_params.y;\n"
-    "  let slice_t = (f32(slice.slice_index) + 1.0) / f32(slice.slice_count);\n"
+    "  let slice_count = u.misc.x;\n"
+    "  let slice_t = (f32(gid.z) + 1.0) / slice_count;\n"
     "  let t_end_km = slice_t * max_dist_km;\n"
-    /* Stop at top of atmosphere if earlier. */
     "  let t_top = ray_sphere_nearest(ro, rd, topR(u));\n"
     "  var t_max = t_end_km;\n"
     "  if (t_top > 0.0 && t_top < t_max) { t_max = t_top; }\n"
-    "  if (t_max <= 0.0) { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }\n"
+    "  if (t_max <= 0.0) {\n"
+    "    textureStore(aerial_out, vec2<i32>(i32(gid.x), i32(gid.y)),\n"
+    "      i32(gid.z), vec4<f32>(0.0, 0.0, 0.0, 1.0));\n"
+    "    return;\n"
+    "  }\n"
     "  let dt = t_max / f32(AP_STEPS);\n"
     "  let sun = u.sun_direction.xyz;\n"
     "  let cos_sv = clamp(dot(rd, sun), -1.0, 1.0);\n"
@@ -457,52 +510,9 @@ static const char *kAerialShaderSource =
     "    L = L + throughput * s_int;\n"
     "    throughput = throughput * step_trans;\n"
     "  }\n"
-    /* Store average transmittance in alpha. */
     "  let t_avg = (throughput.x + throughput.y + throughput.z) / 3.0;\n"
-    "  return vec4<f32>(L, t_avg);\n"
-    "}\n";
-
-/* -------- Sky-view -> cube face (mip 0) + cube mip downsample ------------- */
-
-static const char *kCubeFaceShaderSource =
-    FLECS_ENGINE_FULLSCREEN_VS_WGSL
-    "struct FaceUniform { face_index : u32, _pad0 : u32, _pad1 : u32, _pad2 : u32 };\n"
-    "@group(0) @binding(0) var<uniform> u : AtmosUniforms;\n"
-    "@group(0) @binding(1) var skyview_lut : texture_2d<f32>;\n"
-    "@group(0) @binding(2) var lut_sampler : sampler;\n"
-    "@group(0) @binding(3) var<uniform> face : FaceUniform;\n"
-    "fn face_direction(idx : u32, uv : vec2<f32>) -> vec3<f32> {\n"
-    "  let x = uv.x * 2.0 - 1.0;\n"
-    "  let y = 1.0 - uv.y * 2.0;\n"
-    "  var d : vec3<f32>;\n"
-    "  switch (idx) {\n"
-    "    case 0u: { d = vec3<f32>( 1.0,  y, -x); }\n"  // +X
-    "    case 1u: { d = vec3<f32>(-1.0,  y,  x); }\n"  // -X
-    "    case 2u: { d = vec3<f32>( x,  1.0, -y); }\n"  // +Y
-    "    case 3u: { d = vec3<f32>( x, -1.0,  y); }\n"  // -Y
-    "    case 4u: { d = vec3<f32>( x,  y,  1.0); }\n"  // +Z
-    "    default: { d = vec3<f32>(-x,  y, -1.0); }\n"  // -Z
-    "  }\n"
-    "  return normalize(d);\n"
-    "}\n"
-    "@fragment fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {\n"
-    "  let dir = face_direction(face.face_index, in.uv);\n"
-    "  let alt_km = u.camera_pos_world.w;\n"
-    "  let view_r = bottomR(u) + max(alt_km, PLANET_OFFSET);\n"
-    "  let sv_uv = dir_to_skyview_uv(dir, view_r, u);\n"
-    "  let sky = textureSampleLevel(skyview_lut, lut_sampler, sv_uv, 0.0).rgb;\n"
-    "  return vec4<f32>(sky, 1.0);\n"
-    "}\n";
-
-/* Trivial 2x mip downsample: linear sampling at the output texel centre
- * returns the average of the 2x2 input texels. Good enough because atmosphere
- * content has no high-frequency detail. */
-static const char *kCubeDownsampleShaderSource =
-    FLECS_ENGINE_FULLSCREEN_VS_WGSL
-    "@group(0) @binding(0) var input_tex : texture_2d<f32>;\n"
-    "@group(0) @binding(1) var linear_samp : sampler;\n"
-    "@fragment fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {\n"
-    "  return textureSample(input_tex, linear_samp, in.uv);\n"
+    "  textureStore(aerial_out, vec2<i32>(i32(gid.x), i32(gid.y)),\n"
+    "    i32(gid.z), vec4<f32>(L, t_avg));\n"
     "}\n";
 
 /* -------- Compose shader -------------------------------------------------- */
@@ -604,13 +614,10 @@ static const char *kComposeShaderSource =
 
 static void flecsEngine_atmos_releaseTextures(FlecsAtmosphereImpl *a)
 {
-    for (uint32_t i = 0; i < a->aerial_slice_count; i++) {
-        if (a->aerial_slice_views[i]) {
-            wgpuTextureViewRelease(a->aerial_slice_views[i]);
-            a->aerial_slice_views[i] = NULL;
-        }
+    if (a->aerial_storage_view) {
+        wgpuTextureViewRelease(a->aerial_storage_view);
+        a->aerial_storage_view = NULL;
     }
-    a->aerial_slice_count = 0;
     if (a->aerial_view) { wgpuTextureViewRelease(a->aerial_view); a->aerial_view = NULL; }
     if (a->aerial_texture) { wgpuTextureRelease(a->aerial_texture); a->aerial_texture = NULL; }
     if (a->skyview_view) { wgpuTextureViewRelease(a->skyview_view); a->skyview_view = NULL; }
@@ -624,7 +631,7 @@ static void flecsEngine_atmos_releaseTextures(FlecsAtmosphereImpl *a)
 static void flecsEngine_atmos_releaseResources(FlecsAtmosphereImpl *a)
 {
     flecsEngine_atmos_releaseTextures(a);
-    /* Cached LUT bind groups. */
+    /* Cached LUT / aerial / cube bind groups. */
     if (a->trans_bind_group) {
         wgpuBindGroupRelease(a->trans_bind_group);
         a->trans_bind_group = NULL;
@@ -637,44 +644,31 @@ static void flecsEngine_atmos_releaseResources(FlecsAtmosphereImpl *a)
         wgpuBindGroupRelease(a->skyview_bind_group);
         a->skyview_bind_group = NULL;
     }
-    for (uint32_t i = 0; i < 32; i++) {
-        if (a->aerial_bind_groups[i]) {
-            wgpuBindGroupRelease(a->aerial_bind_groups[i]);
-            a->aerial_bind_groups[i] = NULL;
-        }
-        if (a->aerial_slice_buffers[i]) {
-            wgpuBufferRelease(a->aerial_slice_buffers[i]);
-            a->aerial_slice_buffers[i] = NULL;
-        }
+    if (a->aerial_compute_bind_group) {
+        wgpuBindGroupRelease(a->aerial_compute_bind_group);
+        a->aerial_compute_bind_group = NULL;
     }
-    for (uint32_t i = 0; i < 48; i++) {
-        if (a->cube_ds_bind_groups[i]) {
-            wgpuBindGroupRelease(a->cube_ds_bind_groups[i]);
-            a->cube_ds_bind_groups[i] = NULL;
-        }
+    if (a->cube_face_bind_group) {
+        wgpuBindGroupRelease(a->cube_face_bind_group);
+        a->cube_face_bind_group = NULL;
     }
-    for (uint32_t m = 0; m < a->cube_mip_count; m++) {
-        for (uint32_t f = 0; f < 6; f++) {
-            uint32_t i = m * 6u + f;
-            if (a->cube_mip_face_views[i]) {
-                wgpuTextureViewRelease(a->cube_mip_face_views[i]);
-                a->cube_mip_face_views[i] = NULL;
-            }
+    for (uint32_t m = 0; m < 8; m++) {
+        if (a->cube_ds_bind_groups[m]) {
+            wgpuBindGroupRelease(a->cube_ds_bind_groups[m]);
+            a->cube_ds_bind_groups[m] = NULL;
+        }
+        if (a->cube_mip_storage_views[m]) {
+            wgpuTextureViewRelease(a->cube_mip_storage_views[m]);
+            a->cube_mip_storage_views[m] = NULL;
+        }
+        if (a->cube_mip_read_views[m]) {
+            wgpuTextureViewRelease(a->cube_mip_read_views[m]);
+            a->cube_mip_read_views[m] = NULL;
         }
     }
     a->cube_mip_count = 0;
-    for (uint32_t i = 0; i < 6; i++) {
-        if (a->cube_face_bind_groups[i]) {
-            wgpuBindGroupRelease(a->cube_face_bind_groups[i]);
-            a->cube_face_bind_groups[i] = NULL;
-        }
-        if (a->face_index_buffers[i]) {
-            wgpuBufferRelease(a->face_index_buffers[i]);
-            a->face_index_buffers[i] = NULL;
-        }
-    }
     if (a->cube_ds_pipeline) {
-        wgpuRenderPipelineRelease(a->cube_ds_pipeline);
+        wgpuComputePipelineRelease(a->cube_ds_pipeline);
         a->cube_ds_pipeline = NULL;
     }
     if (a->cube_ds_layout) {
@@ -682,12 +676,20 @@ static void flecsEngine_atmos_releaseResources(FlecsAtmosphereImpl *a)
         a->cube_ds_layout = NULL;
     }
     if (a->cube_face_pipeline) {
-        wgpuRenderPipelineRelease(a->cube_face_pipeline);
+        wgpuComputePipelineRelease(a->cube_face_pipeline);
         a->cube_face_pipeline = NULL;
     }
     if (a->cube_face_layout) {
         wgpuBindGroupLayoutRelease(a->cube_face_layout);
         a->cube_face_layout = NULL;
+    }
+    if (a->aerial_compute_pipeline) {
+        wgpuComputePipelineRelease(a->aerial_compute_pipeline);
+        a->aerial_compute_pipeline = NULL;
+    }
+    if (a->aerial_compute_layout) {
+        wgpuBindGroupLayoutRelease(a->aerial_compute_layout);
+        a->aerial_compute_layout = NULL;
     }
     if (a->compose_pipeline_surface) {
         wgpuRenderPipelineRelease(a->compose_pipeline_surface);
@@ -696,10 +698,6 @@ static void flecsEngine_atmos_releaseResources(FlecsAtmosphereImpl *a)
     if (a->compose_pipeline_hdr) {
         wgpuRenderPipelineRelease(a->compose_pipeline_hdr);
         a->compose_pipeline_hdr = NULL;
-    }
-    if (a->aerial_pipeline) {
-        wgpuRenderPipelineRelease(a->aerial_pipeline);
-        a->aerial_pipeline = NULL;
     }
     if (a->skyview_pipeline) {
         wgpuRenderPipelineRelease(a->skyview_pipeline);
@@ -716,10 +714,6 @@ static void flecsEngine_atmos_releaseResources(FlecsAtmosphereImpl *a)
     if (a->compose_layout) {
         wgpuBindGroupLayoutRelease(a->compose_layout);
         a->compose_layout = NULL;
-    }
-    if (a->aerial_layout) {
-        wgpuBindGroupLayoutRelease(a->aerial_layout);
-        a->aerial_layout = NULL;
     }
     if (a->skyview_layout) {
         wgpuBindGroupLayoutRelease(a->skyview_layout);
@@ -943,7 +937,9 @@ static bool flecsEngine_atmos_createAerialTexture(
     FlecsAtmosphereImpl *a)
 {
     WGPUTextureDescriptor desc = {
-        .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+        /* TextureBinding: read by the compose shader as texture_2d_array.
+         * StorageBinding: written by the aerial compute shader. */
+        .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding,
         .dimension = WGPUTextureDimension_2D,
         .size = { FLECS_ATMOS_AERIAL_W, FLECS_ATMOS_AERIAL_H, FLECS_ATMOS_AERIAL_SLICES },
         .format = FLECS_ATMOS_FORMAT,
@@ -965,21 +961,10 @@ static bool flecsEngine_atmos_createAerialTexture(
     a->aerial_view = wgpuTextureCreateView(a->aerial_texture, &array_desc);
     if (!a->aerial_view) return false;
 
-    for (uint32_t i = 0; i < FLECS_ATMOS_AERIAL_SLICES; i++) {
-        WGPUTextureViewDescriptor slice_desc = {
-            .format = FLECS_ATMOS_FORMAT,
-            .dimension = WGPUTextureViewDimension_2D,
-            .baseMipLevel = 0,
-            .mipLevelCount = 1,
-            .baseArrayLayer = i,
-            .arrayLayerCount = 1,
-            .aspect = WGPUTextureAspect_All
-        };
-        a->aerial_slice_views[i] = wgpuTextureCreateView(a->aerial_texture, &slice_desc);
-        if (!a->aerial_slice_views[i]) return false;
-    }
-    a->aerial_slice_count = FLECS_ATMOS_AERIAL_SLICES;
-    return true;
+    /* Storage-write view for the compute shader. Same dimension/layers as
+     * the sample view above; WebGPU just needs a separate view handle. */
+    a->aerial_storage_view = wgpuTextureCreateView(a->aerial_texture, &array_desc);
+    return a->aerial_storage_view != NULL;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1043,6 +1028,31 @@ static WGPURenderPipeline flecsEngine_atmos_createPipeline(
         .multisample = WGPU_MULTISAMPLE_DEFAULT
     };
     WGPURenderPipeline p = wgpuDeviceCreateRenderPipeline(engine->device, &desc);
+    wgpuPipelineLayoutRelease(pl);
+    return p;
+}
+
+static WGPUComputePipeline flecsEngine_atmos_createComputePipeline(
+    const FlecsEngineImpl *engine,
+    WGPUShaderModule module,
+    WGPUBindGroupLayout bind_layout,
+    const char *entry)
+{
+    WGPUPipelineLayoutDescriptor pl_desc = {
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts = &bind_layout
+    };
+    WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(engine->device, &pl_desc);
+    if (!pl) return NULL;
+
+    WGPUComputePipelineDescriptor desc = {
+        .layout = pl,
+        .compute = {
+            .module = module,
+            .entryPoint = WGPU_STR(entry)
+        }
+    };
+    WGPUComputePipeline p = wgpuDeviceCreateComputePipeline(engine->device, &desc);
     wgpuPipelineLayoutRelease(pl);
     return p;
 }
@@ -1139,13 +1149,15 @@ static WGPUBindGroupLayout flecsEngine_atmos_layoutSkyView(
     return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
 }
 
-static WGPUBindGroupLayout flecsEngine_atmos_layoutAerial(
+/* Aerial compute pipeline layout: uniform + trans LUT + MS LUT + sampler
+ * + aerial storage output. */
+static WGPUBindGroupLayout flecsEngine_atmos_layoutAerialCompute(
     const FlecsEngineImpl *engine)
 {
     WGPUBindGroupLayoutEntry entries[5] = {
         {
             .binding = 0,
-            .visibility = WGPUShaderStage_Fragment,
+            .visibility = WGPUShaderStage_Compute,
             .buffer = {
                 .type = WGPUBufferBindingType_Uniform,
                 .minBindingSize = sizeof(FlecsAtmosphereUniform)
@@ -1153,37 +1165,108 @@ static WGPUBindGroupLayout flecsEngine_atmos_layoutAerial(
         },
         {
             .binding = 1,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(FlecsAtmosphereSliceUniform)
+            .visibility = WGPUShaderStage_Compute,
+            .texture = {
+                .sampleType = WGPUTextureSampleType_Float,
+                .viewDimension = WGPUTextureViewDimension_2D
             }
         },
         {
             .binding = 2,
-            .visibility = WGPUShaderStage_Fragment,
+            .visibility = WGPUShaderStage_Compute,
             .texture = {
                 .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
+                .viewDimension = WGPUTextureViewDimension_2D
             }
         },
         {
             .binding = 3,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
+            .visibility = WGPUShaderStage_Compute,
+            .sampler = { .type = WGPUSamplerBindingType_Filtering }
         },
         {
             .binding = 4,
-            .visibility = WGPUShaderStage_Fragment,
-            .sampler = { .type = WGPUSamplerBindingType_Filtering }
+            .visibility = WGPUShaderStage_Compute,
+            .storageTexture = {
+                .access = WGPUStorageTextureAccess_WriteOnly,
+                .format = FLECS_ATMOS_FORMAT,
+                .viewDimension = WGPUTextureViewDimension_2DArray
+            }
         }
     };
     WGPUBindGroupLayoutDescriptor d = { .entryCount = 5, .entries = entries };
+    return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
+}
+
+/* Cube face compute layout: uniform + skyview LUT + sampler + cube storage. */
+static WGPUBindGroupLayout flecsEngine_atmos_layoutCubeFaceCompute(
+    const FlecsEngineImpl *engine)
+{
+    WGPUBindGroupLayoutEntry entries[4] = {
+        {
+            .binding = 0,
+            .visibility = WGPUShaderStage_Compute,
+            .buffer = {
+                .type = WGPUBufferBindingType_Uniform,
+                .minBindingSize = sizeof(FlecsAtmosphereUniform)
+            }
+        },
+        {
+            .binding = 1,
+            .visibility = WGPUShaderStage_Compute,
+            .texture = {
+                .sampleType = WGPUTextureSampleType_Float,
+                .viewDimension = WGPUTextureViewDimension_2D
+            }
+        },
+        {
+            .binding = 2,
+            .visibility = WGPUShaderStage_Compute,
+            .sampler = { .type = WGPUSamplerBindingType_Filtering }
+        },
+        {
+            .binding = 3,
+            .visibility = WGPUShaderStage_Compute,
+            .storageTexture = {
+                .access = WGPUStorageTextureAccess_WriteOnly,
+                .format = FLECS_ATMOS_FORMAT,
+                .viewDimension = WGPUTextureViewDimension_2DArray
+            }
+        }
+    };
+    WGPUBindGroupLayoutDescriptor d = { .entryCount = 4, .entries = entries };
+    return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
+}
+
+/* Cube mip downsample compute layout: input array + sampler + output array. */
+static WGPUBindGroupLayout flecsEngine_atmos_layoutCubeDsCompute(
+    const FlecsEngineImpl *engine)
+{
+    WGPUBindGroupLayoutEntry entries[3] = {
+        {
+            .binding = 0,
+            .visibility = WGPUShaderStage_Compute,
+            .texture = {
+                .sampleType = WGPUTextureSampleType_Float,
+                .viewDimension = WGPUTextureViewDimension_2DArray
+            }
+        },
+        {
+            .binding = 1,
+            .visibility = WGPUShaderStage_Compute,
+            .sampler = { .type = WGPUSamplerBindingType_Filtering }
+        },
+        {
+            .binding = 2,
+            .visibility = WGPUShaderStage_Compute,
+            .storageTexture = {
+                .access = WGPUStorageTextureAccess_WriteOnly,
+                .format = FLECS_ATMOS_FORMAT,
+                .viewDimension = WGPUTextureViewDimension_2DArray
+            }
+        }
+    };
+    WGPUBindGroupLayoutDescriptor d = { .entryCount = 3, .entries = entries };
     return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
 }
 
@@ -1328,23 +1411,30 @@ bool flecsEngine_atmosphere_ensureImpl(
     a.trans_layout = flecsEngine_atmos_layoutUniformOnly(engine);
     a.ms_layout = flecsEngine_atmos_layoutMS(engine);
     a.skyview_layout = flecsEngine_atmos_layoutSkyView(engine);
-    a.aerial_layout = flecsEngine_atmos_layoutAerial(engine);
+    a.aerial_compute_layout = flecsEngine_atmos_layoutAerialCompute(engine);
+    a.cube_face_layout = flecsEngine_atmos_layoutCubeFaceCompute(engine);
+    a.cube_ds_layout = flecsEngine_atmos_layoutCubeDsCompute(engine);
     a.compose_layout = flecsEngine_atmos_layoutCompose(engine);
     if (!a.trans_layout || !a.ms_layout || !a.skyview_layout ||
-        !a.aerial_layout || !a.compose_layout)
+        !a.aerial_compute_layout || !a.cube_face_layout ||
+        !a.cube_ds_layout || !a.compose_layout)
     { ecs_err("atmos setup failed at %s:%d", __FILE__, __LINE__); flecsEngine_atmos_releaseResources(&a); return false; }
 
     WGPUShaderModule trans_mod = flecsEngine_atmos_createModule(engine, kTransShaderSource);
     WGPUShaderModule ms_mod = flecsEngine_atmos_createModule(engine, kMSShaderSource);
     WGPUShaderModule sv_mod = flecsEngine_atmos_createModule(engine, kSkyViewShaderSource);
-    WGPUShaderModule ap_mod = flecsEngine_atmos_createModule(engine, kAerialShaderSource);
+    WGPUShaderModule ap_mod = flecsEngine_atmos_createModule(engine, kAerialComputeShaderSource);
     WGPUShaderModule cs_mod = flecsEngine_atmos_createModule(engine, kComposeShaderSource);
-    if (!trans_mod || !ms_mod || !sv_mod || !ap_mod || !cs_mod) {
+    WGPUShaderModule cf_mod = flecsEngine_atmos_createModule(engine, kCubeFaceComputeShaderSource);
+    WGPUShaderModule ds_mod = flecsEngine_atmos_createModule(engine, kCubeDownsampleComputeShaderSource);
+    if (!trans_mod || !ms_mod || !sv_mod || !ap_mod || !cs_mod || !cf_mod || !ds_mod) {
         if (trans_mod) wgpuShaderModuleRelease(trans_mod);
         if (ms_mod) wgpuShaderModuleRelease(ms_mod);
         if (sv_mod) wgpuShaderModuleRelease(sv_mod);
         if (ap_mod) wgpuShaderModuleRelease(ap_mod);
         if (cs_mod) wgpuShaderModuleRelease(cs_mod);
+        if (cf_mod) wgpuShaderModuleRelease(cf_mod);
+        if (ds_mod) wgpuShaderModuleRelease(ds_mod);
         flecsEngine_atmos_releaseResources(&a);
         return false;
     }
@@ -1355,8 +1445,13 @@ bool flecsEngine_atmosphere_ensureImpl(
         engine, ms_mod, a.ms_layout, "vs_main", "fs_main", FLECS_ATMOS_FORMAT);
     a.skyview_pipeline = flecsEngine_atmos_createPipeline(
         engine, sv_mod, a.skyview_layout, "vs_main", "fs_main", FLECS_ATMOS_FORMAT);
-    a.aerial_pipeline = flecsEngine_atmos_createPipeline(
-        engine, ap_mod, a.aerial_layout, "vs_main", "fs_main", FLECS_ATMOS_FORMAT);
+
+    a.aerial_compute_pipeline = flecsEngine_atmos_createComputePipeline(
+        engine, ap_mod, a.aerial_compute_layout, "cs_main");
+    a.cube_face_pipeline = flecsEngine_atmos_createComputePipeline(
+        engine, cf_mod, a.cube_face_layout, "cs_main");
+    a.cube_ds_pipeline = flecsEngine_atmos_createComputePipeline(
+        engine, ds_mod, a.cube_ds_layout, "cs_main");
 
     WGPUTextureFormat hdr_format = flecsEngine_getHdrFormat(engine);
     WGPUTextureFormat surface_format = flecsEngine_getViewTargetFormat(engine);
@@ -1365,64 +1460,17 @@ bool flecsEngine_atmosphere_ensureImpl(
     a.compose_pipeline_surface = flecsEngine_atmos_createPipeline(
         engine, cs_mod, a.compose_layout, "vs_main", "fs_main", surface_format);
 
-    /* Sky-view -> cube-face (mip 0) + cube mip downsample. */
-    {
-        WGPUBindGroupLayoutEntry face_entries[4] = {
-            { .binding = 0, .visibility = WGPUShaderStage_Fragment,
-              .buffer = { .type = WGPUBufferBindingType_Uniform,
-                          .minBindingSize = sizeof(FlecsAtmosphereUniform) } },
-            { .binding = 1, .visibility = WGPUShaderStage_Fragment,
-              .texture = { .sampleType = WGPUTextureSampleType_Float,
-                           .viewDimension = WGPUTextureViewDimension_2D } },
-            { .binding = 2, .visibility = WGPUShaderStage_Fragment,
-              .sampler = { .type = WGPUSamplerBindingType_Filtering } },
-            /* 16-byte minimum for uniform buffer bindings. */
-            { .binding = 3, .visibility = WGPUShaderStage_Fragment,
-              .buffer = { .type = WGPUBufferBindingType_Uniform,
-                          .minBindingSize = 16 } }
-        };
-        a.cube_face_layout = wgpuDeviceCreateBindGroupLayout(engine->device,
-            &(WGPUBindGroupLayoutDescriptor){
-                .entryCount = 4, .entries = face_entries });
-
-        WGPUBindGroupLayoutEntry ds_entries[2] = {
-            { .binding = 0, .visibility = WGPUShaderStage_Fragment,
-              .texture = { .sampleType = WGPUTextureSampleType_Float,
-                           .viewDimension = WGPUTextureViewDimension_2D } },
-            { .binding = 1, .visibility = WGPUShaderStage_Fragment,
-              .sampler = { .type = WGPUSamplerBindingType_Filtering } }
-        };
-        a.cube_ds_layout = wgpuDeviceCreateBindGroupLayout(engine->device,
-            &(WGPUBindGroupLayoutDescriptor){
-                .entryCount = 2, .entries = ds_entries });
-
-        WGPUShaderModule cf_mod = flecsEngine_atmos_createModule(
-            engine, kCubeFaceShaderSource);
-        WGPUShaderModule ds_mod = flecsEngine_atmos_createModule(
-            engine, kCubeDownsampleShaderSource);
-        if (a.cube_face_layout && cf_mod) {
-            a.cube_face_pipeline = flecsEngine_atmos_createPipeline(
-                engine, cf_mod, a.cube_face_layout, "vs_main", "fs_main",
-                WGPUTextureFormat_RGBA16Float);
-        }
-        if (a.cube_ds_layout && ds_mod) {
-            a.cube_ds_pipeline = flecsEngine_atmos_createPipeline(
-                engine, ds_mod, a.cube_ds_layout, "vs_main", "fs_main",
-                WGPUTextureFormat_RGBA16Float);
-        }
-        if (cf_mod) wgpuShaderModuleRelease(cf_mod);
-        if (ds_mod) wgpuShaderModuleRelease(ds_mod);
-    }
-
     wgpuShaderModuleRelease(trans_mod);
     wgpuShaderModuleRelease(ms_mod);
     wgpuShaderModuleRelease(sv_mod);
     wgpuShaderModuleRelease(ap_mod);
     wgpuShaderModuleRelease(cs_mod);
+    wgpuShaderModuleRelease(cf_mod);
+    wgpuShaderModuleRelease(ds_mod);
 
     if (!a.trans_pipeline || !a.ms_pipeline || !a.skyview_pipeline ||
-        !a.aerial_pipeline || !a.compose_pipeline_hdr || !a.compose_pipeline_surface ||
-        !a.cube_face_pipeline || !a.cube_ds_pipeline)
+        !a.compose_pipeline_hdr || !a.compose_pipeline_surface ||
+        !a.aerial_compute_pipeline || !a.cube_face_pipeline || !a.cube_ds_pipeline)
     { ecs_err("atmos setup failed at %s:%d", __FILE__, __LINE__); flecsEngine_atmos_releaseResources(&a); return false; }
 
     *existing = a;
@@ -1445,9 +1493,10 @@ bool flecsEngine_atmosphere_ensureImpl(
         existing->cube_mip_count = mips;
         hdri->ibl_prefilter_mip_count = mips;
 
-        /* Texture + full-chain cube view (prefilter binding). */
+        /* Cubemap — populated by compute, so usage is StorageBinding +
+         * TextureBinding (no RenderAttachment needed). */
         WGPUTextureDescriptor desc = {
-            .usage = WGPUTextureUsage_RenderAttachment |
+            .usage = WGPUTextureUsage_StorageBinding |
                      WGPUTextureUsage_TextureBinding,
             .dimension = WGPUTextureDimension_2D,
             .size = { cube_size, cube_size, 6 },
@@ -1464,7 +1513,7 @@ bool flecsEngine_atmosphere_ensureImpl(
                 .baseMipLevel = 0, .mipLevelCount = mips,
                 .baseArrayLayer = 0, .arrayLayerCount = 6
             });
-        /* Top-mip cube view (irradiance binding); shares the same texture. */
+        /* Top-mip cube view (irradiance binding). */
         hdri->ibl_irradiance_cubemap = NULL;
         hdri->ibl_irradiance_cubemap_view = wgpuTextureCreateView(
             hdri->ibl_prefiltered_cubemap, &(WGPUTextureViewDescriptor){
@@ -1475,41 +1524,25 @@ bool flecsEngine_atmosphere_ensureImpl(
             });
         flecsIblCreateSampler(engine, hdri);
 
-        /* Per-(mip, face) render target views. */
+        /* Per-mip storage-write 2D-array views (used as compute outputs)
+         * and per-mip read views (used when sampling the previous mip). */
         for (uint32_t m = 0; m < mips; m++) {
-            for (uint32_t f = 0; f < 6; f++) {
-                existing->cube_mip_face_views[m * 6 + f] = wgpuTextureCreateView(
-                    hdri->ibl_prefiltered_cubemap,
-                    &(WGPUTextureViewDescriptor){
-                        .format = WGPUTextureFormat_RGBA16Float,
-                        .dimension = WGPUTextureViewDimension_2D,
-                        .baseMipLevel = m, .mipLevelCount = 1u,
-                        .baseArrayLayer = f, .arrayLayerCount = 1u
-                    });
-            }
-        }
-
-        /* Per-face uniform buffers + pre-built bind groups for the face pass. */
-        for (uint32_t f = 0; f < 6; f++) {
-            existing->face_index_buffers[f] = wgpuDeviceCreateBuffer(engine->device,
-                &(WGPUBufferDescriptor){
-                    .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                    .size = 16u });
-            uint32_t face_idx_data[4] = { f, 0, 0, 0 };
-            wgpuQueueWriteBuffer(engine->queue, existing->face_index_buffers[f],
-                0, face_idx_data, sizeof(face_idx_data));
-            WGPUBindGroupEntry face_bg_entries[4] = {
-                { .binding = 0, .buffer = existing->uniform_buffer,
-                  .offset = 0, .size = sizeof(FlecsAtmosphereUniform) },
-                { .binding = 1, .textureView = existing->skyview_view },
-                { .binding = 2, .sampler = existing->clamp_sampler },
-                { .binding = 3, .buffer = existing->face_index_buffers[f],
-                  .offset = 0, .size = 16u }
-            };
-            existing->cube_face_bind_groups[f] = wgpuDeviceCreateBindGroup(
-                engine->device, &(WGPUBindGroupDescriptor){
-                    .layout = existing->cube_face_layout,
-                    .entryCount = 4, .entries = face_bg_entries });
+            existing->cube_mip_storage_views[m] = wgpuTextureCreateView(
+                hdri->ibl_prefiltered_cubemap,
+                &(WGPUTextureViewDescriptor){
+                    .format = WGPUTextureFormat_RGBA16Float,
+                    .dimension = WGPUTextureViewDimension_2DArray,
+                    .baseMipLevel = m, .mipLevelCount = 1u,
+                    .baseArrayLayer = 0, .arrayLayerCount = 6u
+                });
+            existing->cube_mip_read_views[m] = wgpuTextureCreateView(
+                hdri->ibl_prefiltered_cubemap,
+                &(WGPUTextureViewDescriptor){
+                    .format = WGPUTextureFormat_RGBA16Float,
+                    .dimension = WGPUTextureViewDimension_2DArray,
+                    .baseMipLevel = m, .mipLevelCount = 1u,
+                    .baseArrayLayer = 0, .arrayLayerCount = 6u
+                });
         }
 
         flecsEngine_globals_createBindGroup(engine, hdri);
@@ -1556,50 +1589,49 @@ bool flecsEngine_atmosphere_ensureImpl(
                 .layout = existing->skyview_layout,
                 .entryCount = 4, .entries = sv_entries });
 
-        /* Aerial per-slice uniform buffers + bind groups. Each slice buffer
-         * holds (slice_index, slice_count) — written once, never mutated. */
-        for (uint32_t i = 0; i < existing->aerial_slice_count; i++) {
-            WGPUBufferDescriptor bd = {
-                .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                .size = sizeof(FlecsAtmosphereSliceUniform)
-            };
-            existing->aerial_slice_buffers[i] = wgpuDeviceCreateBuffer(
-                engine->device, &bd);
-            FlecsAtmosphereSliceUniform su = { .slice_index = i,
-                .slice_count = existing->aerial_slice_count };
-            wgpuQueueWriteBuffer(engine->queue,
-                existing->aerial_slice_buffers[i], 0, &su, sizeof(su));
+        /* Aerial LUT compute bind group — a single group dispatched once
+         * per frame to populate all 32^3 voxels. */
+        WGPUBindGroupEntry a_entries[5] = {
+            { .binding = 0, .buffer = existing->uniform_buffer,
+              .offset = 0, .size = sizeof(FlecsAtmosphereUniform) },
+            { .binding = 1, .textureView = existing->trans_view },
+            { .binding = 2, .textureView = existing->ms_view },
+            { .binding = 3, .sampler = existing->clamp_sampler },
+            { .binding = 4, .textureView = existing->aerial_storage_view }
+        };
+        existing->aerial_compute_bind_group = wgpuDeviceCreateBindGroup(
+            engine->device, &(WGPUBindGroupDescriptor){
+                .layout = existing->aerial_compute_layout,
+                .entryCount = 5, .entries = a_entries });
 
-            WGPUBindGroupEntry a_entries[5] = {
-                { .binding = 0, .buffer = existing->uniform_buffer,
-                  .offset = 0, .size = sizeof(FlecsAtmosphereUniform) },
-                { .binding = 1, .buffer = existing->aerial_slice_buffers[i],
-                  .offset = 0, .size = sizeof(FlecsAtmosphereSliceUniform) },
-                { .binding = 2, .textureView = existing->trans_view },
-                { .binding = 3, .textureView = existing->ms_view },
-                { .binding = 4, .sampler = existing->clamp_sampler }
-            };
-            existing->aerial_bind_groups[i] = wgpuDeviceCreateBindGroup(
-                engine->device, &(WGPUBindGroupDescriptor){
-                    .layout = existing->aerial_layout,
-                    .entryCount = 5, .entries = a_entries });
-        }
+        /* Cube face compute bind group — writes mip 0 (all 6 faces) in one
+         * dispatch. */
+        WGPUBindGroupEntry cf_entries[4] = {
+            { .binding = 0, .buffer = existing->uniform_buffer,
+              .offset = 0, .size = sizeof(FlecsAtmosphereUniform) },
+            { .binding = 1, .textureView = existing->skyview_view },
+            { .binding = 2, .sampler = existing->clamp_sampler },
+            { .binding = 3, .textureView = existing->cube_mip_storage_views[0] }
+        };
+        existing->cube_face_bind_group = wgpuDeviceCreateBindGroup(
+            engine->device, &(WGPUBindGroupDescriptor){
+                .layout = existing->cube_face_layout,
+                .entryCount = 4, .entries = cf_entries });
 
-        /* Cube-mip downsample bind groups — one per (mip>=1, face). Reads
-         * the previous mip's face view. */
+        /* Cube-mip downsample bind groups — one per mip (m >= 1). Reads the
+         * previous mip's 2D-array view. */
         for (uint32_t m = 1; m < existing->cube_mip_count; m++) {
-            for (uint32_t f = 0; f < 6; f++) {
-                uint32_t idx = m * 6u + f;
-                WGPUBindGroupEntry ds_entries[2] = {
-                    { .binding = 0,
-                      .textureView = existing->cube_mip_face_views[(m - 1) * 6 + f] },
-                    { .binding = 1, .sampler = existing->clamp_sampler }
-                };
-                existing->cube_ds_bind_groups[idx] = wgpuDeviceCreateBindGroup(
-                    engine->device, &(WGPUBindGroupDescriptor){
-                        .layout = existing->cube_ds_layout,
-                        .entryCount = 2, .entries = ds_entries });
-            }
+            WGPUBindGroupEntry ds_entries[3] = {
+                { .binding = 0,
+                  .textureView = existing->cube_mip_read_views[m - 1] },
+                { .binding = 1, .sampler = existing->clamp_sampler },
+                { .binding = 2,
+                  .textureView = existing->cube_mip_storage_views[m] }
+            };
+            existing->cube_ds_bind_groups[m] = wgpuDeviceCreateBindGroup(
+                engine->device, &(WGPUBindGroupDescriptor){
+                    .layout = existing->cube_ds_layout,
+                    .entryCount = 3, .entries = ds_entries });
         }
     }
 
@@ -1669,22 +1701,41 @@ static bool flecsEngine_atmos_runSkyView(
         a->skyview_bind_group, a->skyview_view);
 }
 
+/* Helper: run a compute pass with one cached bind group and a single
+ * dispatch. Single command per call. */
+static bool flecsEngine_atmos_runComputePass(
+    WGPUCommandEncoder encoder,
+    WGPUComputePipeline pipeline,
+    WGPUBindGroup bind_group,
+    uint32_t gx, uint32_t gy, uint32_t gz)
+{
+    WGPUComputePassDescriptor desc = {0};
+    WGPUComputePassEncoder pass = wgpuCommandEncoderBeginComputePass(
+        encoder, &desc);
+    if (!pass) return false;
+    wgpuComputePassEncoderSetPipeline(pass, pipeline);
+    wgpuComputePassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
+    wgpuComputePassEncoderDispatchWorkgroups(pass, gx, gy, gz);
+    wgpuComputePassEncoderEnd(pass);
+    wgpuComputePassEncoderRelease(pass);
+    return true;
+}
+
 static bool flecsEngine_atmos_runAerial(
     const FlecsEngineImpl *engine,
     FlecsAtmosphereImpl *a,
     WGPUCommandEncoder encoder)
 {
+    (void)engine;
     FLECS_TRACY_ZONE_BEGIN("AtmosAerial");
-    for (uint32_t i = 0; i < a->aerial_slice_count; i++) {
-        if (!flecsEngine_atmos_runPassBG(engine, encoder, a->aerial_pipeline,
-            a->aerial_bind_groups[i], a->aerial_slice_views[i]))
-        {
-            FLECS_TRACY_ZONE_END;
-            return false;
-        }
-    }
+    /* 32x32x32 texels, workgroup size (8,8,1) -> dispatch (4,4,32). */
+    bool ok = flecsEngine_atmos_runComputePass(
+        encoder, a->aerial_compute_pipeline, a->aerial_compute_bind_group,
+        (FLECS_ATMOS_AERIAL_W + 7) / 8,
+        (FLECS_ATMOS_AERIAL_H + 7) / 8,
+        FLECS_ATMOS_AERIAL_SLICES);
     FLECS_TRACY_ZONE_END;
-    return true;
+    return ok;
 }
 
 static bool flecsEngine_atmos_runCompose(
@@ -1812,36 +1863,28 @@ bool flecsEngine_atmosphere_renderIbl(
         return false;
     }
 
-    /* Pass 1: render sky-view LUT into each face of cubemap mip 0 (6 passes). */
+    /* Pass 1: single compute dispatch writes all 6 cube faces of mip 0. */
     FLECS_TRACY_ZONE_BEGIN_N(faces_zone, "AtmosIbl.faces");
-    for (uint32_t f = 0; f < 6; f++) {
-        if (!flecsEngine_atmos_runPassBG(
-            engine, encoder, a->cube_face_pipeline,
-            a->cube_face_bind_groups[f],
-            a->cube_mip_face_views[0 * 6 + f]))
-        {
-            FLECS_TRACY_ZONE_END_N(faces_zone);
-            FLECS_TRACY_ZONE_END;
-            return false;
-        }
-    }
+    uint32_t top_size = 128u; /* matches cube_size in ensureImpl */
+    bool ok = flecsEngine_atmos_runComputePass(
+        encoder, a->cube_face_pipeline, a->cube_face_bind_group,
+        (top_size + 7) / 8, (top_size + 7) / 8, 6);
     FLECS_TRACY_ZONE_END_N(faces_zone);
+    if (!ok) { FLECS_TRACY_ZONE_END; return false; }
 
-    /* Pass 2+: generate mip chain via 2x box downsample per face. Linear
-     * sampling at the output texel centre returns the 2x2 average of the
-     * previous mip — sufficient for smooth atmospheric content. */
+    /* Pass 2+: one compute dispatch per target mip (7 total for 8 mips). */
     FLECS_TRACY_ZONE_BEGIN_N(ds_zone, "AtmosIbl.downsample");
     for (uint32_t m = 1; m < a->cube_mip_count; m++) {
-        for (uint32_t f = 0; f < 6; f++) {
-            uint32_t idx = m * 6u + f;
-            if (!flecsEngine_atmos_runPassBG(engine, encoder,
-                a->cube_ds_pipeline, a->cube_ds_bind_groups[idx],
-                a->cube_mip_face_views[idx]))
-            {
-                FLECS_TRACY_ZONE_END_N(ds_zone);
-                FLECS_TRACY_ZONE_END;
-                return false;
-            }
+        uint32_t size = top_size >> m;
+        if (size < 1u) size = 1u;
+        uint32_t gx = (size + 7) / 8;
+        uint32_t gy = gx;
+        if (!flecsEngine_atmos_runComputePass(encoder,
+            a->cube_ds_pipeline, a->cube_ds_bind_groups[m], gx, gy, 6))
+        {
+            FLECS_TRACY_ZONE_END_N(ds_zone);
+            FLECS_TRACY_ZONE_END;
+            return false;
         }
     }
     FLECS_TRACY_ZONE_END_N(ds_zone);

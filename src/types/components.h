@@ -160,58 +160,56 @@ typedef struct {
     WGPUTexture skyview_texture;
     WGPUTextureView skyview_view;
 
-    /* Aerial perspective LUT (32x32x32 slices, 2D array RGBA16F, manual lerp
-     * along the depth axis in the compose shader). */
+    /* Aerial perspective LUT (32x32x32 as 2D array RGBA16F, populated by a
+     * single compute dispatch per frame; manual lerp along the depth axis
+     * in the compose shader). */
     WGPUTexture aerial_texture;
     WGPUTextureView aerial_view;
-    WGPUTextureView aerial_slice_views[32];
-    uint32_t aerial_slice_count;
 
     WGPUSampler clamp_sampler;
 
     WGPUBindGroupLayout trans_layout;
     WGPUBindGroupLayout ms_layout;
     WGPUBindGroupLayout skyview_layout;
-    WGPUBindGroupLayout aerial_layout;
     WGPUBindGroupLayout compose_layout;
 
     WGPURenderPipeline trans_pipeline;
     WGPURenderPipeline ms_pipeline;
     WGPURenderPipeline skyview_pipeline;
-    WGPURenderPipeline aerial_pipeline;
     WGPURenderPipeline compose_pipeline_hdr;
     WGPURenderPipeline compose_pipeline_surface;
 
-    /* Atmosphere IBL: a single cubemap with mips is populated each frame by
-     * rendering the sky-view LUT into each face of mip 0, then generating
-     * higher mips via 2x box-downsample. The same texture is bound to both
-     * the prefilter slot (full mip chain) and the irradiance slot (the
-     * highest/smallest mip only, which serves as a heavily blurred
-     * approximation). GGX-free because atmosphere content has no
-     * high-frequency detail — straight mip filtering suffices. */
-    WGPUBindGroupLayout cube_face_layout;
-    WGPURenderPipeline cube_face_pipeline;
-    WGPUBindGroupLayout cube_ds_layout;
-    WGPURenderPipeline cube_ds_pipeline;
-    WGPUBuffer face_index_buffers[6];
-    WGPUBindGroup cube_face_bind_groups[6];
-    /* Per-(mip, face) 2D render target views into the cubemap. Layout:
-     * index = mip * 6 + face. */
-    WGPUTextureView cube_mip_face_views[48]; /* 8 mips × 6 faces max */
-    /* Per-(mip>=1, face) cached downsample bind groups. Index 0..5 unused
-     * (mip 0 is the source render, not a downsample target). */
-    WGPUBindGroup cube_ds_bind_groups[48];
+    /* Atmosphere IBL cubemap: populated each frame by a compute shader that
+     * samples the sky-view LUT per cube face (mip 0), then a series of 2x
+     * box-downsample compute dispatches generates the rest of the mip chain.
+     * GGX-free because atmosphere content has no high-frequency detail. The
+     * same texture is bound to both the prefilter slot (full mip chain) and
+     * the irradiance slot (smallest mip only). */
+    WGPUBindGroupLayout cube_face_layout;      /* compute: sky -> cube mip 0 */
+    WGPUComputePipeline cube_face_pipeline;
+    WGPUBindGroupLayout cube_ds_layout;        /* compute: mip[k-1] -> mip[k] */
+    WGPUComputePipeline cube_ds_pipeline;
+    WGPUBindGroup cube_face_bind_group;        /* single cached bind group */
+    WGPUBindGroup cube_ds_bind_groups[8];      /* per-mip (mip >= 1) */
+    /* Per-mip storage-write 2D-array views into the cubemap (one per mip,
+     * each covering all 6 faces). Index m writes mip level m. */
+    WGPUTextureView cube_mip_storage_views[8];
+    /* Per-mip 2D-array read views (for sampling the previous mip during
+     * downsample). Index m reads mip level m. */
+    WGPUTextureView cube_mip_read_views[8];
     uint32_t cube_mip_count;
 
-    /* Cached bind groups for the LUT passes. All inputs referenced by these
-     * groups (uniform buffer, LUT views, sampler) are stable for the
-     * lifetime of the Impl, so they can be built once and reused. */
+    /* Cached bind groups for the LUT fragment passes. */
     WGPUBindGroup trans_bind_group;
     WGPUBindGroup ms_bind_group;
     WGPUBindGroup skyview_bind_group;
-    /* Cached per-slice uniform buffers + bind groups for the aerial LUT. */
-    WGPUBuffer aerial_slice_buffers[32];
-    WGPUBindGroup aerial_bind_groups[32];
+
+    /* Aerial LUT compute pipeline — one dispatch writes all 32x32x32 voxels
+     * in a single encoder command, replacing the old 32 fragment passes. */
+    WGPUBindGroupLayout aerial_compute_layout;
+    WGPURenderPipeline aerial_compute_pipeline; /* WGPUComputePipeline */
+    WGPUBindGroup aerial_compute_bind_group;
+    WGPUTextureView aerial_storage_view;        /* storage-write view */
 } FlecsAtmosphereImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsAtmosphereImpl);
