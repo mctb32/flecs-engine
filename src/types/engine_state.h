@@ -68,12 +68,9 @@ typedef struct {
     WGPUTexture fallback_white_tex;
     WGPUTextureView fallback_white_view;
     WGPUTextureView fallback_white_2d_view;  /* 2D view for transmission fallback */
-    WGPUTexture fallback_black_tex;
-    WGPUTextureView fallback_black_view;
     WGPUTexture fallback_normal_tex;
     WGPUTextureView fallback_normal_view;
     uint32_t next_id;
-    uint32_t last_id;
 
     uint32_t dirty_version;
     uint32_t uploaded_version;

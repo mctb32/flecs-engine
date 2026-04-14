@@ -98,33 +98,6 @@ int flecsEngine_cluster_init(
     return 0;
 }
 
-void flecsEngine_cluster_cleanup(
-    FlecsEngineImpl *impl)
-{
-    if (impl->lighting.cluster_index_buffer) {
-        wgpuBufferRelease(impl->lighting.cluster_index_buffer);
-        impl->lighting.cluster_index_buffer = NULL;
-    }
-    if (impl->lighting.cluster_grid_buffer) {
-        wgpuBufferRelease(impl->lighting.cluster_grid_buffer);
-        impl->lighting.cluster_grid_buffer = NULL;
-    }
-    if (impl->lighting.cluster_info_buffer) {
-        wgpuBufferRelease(impl->lighting.cluster_info_buffer);
-        impl->lighting.cluster_info_buffer = NULL;
-    }
-    if (impl->lighting.light_buffer) {
-        wgpuBufferRelease(impl->lighting.light_buffer);
-        impl->lighting.light_buffer = NULL;
-    }
-
-    ecs_os_free(impl->lighting.cpu_lights);
-    impl->lighting.cpu_lights = NULL;
-    impl->lighting.light_capacity = 0;
-    ecs_os_free(impl->lighting.cpu_cluster_indices);
-    impl->lighting.cpu_cluster_indices = NULL;
-    impl->lighting.cluster_index_capacity = 0;
-}
 
 /* Ensure CPU + GPU light arrays can hold `needed` lights. Returns true
  * if a GPU buffer was reallocated (bind group must be recreated). */

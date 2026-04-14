@@ -26,6 +26,6 @@
 
 #define FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_WGSL \
     FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_STRUCT_WGSL \
-    "@group(0) @binding(11) var<storage, read> materials : array<GpuMaterial>;\n"
+    "@group(2) @binding(0) var<storage, read> materials : array<GpuMaterial>;\n"
 
 #endif

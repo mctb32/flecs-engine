@@ -265,11 +265,8 @@ static void FlecsMesh3_on_set(
         if (!vert_count || !ind_count) {
             mesh_impl->vertex_count = 0;
             mesh_impl->index_count = 0;
-            mesh_impl->has_uvs = false;
             continue;
         }
-
-        mesh_impl->has_uvs = has_uvs;
 
         int32_t vert_size = vert_count * (int32_t)sizeof(FlecsLitVertex);
         WGPUBufferDescriptor vert_desc = {
@@ -289,7 +286,11 @@ static void FlecsMesh3_on_set(
         wgpuQueueWriteBuffer(impl->queue, mesh_impl->vertex_buffer, 0, verts, vert_size);
         ecs_os_free(verts);
 
-        if (has_uvs) {
+        /* Always build vertex_uv_buffer. When the source has no UVs the PBR
+         * shader's layer-index branches skip texture sampling, so the zero
+         * UVs + zero tangents don't matter. This lets one unified shader
+         * handle both textured and non-textured geometry. */
+        {
             int32_t vert_uv_size = vert_count * (int32_t)sizeof(FlecsLitVertexUv);
             WGPUBufferDescriptor vert_uv_desc = {
                 .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
@@ -297,39 +298,50 @@ static void FlecsMesh3_on_set(
             };
 
             FlecsLitVertexUv *uv_verts = ecs_os_malloc_n(FlecsLitVertexUv, vert_count);
-            flecs_vec2_t *mesh_uvs = ecs_vec_first_t(&mesh[i].uvs, flecs_vec2_t);
 
-            int32_t tan_count = ecs_vec_count(&mesh[i].tangents);
-            flecs_vec4_t *tangents;
-            bool owns_tangents = false;
-            if (tan_count == vert_count) {
-                tangents = ecs_vec_first_t(&mesh[i].tangents, flecs_vec4_t);
+            if (has_uvs) {
+                flecs_vec2_t *mesh_uvs = ecs_vec_first_t(&mesh[i].uvs, flecs_vec2_t);
+
+                int32_t tan_count = ecs_vec_count(&mesh[i].tangents);
+                flecs_vec4_t *tangents;
+                bool owns_tangents = false;
+                if (tan_count == vert_count) {
+                    tangents = ecs_vec_first_t(&mesh[i].tangents, flecs_vec4_t);
+                } else {
+                    tangents = ecs_os_malloc_n(flecs_vec4_t, vert_count);
+                    owns_tangents = true;
+                    flecsEngine_mesh_computeTangents(
+                        vert_count,
+                        ind_count,
+                        mesh_vertices,
+                        mesh_normals,
+                        mesh_uvs,
+                        ecs_vec_first_t(&mesh[i].indices, uint32_t),
+                        tangents);
+                }
+
+                for (int v = 0; v < vert_count; v ++) {
+                    uv_verts[v].p = mesh_vertices[v];
+                    uv_verts[v].n = mesh_normals[v];
+                    uv_verts[v].uv = mesh_uvs[v];
+                    uv_verts[v].t = tangents[v];
+                }
+
+                if (owns_tangents) {
+                    ecs_os_free(tangents);
+                }
             } else {
-                tangents = ecs_os_malloc_n(flecs_vec4_t, vert_count);
-                owns_tangents = true;
-                flecsEngine_mesh_computeTangents(
-                    vert_count,
-                    ind_count,
-                    mesh_vertices,
-                    mesh_normals,
-                    mesh_uvs,
-                    ecs_vec_first_t(&mesh[i].indices, uint32_t),
-                    tangents);
-            }
-
-            for (int v = 0; v < vert_count; v ++) {
-                uv_verts[v].p = mesh_vertices[v];
-                uv_verts[v].n = mesh_normals[v];
-                uv_verts[v].uv = mesh_uvs[v];
-                uv_verts[v].t = tangents[v];
+                for (int v = 0; v < vert_count; v ++) {
+                    uv_verts[v].p = mesh_vertices[v];
+                    uv_verts[v].n = mesh_normals[v];
+                    uv_verts[v].uv = (flecs_vec2_t){0};
+                    uv_verts[v].t = (flecs_vec4_t){0};
+                }
             }
 
             mesh_impl->vertex_uv_buffer = wgpuDeviceCreateBuffer(impl->device, &vert_uv_desc);
             wgpuQueueWriteBuffer(impl->queue, mesh_impl->vertex_uv_buffer, 0, uv_verts, vert_uv_size);
             ecs_os_free(uv_verts);
-            if (owns_tangents) {
-                ecs_os_free(tangents);
-            }
         }
 
         int32_t ind_size = ind_count * (int32_t)sizeof(uint32_t);

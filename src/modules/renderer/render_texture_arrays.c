@@ -519,9 +519,14 @@ void flecsEngine_material_buildTextureArrays(
 
     /* Pass 2: slot assignment (format-aware, with redirection). */
     uint32_t bucket_channel_layers[FLECS_ENGINE_TEXTURE_BUCKET_COUNT][4];
-    if (!flecsEngine_textureArray_survey(
-            world, impl, bucket_channel_layers))
-    {
+    bool any_material = flecsEngine_textureArray_survey(
+        world, impl, bucket_channel_layers);
+
+    if (!any_material) {
+        /* No textured materials. Still build a bind group using the
+         * fallback views so that pbr_colored batches (which always
+         * declare the texture array bindings) can draw. */
+        flecsEngine_textureArray_createBindGroup(impl);
         return;
     }
 

@@ -43,6 +43,8 @@ static void flecsEngine_primitive_extract(
     flecsEngine_batch_t *ctx = batch->ctx;
     flecsEngine_batch_buffers_t *buf = ctx->buffers;
 
+    ctx->vertex_buffer = ctx->mesh.vertex_buffer;
+
 redo:
     ctx->offset = 0;
     flecsEngine_batch_extractInstances(world, engine, batch, ctx);
@@ -119,6 +121,10 @@ static void flecsEngine_primitive_render(
     flecsEngine_primitive_ctx_t *pctx = batch->ctx;
     flecsEngine_batch_bindMaterialGroup(
         (FlecsEngineImpl*)engine, pass, &pctx->buffers);
+
+    if (batch->vertex_type == ecs_id(FlecsLitVertexUv)) {
+        pctx->group.vertex_buffer = pctx->group.mesh.vertex_uv_buffer;
+    }
     flecsEngine_batch_draw(engine, pass, &pctx->group);
 }
 
@@ -225,7 +231,7 @@ static ecs_entity_t flecsEngine_createBatch_primitive_materialIndex(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertex),
+        .vertex_type = ecs_id(FlecsLitVertexUv),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
@@ -278,7 +284,7 @@ ecs_entity_t flecsEngine_createBatch_primitive(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertex),
+        .vertex_type = ecs_id(FlecsLitVertexUv),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)

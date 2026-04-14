@@ -30,7 +30,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertex),
+        .vertex_type = ecs_id(FlecsLitVertexUv),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
@@ -78,7 +78,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertex),
+        .vertex_type = ecs_id(FlecsLitVertexUv),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
@@ -104,7 +104,7 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngine_shader_pbrTextured(world);
+    ecs_entity_t shader = flecsEngine_shader_pbrColored(world);
 
     ecs_query_t *q = ecs_query(world, {
         .entity = batch,
@@ -137,7 +137,7 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
         .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
-        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_BUFFERS_DEFAULT),
+        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_BUFFERS_STORAGE),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
 
@@ -385,7 +385,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
     ecs_entity_t textured_helper = ecs_entity(world, {
         .parent = batch });
     ecs_set(world, textured_helper, FlecsRenderBatch, {
-        .shader = flecsEngine_shader_pbrTextured(world),
+        .shader = flecsEngine_shader_pbrColored(world),
         .vertex_type = ecs_id(FlecsLitVertexUv),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
@@ -431,7 +431,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertex),
+        .vertex_type = ecs_id(FlecsLitVertexUv),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
@@ -503,7 +503,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmission(
         .extract_callback = flecsEngine_mesh_extract,
         .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_mesh_render,
-        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_BUFFERS_DEFAULT),
+        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_BUFFERS_STORAGE),
         .free_ctx = flecsEngine_mesh_deleteCtx,
         .render_after_snapshot = true,
         .needs_transmission = true

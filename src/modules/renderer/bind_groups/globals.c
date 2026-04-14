@@ -22,7 +22,7 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
         }
     }
 
-    WGPUBindGroupLayoutEntry layout_entries[12] = {
+    WGPUBindGroupLayoutEntry layout_entries[11] = {
         { /* 0: Frame uniform (FlecsUniform) */
             .binding = 0,
             .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
@@ -112,21 +112,13 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
                 .type = WGPUBufferBindingType_ReadOnlyStorage,
                 .minBindingSize = sizeof(FlecsGpuLight)
             }
-        },
-        { /* 11: Materials storage */
-            .binding = 11,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_ReadOnlyStorage,
-                .minBindingSize = sizeof(FlecsGpuMaterial)
-            }
         }
     };
 
     impl->ibl_shadow_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device,
         &(WGPUBindGroupLayoutDescriptor){
-            .entryCount = 12,
+            .entryCount = 11,
             .entries = layout_entries
         });
 
@@ -160,23 +152,16 @@ bool flecsEngine_globals_createBindGroup(
         return false;
     }
 
-    if (!engine->materials.buffer) {
-        return false;
-    }
-
     if (!engine->frame_uniform_buffer) {
         return false;
     }
-
-    uint64_t material_buffer_size =
-        (uint64_t)engine->materials.buffer_capacity * sizeof(FlecsGpuMaterial);
 
     ibl->ibl_shadow_bind_group = wgpuDeviceCreateBindGroup(
         engine->device,
         &(WGPUBindGroupDescriptor){
             .layout = bind_layout,
-            .entryCount = 12,
-            .entries = (WGPUBindGroupEntry[12]){
+            .entryCount = 11,
+            .entries = (WGPUBindGroupEntry[11]){
                 {
                     .binding = 0,
                     .buffer = engine->frame_uniform_buffer,
@@ -231,11 +216,6 @@ bool flecsEngine_globals_createBindGroup(
                     .buffer = engine->lighting.light_buffer,
                     .size = (uint64_t)engine->lighting.light_capacity *
                         sizeof(FlecsGpuLight)
-                },
-                {
-                    .binding = 11,
-                    .buffer = engine->materials.buffer,
-                    .size = material_buffer_size
                 }
             }
         });

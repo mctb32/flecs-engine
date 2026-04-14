@@ -82,23 +82,6 @@ ECS_MOVE(FlecsRenderBatchImpl, dst, src, {
     ecs_os_zeromem(src);
 })
 
-static bool flecsEngine_renderBatch_usesMaterialId(
-    const FlecsRenderBatch *batch)
-{
-    for (int32_t i = 0; i < FLECS_ENGINE_INSTANCE_TYPES_MAX; i ++) {
-        ecs_entity_t type = batch->instance_types[i];
-        if (!type) {
-            break;
-        }
-
-        if (type == ecs_id(FlecsMaterialId)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 static int32_t flecsEngine_renderBatch_setupInstanceBindings(
     const ecs_world_t *world,
     FlecsRenderBatch *rb,
@@ -433,7 +416,6 @@ static void FlecsRenderBatch_on_set(
             vertex_attr_count, vertex_buffers, vertex_buffer_count,
             instance_attrs);
 
-        impl.uses_material = flecsEngine_renderBatch_usesMaterialId(&rb[i]);
         impl.uses_ibl = shader_impl->uses_ibl;
         impl.uses_shadow = shader_impl->uses_shadow;
         impl.uses_cluster = shader_impl->uses_cluster;

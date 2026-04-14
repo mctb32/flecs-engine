@@ -224,7 +224,6 @@ redo: {
 
         flecsEngine_textureArray_release(impl);
 
-        impl->materials.last_id = impl->materials.next_id;
         impl->materials.uploaded_version = snapshot_version;
     }
     FLECS_TRACY_ZONE_END;

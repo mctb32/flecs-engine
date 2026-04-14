@@ -243,9 +243,6 @@ WGPUBindGroup flecsEngine_materialBind_ensureScene(
 void flecsEngine_materialBind_releaseScene(
     FlecsEngineImpl *impl);
 
-void flecsEngine_ibl_releaseResources(
-    FlecsEngineImpl *impl);
-
 void flecsEngine_renderBatch_render(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
@@ -334,9 +331,6 @@ void flecsEngine_setupLights(
     FlecsEngineImpl *engine);
 
 int flecsEngine_cluster_init(
-    FlecsEngineImpl *impl);
-
-void flecsEngine_cluster_cleanup(
     FlecsEngineImpl *impl);
 
 bool flecsEngine_cluster_ensureLights(

@@ -180,13 +180,23 @@ static void flecsEngine_bevel_box_extract(
     flecsEngine_batch_buffers_t *buf = &ctx->buffers;
     bool owns_material_data = ctx->owns_material_data;
 
-    /* Pass 1: count instances per sub-batch */
+    /* Reset each sub-batch to the non-UV vertex buffer (shadow needs it).
+     * Main render overrides to vertex_uv_buffer for LitVertexUv batches. */
     ctx->quad_batch.count = 0;
+    ctx->quad_batch.vertex_buffer = ctx->quad_batch.mesh.vertex_buffer;
     for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
         ctx->bevel_batches[s][0].count = 0;
+        ctx->bevel_batches[s][0].vertex_buffer =
+            ctx->bevel_batches[s][0].mesh.vertex_buffer;
         ctx->bevel_batches[s][1].count = 0;
+        ctx->bevel_batches[s][1].vertex_buffer =
+            ctx->bevel_batches[s][1].mesh.vertex_buffer;
         ctx->corner_batches[s][0].count = 0;
+        ctx->corner_batches[s][0].vertex_buffer =
+            ctx->corner_batches[s][0].mesh.vertex_buffer;
         ctx->corner_batches[s][1].count = 0;
+        ctx->corner_batches[s][1].vertex_buffer =
+            ctx->corner_batches[s][1].mesh.vertex_buffer;
     }
 
     ecs_iter_t it = ecs_query_iter(world, batch->query);
@@ -322,6 +332,22 @@ static void flecsEngine_bevel_box_render(
     flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
     flecsEngine_batch_bindMaterialGroup(
         (FlecsEngineImpl*)engine, pass, &ctx->buffers);
+
+    bool needs_uvs = batch->vertex_type == ecs_id(FlecsLitVertexUv);
+    if (needs_uvs) {
+        ctx->quad_batch.vertex_buffer = ctx->quad_batch.mesh.vertex_uv_buffer;
+        for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
+            ctx->bevel_batches[s][0].vertex_buffer =
+                ctx->bevel_batches[s][0].mesh.vertex_uv_buffer;
+            ctx->bevel_batches[s][1].vertex_buffer =
+                ctx->bevel_batches[s][1].mesh.vertex_uv_buffer;
+            ctx->corner_batches[s][0].vertex_buffer =
+                ctx->corner_batches[s][0].mesh.vertex_uv_buffer;
+            ctx->corner_batches[s][1].vertex_buffer =
+                ctx->corner_batches[s][1].mesh.vertex_uv_buffer;
+        }
+    }
+
     flecsEngine_batch_draw(engine, pass, &ctx->quad_batch);
     for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
         flecsEngine_batch_draw(engine, pass, &ctx->bevel_batches[s][0]);
@@ -407,7 +433,7 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertex),
+        .vertex_type = ecs_id(FlecsLitVertexUv),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)
@@ -445,7 +471,7 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertex),
+        .vertex_type = ecs_id(FlecsLitVertexUv),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
             ecs_id(FlecsMaterialId)

@@ -30,9 +30,6 @@ ecs_entity_t flecsEngine_shader_infinitePlane(
 bool flecsEngine_shader_usesTextures(
     const FlecsShader *shader);
 
-ecs_entity_t flecsEngine_shader_pbrTextured(
-    ecs_world_t *world);
-
 ecs_entity_t flecsEngine_shader_pbrTransmission(
     ecs_world_t *world);
 

@@ -22,11 +22,11 @@ extern ECS_COMPONENT_DECLARE(FlecsHdriImpl);
 
 typedef struct {
     WGPUBuffer vertex_buffer;    /* vec<FlecsLitVertex> */
-    WGPUBuffer vertex_uv_buffer; /* vec<FlecsLitVertexUv> (only if mesh has UVs) */
+    WGPUBuffer vertex_uv_buffer; /* vec<FlecsLitVertexUv>, always built
+                                  * (zero UVs/tangents if the source had none) */
     WGPUBuffer index_buffer;     /* vec<uint32_t> */
     int32_t vertex_count;
     int32_t index_count;
-    bool has_uvs;
     float aabb_min[3];           /* local-space AABB minimum */
     float aabb_max[3];           /* local-space AABB maximum */
 } FlecsMesh3Impl;
@@ -66,7 +66,6 @@ extern ECS_COMPONENT_DECLARE(FlecsRenderViewImpl);
 typedef struct {
     WGPURenderPipeline pipeline_hdr;
     WGPURenderPipeline pipeline_shadow;
-    bool uses_material;
     bool uses_ibl;
     bool uses_shadow;
     bool uses_cluster;

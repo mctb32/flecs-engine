@@ -321,12 +321,6 @@ void flecsEngine_pbr_texture_ensureFallbacks(
         wgpuTextureCreateView(
             engine->materials.fallback_white_tex, NULL);
 
-    engine->materials.fallback_black_tex = flecsEngine_texture_create1x1(
-        device, queue, 0, 0, 0, 255);
-    engine->materials.fallback_black_view =
-        flecsEngine_texture_createArrayView(
-            engine->materials.fallback_black_tex);
-
     /* Default normal: (0.5, 0.5, 1.0) = flat surface pointing up */
     engine->materials.fallback_normal_tex = flecsEngine_texture_create1x1(
         device, queue, 128, 128, 255, 255);

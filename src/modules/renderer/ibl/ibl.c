@@ -97,27 +97,6 @@ void flecsEngine_ibl_releaseRuntimeResources(
     ibl->ibl_prefilter_mip_count = 0;
 }
 
-void flecsEngine_ibl_releaseResources(
-    FlecsEngineImpl *impl)
-{
-    if (impl && impl->ibl_shadow_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->ibl_shadow_bind_layout);
-        impl->ibl_shadow_bind_layout = NULL;
-    }
-    if (impl && impl->frame_uniform_buffer) {
-        wgpuBufferRelease(impl->frame_uniform_buffer);
-        impl->frame_uniform_buffer = NULL;
-    }
-    if (impl && impl->empty_bind_group) {
-        wgpuBindGroupRelease(impl->empty_bind_group);
-        impl->empty_bind_group = NULL;
-    }
-    if (impl && impl->empty_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->empty_bind_layout);
-        impl->empty_bind_layout = NULL;
-    }
-}
-
 static void FlecsIbl_on_set(
     ecs_iter_t *it)
 {
