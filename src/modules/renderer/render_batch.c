@@ -522,10 +522,12 @@ void flecsEngine_renderBatch_render(
     }
 
     {
-        ecs_entity_t hdri = view->hdri;
-        if (!hdri) {
-            hdri = engine->sky_background_hdri;
-        }
+        /* IBL source precedence: atmosphere (dynamic, time-of-day) takes
+         * priority over an explicit HDRI. When neither is set, fall back to
+         * the engine default. */
+        ecs_entity_t hdri = view->atmosphere
+            ? view->atmosphere
+            : (view->hdri ? view->hdri : engine->sky_background_hdri);
 
         FlecsHdriImpl *ibl = ecs_get_mut(world, hdri, FlecsHdriImpl);
         ecs_assert(ibl != NULL, ECS_INTERNAL_ERROR, NULL);

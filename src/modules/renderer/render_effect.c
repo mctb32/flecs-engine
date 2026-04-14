@@ -87,19 +87,14 @@ static WGPURenderPassEncoder flecsEngine_renderEffect_beginPass(
     WGPUTextureView color_view,
     WGPULoadOp color_load_op)
 {
-    WGPUColor sky_color = {
-        .r = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.r),
-        .g = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.g),
-        .b = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.b),
-        .a = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.a)
-    };
+    (void)view;
 
     WGPURenderPassColorAttachment color_attachment = {
         .view = color_view,
         WGPU_DEPTH_SLICE
         .loadOp = color_load_op,
         .storeOp = WGPUStoreOp_Store,
-        .clearValue = sky_color
+        .clearValue = (WGPUColor){0, 0, 0, 1}
     };
 
     WGPURenderPassDescriptor pass_desc = {
@@ -252,6 +247,9 @@ void flecsEngine_renderView_renderEffects(
         ecs_assert(effect->input >= 0, ECS_INVALID_PARAMETER, NULL);
         ecs_assert(effect->input <= i, ECS_INVALID_PARAMETER, NULL);
 
+        FLECS_TRACY_ZONE_BEGIN_DYN(effect_zone, "Effect",
+            ecs_get_name(world, entity));
+
         bool is_last = (i == last_enabled);
         bool writes_to_final = is_last && !needs_upscale;
         WGPUTextureView output_view = writes_to_final
@@ -280,6 +278,7 @@ void flecsEngine_renderView_renderEffects(
                 output_view,
                 output_format,
                 load_op);
+            FLECS_TRACY_ZONE_END_N(effect_zone);
             if (!render_ok) {
                 ecs_err("failed to render effect");
                 FLECS_TRACY_ZONE_END;
@@ -307,6 +306,7 @@ void flecsEngine_renderView_renderEffects(
 
         wgpuRenderPassEncoderEnd(effect_pass);
         wgpuRenderPassEncoderRelease(effect_pass);
+        FLECS_TRACY_ZONE_END_N(effect_zone);
     }
 
     /* When upscaling is needed, passthrough blits from the last effect's

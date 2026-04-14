@@ -142,13 +142,7 @@ void initEngine(
       .max_range = 100,
       .bias = 0.0001
     },
-    .background = {
-      .sky_color = {100, 100, 100},
-      .haze_color = {255, 255, 255},
-      .horizon_color = {250, 255, 255},
-      .ground_color = {60, 60, 60},
-      .ambient_intensity = 0.2
-    },
+    .ambient_intensity = 0.2f,
     .screen_size_threshold = 5.0
   };
 
@@ -192,9 +186,15 @@ void initEngine(
   ecs_set(world, view.light, FlecsLookAt, { 0, 0, 0 });
   ecs_set(world, view.light, FlecsRgba, {255, 255, 255, 255});
 
-  // HDRI (optional, for image based lighting)
+  // HDRI (optional, ignored when atmosphere is set below)
   // view.hdri = flecsEngine_createHdri(
   //   world, view_entity, "hdri", "etc/assets/hdri/industrial_sunset_puresky_4k.exr", 1024, 64);
+
+  // Atmosphere: sky, aerial perspective, and (phase 4) IBL
+  view.atmosphere = ecs_entity(world, {
+    .parent = view_entity, .name = "atmosphere" });
+  FlecsAtmosphere atmosphere_settings = flecsEngine_atmosphereSettingsDefault();
+  ecs_set_ptr(world, view.atmosphere, FlecsAtmosphere, &atmosphere_settings);
 
   // RenderBatches (what to render in scene)
   ecs_entity_t geometry = ecs_entity(world, {
@@ -217,29 +217,22 @@ void initEngine(
   fog_settings.density = 0.3;
   fog_settings.falloff = 1.3;
 
-  FlecsAtmosphere atmosphere_settings =
-    flecsEngine_atmosphereSettingsDefault();
-
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_ssao(world, view_entity,
         "ssao", 0, &ssao_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = true, .effect =
-      flecsEngine_createEffect_atmosphere(world, view_entity,
-        "atmosphere", 1, &atmosphere_settings) };
-  *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = true, .effect =
+    (flecs_render_view_effect_t){ .enabled = false, .effect =
       flecsEngine_createEffect_heightFog(world, view_entity,
-        "heightFog", 2, &fog_settings) };
+        "heightFog", 1, &fog_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_bloom(world, view_entity,
-        "bloom", 3, &bloom_settings) };
+        "bloom", 2, &bloom_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_tonyMcMapFace(world, view_entity,
-        "tonyMcMapFace", 4) };
+        "tonyMcMapFace", 3) };
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){
@@ -247,7 +240,7 @@ void initEngine(
       .enabled = true,
 #endif
       .effect = flecsEngine_createEffect_gammaCorrect(world, view_entity,
-        "gammaCorrect", 5) };
+        "gammaCorrect", 4) };
 
   ecs_set_ptr(world, view_entity, FlecsRenderView, &view);
   ecs_set_ptr(world, view_entity, FlecsRenderBatchSet, &batch_set);

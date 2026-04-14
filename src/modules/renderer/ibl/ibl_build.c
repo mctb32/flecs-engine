@@ -179,7 +179,7 @@ static void flecsIblLogImageStats(
     }
 }
 
-static uint32_t flecsIblComputeMipCount(
+uint32_t flecsIblComputeMipCount(
     uint32_t size)
 {
     uint32_t mip_count = 1u;
@@ -427,7 +427,7 @@ static bool flecsIblCreateEquirectTexture(
     return true;
 }
 
-static bool flecsIblCreateCubeTexture(
+bool flecsIblCreateCubeTexture(
     const FlecsEngineImpl *engine,
     uint32_t size,
     uint32_t mip_count,
@@ -461,7 +461,7 @@ static bool flecsIblCreateCubeTexture(
     return true;
 }
 
-static bool flecsIblCreateSampler(
+bool flecsIblCreateSampler(
     const FlecsEngineImpl *engine,
     FlecsHdriImpl *ibl)
 {
@@ -545,9 +545,10 @@ static bool flecsIblSubmitFullscreenPass(
     return true;
 }
 
-static bool flecsIblRunPreprocessPasses(
+bool flecsIblRunPreprocessPasses(
     const FlecsEngineImpl *engine,
     FlecsHdriImpl *ibl,
+    WGPUCommandEncoder encoder,
     uint32_t filter_sample_count,
     uint32_t lut_sample_count)
 {
@@ -765,8 +766,8 @@ static bool flecsIblRunPreprocessPasses(
                 goto cleanup;
             }
 
-            bool draw_ok = flecsIblSubmitFullscreenPass(
-                engine,
+            bool draw_ok = flecsIblDrawFullscreenPass(
+                encoder,
                 face_view,
                 prefilter_pipeline,
                 prefilter_bind_group);
@@ -801,8 +802,8 @@ static bool flecsIblRunPreprocessPasses(
             goto cleanup;
         }
 
-        bool draw_ok = flecsIblSubmitFullscreenPass(
-            engine,
+        bool draw_ok = flecsIblDrawFullscreenPass(
+            encoder,
             face_view,
             irradiance_pipeline,
             prefilter_bind_group);
@@ -859,10 +860,6 @@ bool flecsEngine_ibl_initResources(
     FlecsEngineImpl *engine,
     FlecsHdriImpl *ibl,
     const char *hdri_path,
-    const flecs_rgba_t *sky_color,
-    const flecs_rgba_t *ground_color,
-    const flecs_rgba_t *haze_color,
-    const flecs_rgba_t *horizon_color,
     uint32_t filter_sample_count,
     uint32_t lut_sample_count)
 {
@@ -887,30 +884,19 @@ bool flecsEngine_ibl_initResources(
     }
 
     if (!image.pixels_rgba32f) {
-        if (sky_color || ground_color) {
-            static const flecs_rgba_t black = {0};
-            if (!flecsIblBuildDefaultImage(
-                sky_color ? sky_color : &black,
-                ground_color ? ground_color : &black,
-                haze_color,
-                horizon_color,
-                &image))
-            {
-                return false;
-            }
-        } else {
-            /* No colors provided — build a single black pixel. */
-            image.width = 1;
-            image.height = 1;
-            image.pixels_rgba32f = malloc(sizeof(float) * 4);
-            if (!image.pixels_rgba32f) {
-                return false;
-            }
-            image.pixels_rgba32f[0] = 0.0f;
-            image.pixels_rgba32f[1] = 0.0f;
-            image.pixels_rgba32f[2] = 0.0f;
-            image.pixels_rgba32f[3] = 1.0f;
+        /* No HDRI — build a single black pixel so the IBL pipeline has a
+         * valid input. Views should provide either an HDRI or an atmosphere
+         * for meaningful lighting. */
+        image.width = 1;
+        image.height = 1;
+        image.pixels_rgba32f = malloc(sizeof(float) * 4);
+        if (!image.pixels_rgba32f) {
+            return false;
         }
+        image.pixels_rgba32f[0] = 0.0f;
+        image.pixels_rgba32f[1] = 0.0f;
+        image.pixels_rgba32f[2] = 0.0f;
+        image.pixels_rgba32f[3] = 1.0f;
     }
 
     bool ok = false;
@@ -944,13 +930,21 @@ bool flecsEngine_ibl_initResources(
         goto done;
     }
 
-    if (!flecsIblRunPreprocessPasses(
-        engine,
-        ibl,
-        filter_sample_count,
-        lut_sample_count))
     {
-        goto done;
+        WGPUCommandEncoder enc = wgpuDeviceCreateCommandEncoder(
+            engine->device, &(WGPUCommandEncoderDescriptor){0});
+        if (!enc) goto done;
+        bool ok_pp = flecsIblRunPreprocessPasses(
+            engine, ibl, enc, filter_sample_count, lut_sample_count);
+        WGPUCommandBuffer cb = wgpuCommandEncoderFinish(
+            enc, &(WGPUCommandBufferDescriptor){0});
+        wgpuCommandEncoderRelease(enc);
+        if (!ok_pp || !cb) {
+            if (cb) wgpuCommandBufferRelease(cb);
+            goto done;
+        }
+        wgpuQueueSubmit(engine->queue, 1, &cb);
+        wgpuCommandBufferRelease(cb);
     }
 
     if (!flecsEngine_globals_createBindGroup(engine, ibl)) {

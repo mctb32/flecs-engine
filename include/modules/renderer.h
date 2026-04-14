@@ -67,7 +67,6 @@ typedef struct {
     flecs_mat4_t inv_vp;
     flecs_mat4_t light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     float cascade_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    float sky_color[4];
     float light_ray_dir[4];
     float light_color[4];
     float camera_pos[4];
@@ -104,14 +103,6 @@ ECS_STRUCT(flecs_engine_shadow_params_t, {
     float max_range;
 });
 
-ECS_STRUCT(flecs_engine_background_t, {
-    flecs_rgba_t sky_color;
-    flecs_rgba_t ground_color;
-    flecs_rgba_t haze_color;
-    flecs_rgba_t horizon_color;
-    ecs_f32_t ambient_intensity;
-});
-
 ECS_STRUCT(flecs_render_view_effect_t, {
     ecs_bool_t enabled;
     ecs_entity_t effect;
@@ -120,9 +111,12 @@ ECS_STRUCT(flecs_render_view_effect_t, {
 ECS_STRUCT(FlecsRenderView, {
     ecs_entity_t camera;
     ecs_entity_t light;
+    ecs_entity_t atmosphere;   /* entity with FlecsAtmosphere component; when
+                                * set, supplies sky + aerial perspective + IBL
+                                * and takes precedence over `hdri` */
     ecs_entity_t hdri;
+    ecs_f32_t ambient_intensity;
     ecs_f32_t screen_size_threshold;
-    flecs_engine_background_t background;
     flecs_engine_shadow_params_t shadow;
     ecs_vec_t effects;
 });

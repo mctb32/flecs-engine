@@ -417,7 +417,9 @@ static void FlecsEngineRender(
     ecs_iter_t *it)
 {
     FLECS_TRACY_ZONE_BEGIN("Render");
+    FLECS_TRACY_ZONE_BEGIN_N(__dbg, "DebugServerDequeue");
     flecsEngine_debugServer_dequeue(it->delta_time);
+    FLECS_TRACY_ZONE_END_N(__dbg);
     FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
 
     const FlecsEngineSurfaceInterface *surface_impl = impl->surface_impl;
@@ -452,7 +454,10 @@ static void FlecsEngineRender(
         if (impl->actual_height < 1) impl->actual_height = 1;
     }
 
-    if (flecsEngine_ensureDepthResources(impl)) {
+    FLECS_TRACY_ZONE_BEGIN_N(__depth, "EnsureDepthResources");
+    bool depth_err = flecsEngine_ensureDepthResources(impl);
+    FLECS_TRACY_ZONE_END_N(__depth);
+    if (depth_err) {
         flecsEngine_surfaceInterface_onFrameFailed(
             surface_impl, it->world, impl);
         FLECS_TRACY_ZONE_END;
@@ -465,7 +470,10 @@ static void FlecsEngineRender(
         int32_t prev_sc = impl->depth.msaa_texture_sample_count;
         int32_t cur_sc = impl->sample_count < 2 ? 0 : impl->sample_count;
 
-        if (flecsEngine_ensureMsaaResources(impl)) {
+        FLECS_TRACY_ZONE_BEGIN_N(__msaa, "EnsureMsaaResources");
+        bool msaa_err = flecsEngine_ensureMsaaResources(impl);
+        FLECS_TRACY_ZONE_END_N(__msaa);
+        if (msaa_err) {
             flecsEngine_surfaceInterface_onFrameFailed(
                 surface_impl, it->world, impl);
             FLECS_TRACY_ZONE_END;
@@ -473,7 +481,9 @@ static void FlecsEngineRender(
         }
 
         if (prev_sc != cur_sc) {
+            FLECS_TRACY_ZONE_BEGIN_N(__rb, "RebuildBatchPipelines");
             flecsEngine_rebuildBatchPipelines(it->world);
+            FLECS_TRACY_ZONE_END_N(__rb);
         }
     }
 
@@ -505,26 +515,34 @@ static void FlecsEngineRender(
     }
 
     // Sync materials
+    FLECS_TRACY_ZONE_BEGIN_N(__matu, "MaterialUploadBuffer");
     flecsEngine_material_uploadBuffer(it->world, impl);
+    FLECS_TRACY_ZONE_END_N(__matu);
 
     // Build texture arrays (only runs when materials change)
     if (!impl->materials.texture_array_bind_group) {
+        FLECS_TRACY_ZONE_BEGIN_N(__mta, "BuildTextureArrays");
         flecsEngine_material_buildTextureArrays(it->world, impl);
+        FLECS_TRACY_ZONE_END_N(__mta);
     }
 
     // Render all views
     flecsEngine_renderView_renderAll(
         it->world, impl, frame_target.view_texture, encoder);
 
-    if (flecsEngine_surfaceInterface_encodeFrame(
-        surface_impl, impl, encoder, &frame_target))
-    {
+    FLECS_TRACY_ZONE_BEGIN_N(__enc, "EncodeFrame");
+    bool enc_err = flecsEngine_surfaceInterface_encodeFrame(
+        surface_impl, impl, encoder, &frame_target);
+    FLECS_TRACY_ZONE_END_N(__enc);
+    if (enc_err) {
         failed = true;
         goto cleanup;
     }
 
     WGPUCommandBufferDescriptor cmd_desc = {0};
+    FLECS_TRACY_ZONE_BEGIN_N(__finish, "EncoderFinish");
     cmd = wgpuCommandEncoderFinish(encoder, &cmd_desc);
+    FLECS_TRACY_ZONE_END_N(__finish);
     if (!cmd) {
         ecs_err("Failed to create command buffer\n");
         failed = true;
@@ -639,7 +657,6 @@ void FlecsEngineRendererImport(
             { .name = "inv_vp", .type = ecs_id(flecs_mat4_t) },
             { .name = "light_vp", .type = ecs_id(flecs_mat4_t), .count = FLECS_ENGINE_SHADOW_CASCADE_COUNT },
             { .name = "cascade_splits", .type = ecs_id(ecs_f32_t), .count = FLECS_ENGINE_SHADOW_CASCADE_COUNT },
-            { .name = "sky_color", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "light_ray_dir", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "light_color", .type = ecs_id(ecs_f32_t), .count = 4 },
             { .name = "camera_pos", .type = ecs_id(ecs_f32_t), .count = 4 },

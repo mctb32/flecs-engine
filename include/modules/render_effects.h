@@ -112,11 +112,4 @@ ecs_entity_t flecsEngine_createEffect_gammaCorrect(
 
 FlecsAtmosphere flecsEngine_atmosphereSettingsDefault(void);
 
-ecs_entity_t flecsEngine_createEffect_atmosphere(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name,
-    int32_t input,
-    const FlecsAtmosphere *settings);
-
 #endif

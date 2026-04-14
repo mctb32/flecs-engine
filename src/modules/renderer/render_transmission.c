@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "mip_pyramid.h"
+#include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 static const char *kDownsampleShaderSource =
@@ -243,11 +244,14 @@ void flecsEngine_transmission_updateSnapshot(
     uint32_t width,
     uint32_t height)
 {
+    FLECS_TRACY_ZONE_BEGIN("TransmissionSnapshot");
     if (!width || !height) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
     if (!flecsEngine_transmission_ensureDownsamplePipeline(engine)) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -258,6 +262,7 @@ void flecsEngine_transmission_updateSnapshot(
         flecsEngine_transmission_releaseTexture(engine);
         if (!flecsEngine_transmission_createTexture(engine, width, height)) {
             flecsEngine_transmission_releaseTexture(engine);
+            FLECS_TRACY_ZONE_END;
             return;
         }
         /* Rebuild the globals bind group so it picks up the new view */
@@ -285,6 +290,7 @@ void flecsEngine_transmission_updateSnapshot(
     for (uint32_t i = 1; i < mip_count; i ++) {
         flecsEngine_transmission_downsampleMip(engine, encoder, i);
     }
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_transmission_release(

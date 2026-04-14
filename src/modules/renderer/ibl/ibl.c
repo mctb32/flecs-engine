@@ -122,7 +122,6 @@ static void FlecsIbl_on_set(
             engine,
             ibl_impl,
             hdri[i].file,
-            NULL, NULL, NULL, NULL,
             hdri[i].filter_sample_count,
             hdri[i].lut_sample_count))
         {
@@ -132,46 +131,6 @@ static void FlecsIbl_on_set(
 
         ecs_modified(it->world, it->entities[i], FlecsHdriImpl);
     }
-}
-
-void flecsEngine_ibl_ensureSkyBackground(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    const flecs_engine_background_t *background)
-{
-    if (!engine->sky_background_hdri) {
-        return;
-    }
-
-    if (!memcmp(&engine->sky_bg_colors, background,
-        sizeof(flecs_engine_background_t)))
-    {
-        return;
-    }
-
-    engine->sky_bg_colors = *background;
-
-    FlecsHdriImpl *ibl = ecs_get_mut(
-        world, engine->sky_background_hdri, FlecsHdriImpl);
-    if (!ibl) {
-        return;
-    }
-
-    const FlecsHdri *hdri = ecs_get(
-        world, engine->sky_background_hdri, FlecsHdri);
-    if (!hdri) {
-        return;
-    }
-
-    flecsEngine_ibl_releaseRuntimeResources(ibl);
-    flecsEngine_ibl_initResources(
-        engine, ibl, NULL,
-        &background->sky_color,
-        &background->ground_color,
-        &background->haze_color,
-        &background->horizon_color,
-        hdri->filter_sample_count,
-        hdri->lut_sample_count);
 }
 
 ecs_entity_t flecsEngine_createHdri(

@@ -143,7 +143,6 @@ typedef struct {
 
     ecs_entity_t sky_background_hdri;
     ecs_entity_t black_hdri;
-    flecs_engine_background_t sky_bg_colors;
     WGPUBindGroupLayout ibl_shadow_bind_layout;
     WGPUBindGroupLayout empty_bind_layout;
     WGPUBindGroup empty_bind_group;

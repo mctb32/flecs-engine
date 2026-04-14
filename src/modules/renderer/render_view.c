@@ -15,14 +15,9 @@ ECS_CTOR(FlecsRenderView, ptr, {
     ecs_vec_init_t(NULL, &ptr->effects, flecs_render_view_effect_t, 0);
     ptr->camera = 0;
     ptr->light = 0;
+    ptr->atmosphere = 0;
     ptr->hdri = 0;
-    ptr->background = (flecs_engine_background_t){
-        .sky_color = {0},
-        .ground_color = {0},
-        .haze_color = {255, 255, 255, 255},
-        .horizon_color = {255, 255, 255, 255},
-        .ambient_intensity = 1.0
-    };
+    ptr->ambient_intensity = 1.0f;
     ptr->shadow.enabled = true;
     ptr->shadow.map_size = FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT;
     ptr->shadow.bias = 0.0005f;
@@ -40,8 +35,9 @@ ECS_COPY(FlecsRenderView, dst, src, {
     ecs_vec_fini_t(NULL, &dst->effects, flecs_render_view_effect_t);
     dst->camera = src->camera;
     dst->light = src->light;
+    dst->atmosphere = src->atmosphere;
     dst->hdri = src->hdri;
-    dst->background = src->background;
+    dst->ambient_intensity = src->ambient_intensity;
     dst->shadow = src->shadow;
     dst->screen_size_threshold = src->screen_size_threshold;
     dst->effects = ecs_vec_copy_t(NULL, &src->effects, flecs_render_view_effect_t);
@@ -83,10 +79,69 @@ static void flecsEngine_renderView_releaseTargets(
         impl->passthrough_bind_group = NULL;
     }
 
+    if (impl->scene_target_view) {
+        wgpuTextureViewRelease(impl->scene_target_view);
+        impl->scene_target_view = NULL;
+    }
+    if (impl->scene_target_texture) {
+        wgpuTextureRelease(impl->scene_target_texture);
+        impl->scene_target_texture = NULL;
+    }
+
     impl->effect_target_count = 0;
     impl->effect_target_width = 0;
     impl->effect_target_height = 0;
     impl->effect_target_format = WGPUTextureFormat_Undefined;
+}
+
+static bool flecsEngine_renderView_ensureSceneTarget(
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *impl)
+{
+    uint32_t w = (uint32_t)engine->actual_width;
+    uint32_t h = (uint32_t)engine->actual_height;
+    if (impl->scene_target_texture &&
+        impl->effect_target_width == w &&
+        impl->effect_target_height == h)
+    {
+        return true;
+    }
+    if (impl->scene_target_view) {
+        wgpuTextureViewRelease(impl->scene_target_view);
+        impl->scene_target_view = NULL;
+    }
+    if (impl->scene_target_texture) {
+        wgpuTextureRelease(impl->scene_target_texture);
+        impl->scene_target_texture = NULL;
+    }
+    WGPUTextureDescriptor desc = {
+        .usage = WGPUTextureUsage_RenderAttachment
+               | WGPUTextureUsage_TextureBinding
+               | WGPUTextureUsage_CopySrc,
+        .dimension = WGPUTextureDimension_2D,
+        .size = (WGPUExtent3D){ .width = w, .height = h, .depthOrArrayLayers = 1 },
+        .format = impl->effect_target_format,
+        .mipLevelCount = 1,
+        .sampleCount = 1
+    };
+    impl->scene_target_texture = wgpuDeviceCreateTexture(engine->device, &desc);
+    if (!impl->scene_target_texture) return false;
+    impl->scene_target_view = wgpuTextureCreateView(
+        impl->scene_target_texture, NULL);
+    return impl->scene_target_view != NULL;
+}
+
+static void flecsEngine_renderView_releaseSceneTarget(
+    FlecsRenderViewImpl *impl)
+{
+    if (impl->scene_target_view) {
+        wgpuTextureViewRelease(impl->scene_target_view);
+        impl->scene_target_view = NULL;
+    }
+    if (impl->scene_target_texture) {
+        wgpuTextureRelease(impl->scene_target_texture);
+        impl->scene_target_texture = NULL;
+    }
 }
 
 ECS_DTOR(FlecsRenderViewImpl, ptr, {
@@ -197,7 +252,9 @@ static void flecsEngine_renderView_writeFrameUniforms(
     FlecsEngineImpl *engine,
     const FlecsRenderView *view)
 {
+    FLECS_TRACY_ZONE_BEGIN("WriteFrameUniforms");
     if (!engine->frame_uniform_buffer) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -224,12 +281,7 @@ static void flecsEngine_renderView_writeFrameUniforms(
     if (bias <= 0) { bias = 0.0005f; }
     uniforms.shadow_info[1] = bias;
 
-    uniforms.ambient_light[3] = view->background.ambient_intensity;
-
-    uniforms.sky_color[0] = flecsEngine_colorChannelToFloat(view->background.sky_color.r);
-    uniforms.sky_color[1] = flecsEngine_colorChannelToFloat(view->background.sky_color.g);
-    uniforms.sky_color[2] = flecsEngine_colorChannelToFloat(view->background.sky_color.b);
-    uniforms.sky_color[3] = flecsEngine_colorChannelToFloat(view->background.sky_color.a);
+    uniforms.ambient_light[3] = view->ambient_intensity;
 
     engine->camera_pos[0] = uniforms.camera_pos[0];
     engine->camera_pos[1] = uniforms.camera_pos[1];
@@ -241,6 +293,7 @@ static void flecsEngine_renderView_writeFrameUniforms(
         0,
         &uniforms,
         sizeof(FlecsUniform));
+    FLECS_TRACY_ZONE_END;
 }
 
 static bool flecsEngine_renderView_createTargets(
@@ -350,12 +403,7 @@ static WGPURenderPassEncoder flecsEngine_renderView_beginPass(
     WGPULoadOp color_load_op,
     WGPULoadOp depth_load_op)
 {
-    WGPUColor sky_color = {
-        .r = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.r),
-        .g = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.g),
-        .b = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.b),
-        .a = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.a)
-    };
+    (void)view;
 
     bool msaa = impl->sample_count > 1 && impl->depth.msaa_color_texture_view;
 
@@ -365,7 +413,7 @@ static WGPURenderPassEncoder flecsEngine_renderView_beginPass(
         WGPU_DEPTH_SLICE
         .loadOp = color_load_op,
         .storeOp = WGPUStoreOp_Store,
-        .clearValue = sky_color
+        .clearValue = (WGPUColor){0, 0, 0, 1}
     };
 
     WGPURenderPassDepthStencilAttachment depth_attachment = {
@@ -434,7 +482,16 @@ static void flecsEngine_renderView_renderBatches(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    WGPUTextureView batch_target = viewImpl->effect_target_views[0];
+    /* When the view has an atmosphere, batches render into a dedicated
+     * scene texture; the atmosphere compose pass then writes the composed
+     * result into effect_target_views[0]. Without atmosphere, batches write
+     * effect_target_views[0] directly. */
+    WGPUTextureView batch_target = view->atmosphere && viewImpl->scene_target_view
+        ? viewImpl->scene_target_view
+        : viewImpl->effect_target_views[0];
+    WGPUTexture batch_target_tex = view->atmosphere && viewImpl->scene_target_texture
+        ? viewImpl->scene_target_texture
+        : viewImpl->effect_target_textures[0];
 
     bool has_transmission = flecsEngine_renderBatchSet_hasTransmission(
         world, engine, batch_set);
@@ -456,7 +513,7 @@ static void flecsEngine_renderView_renderBatches(
 
         /* Snapshot the opaque result for transmission sampling */
         {
-            WGPUTexture src_tex = viewImpl->effect_target_textures[0];
+            WGPUTexture src_tex = batch_target_tex;
             if (src_tex) {
                 flecsEngine_transmission_updateSnapshot(
                     engine, encoder, src_tex,
@@ -513,11 +570,36 @@ static void flecsEngine_renderView_render(
     if (effect_count > 0 && engine->resolution_scale > 1) {
         target_count = effect_count + 1;
     }
-    if (flecsEngine_renderView_ensureTargets(engine, impl, target_count))
-    {
+    FLECS_TRACY_ZONE_BEGIN_N(ensure_targets_zone, "EnsureTargets");
+    bool ensure_err = flecsEngine_renderView_ensureTargets(engine, impl, target_count);
+    FLECS_TRACY_ZONE_END_N(ensure_targets_zone);
+    if (ensure_err) {
         ecs_err("failed to allocate effect render targets");
         FLECS_TRACY_ZONE_END;
         return;
+    }
+
+    /* The atmosphere owns the sky and aerial perspective when set; batches
+     * render into a dedicated scene texture that compose reads from. */
+    bool have_atmosphere = view->atmosphere != 0;
+    if (have_atmosphere) {
+        FLECS_TRACY_ZONE_BEGIN_N(atm_ensure_zone, "AtmosEnsureImpl");
+        bool scene_ok = flecsEngine_renderView_ensureSceneTarget(engine, impl);
+        bool impl_ok = scene_ok && flecsEngine_atmosphere_ensureImpl(
+            world, engine, view->atmosphere);
+        FLECS_TRACY_ZONE_END_N(atm_ensure_zone);
+        if (!scene_ok) {
+            ecs_err("failed to allocate scene pre-atmosphere target");
+            FLECS_TRACY_ZONE_END;
+            return;
+        }
+        if (!impl_ok) {
+            ecs_err("failed to initialize atmosphere resources");
+            FLECS_TRACY_ZONE_END;
+            return;
+        }
+    } else {
+        flecsEngine_renderView_releaseSceneTarget(impl);
     }
 
     if (view->shadow.enabled) {
@@ -543,11 +625,41 @@ static void flecsEngine_renderView_render(
      * Written once here instead of once per pipeline change per batch. */
     flecsEngine_renderView_writeFrameUniforms(world, engine, view);
 
+    /* Atmosphere LUTs + IBL happen BEFORE batches so that the IBL cubemaps
+     * reflect the current frame's sun & atmosphere state when batches sample
+     * them via the scene globals bind group. */
+    if (have_atmosphere) {
+        if (!flecsEngine_atmosphere_renderLuts(
+            world, engine, view->atmosphere, view_entity, encoder))
+        {
+            ecs_err("atmosphere LUT pass failed");
+        }
+        if (!flecsEngine_atmosphere_renderIbl(
+            world, engine, view->atmosphere, encoder))
+        {
+            ecs_err("atmosphere IBL pass failed");
+        }
+    }
+
     flecsEngine_renderView_renderBatches(
         world, view_entity, engine, view, impl, encoder);
 
     if (engine->sample_count > 1) {
         flecsEngine_depthResolve(engine, encoder);
+    }
+
+    /* Compose runs AFTER batches — it reads the scene framebuffer to add
+     * sky for depth=far pixels and aerial perspective to geometry. */
+    if (have_atmosphere) {
+        if (!flecsEngine_atmosphere_renderCompose(
+            world, engine, view->atmosphere, encoder,
+            impl->scene_target_view,
+            impl->effect_target_views[0],
+            impl->effect_target_format,
+            WGPULoadOp_Clear))
+        {
+            ecs_err("atmosphere compose pass failed");
+        }
     }
 
     flecsEngine_renderView_renderEffects(
@@ -564,13 +676,6 @@ static void flecsEngine_renderView_extract(
 {
     FLECS_TRACY_ZONE_BEGIN("ExtractView");
     (void)impl;
-
-    /* Rebuild the sky background HDRI if the view's background colors
-     * changed since the last frame. */
-    if (!view->hdri) {
-        flecsEngine_ibl_ensureSkyBackground(
-            world, engine, &view->background);
-    }
 
     /* Extract frustum planes from camera view-projection matrix */
     engine->frustum_valid = false;
@@ -684,7 +789,6 @@ void flecsEngine_renderView_renderAll(
 void flecsEngine_renderView_register(
     ecs_world_t *world)
 {
-    ECS_COMPONENT_DEFINE(world, flecs_engine_background_t);
     ECS_COMPONENT_DEFINE(world, flecs_engine_shadow_params_t);
     ECS_COMPONENT_DEFINE(world, flecs_render_view_effect_t);
     ECS_COMPONENT_DEFINE(world, FlecsRenderView);
@@ -704,17 +808,6 @@ void flecsEngine_renderView_register(
     });
 
     ecs_add_pair(world, ecs_id(FlecsRenderView), EcsWith, ecs_id(FlecsRenderViewImpl));
-
-    ecs_struct(world, {
-        .entity = ecs_id(flecs_engine_background_t),
-        .members = {
-            { .name = "sky_color", .type = ecs_id(flecs_rgba_t) },
-            { .name = "ground_color", .type = ecs_id(flecs_rgba_t) },
-            { .name = "haze_color", .type = ecs_id(flecs_rgba_t) },
-            { .name = "horizon_color", .type = ecs_id(flecs_rgba_t) },
-            { .name = "ambient_intensity", .type = ecs_id(ecs_f32_t) }
-        }
-    });
 
     ecs_struct(world, {
         .entity = ecs_id(flecs_engine_shadow_params_t),
@@ -746,9 +839,10 @@ void flecsEngine_renderView_register(
         .members = {
             { .name = "camera", .type = ecs_id(ecs_entity_t) },
             { .name = "light", .type = ecs_id(ecs_entity_t) },
+            { .name = "atmosphere", .type = ecs_id(ecs_entity_t) },
             { .name = "hdri", .type = ecs_id(ecs_entity_t) },
+            { .name = "ambient_intensity", .type = ecs_id(ecs_f32_t) },
             { .name = "screen_size_threshold", .type = ecs_id(ecs_f32_t) },
-            { .name = "background", .type = ecs_id(flecs_engine_background_t) },
             { .name = "shadow", .type = ecs_id(flecs_engine_shadow_params_t) },
             { .name = "effects", .type = vec_view_effect }
         }

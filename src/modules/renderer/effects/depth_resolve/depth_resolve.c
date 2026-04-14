@@ -1,4 +1,5 @@
 #include "../../renderer.h"
+#include "../../../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 static const char *kShaderSource =
@@ -92,10 +93,12 @@ void flecsEngine_depthResolve(
     const FlecsEngineImpl *impl,
     WGPUCommandEncoder encoder)
 {
+    FLECS_TRACY_ZONE_BEGIN("DepthResolve");
     if (!impl->depth.depth_resolve_pipeline ||
         !impl->depth.msaa_depth_texture_view ||
         !impl->depth.depth_texture_view)
     {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -111,6 +114,7 @@ void flecsEngine_depthResolve(
             .entries = &entry
         });
     if (!bind_group) {
+        FLECS_TRACY_ZONE_END;
         return;
     }
 
@@ -143,4 +147,5 @@ void flecsEngine_depthResolve(
     }
 
     wgpuBindGroupRelease(bind_group);
+    FLECS_TRACY_ZONE_END;
 }

@@ -185,15 +185,50 @@ void flecsEngine_ssao_register(
 void flecsEngine_atmosphere_register(
     ecs_world_t *world);
 
+/* Create per-atmosphere GPU resources (LUT textures, bind group layouts,
+ * pipelines) on the atmosphere entity if they don't exist yet. Returns true
+ * if the entity has a FlecsAtmosphereImpl after the call. */
+bool flecsEngine_atmosphere_ensureImpl(
+    ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    ecs_entity_t atmosphere_entity);
+
+/* Render the 4 LUT passes (transmittance, multi-scattering, sky-view, aerial
+ * perspective) for the given atmosphere + view. Must be called before
+ * renderCompose. */
+bool flecsEngine_atmosphere_renderLuts(
+    ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    ecs_entity_t atmosphere_entity,
+    ecs_entity_t view_entity,
+    WGPUCommandEncoder encoder);
+
+/* Render the atmosphere IBL: sample the sky-view LUT into an equirect
+ * render target, then run the IBL prefilter + irradiance preprocess passes
+ * targeting the FlecsHdriImpl attached to the atmosphere entity. Must be
+ * called after renderLuts and before any batch that will read the IBL. */
+bool flecsEngine_atmosphere_renderIbl(
+    ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    ecs_entity_t atmosphere_entity,
+    WGPUCommandEncoder encoder);
+
+/* Compose pass: read scene colour + depth (input_view & engine depth texture)
+ * and write composed atmospheric scene into output_view. */
+bool flecsEngine_atmosphere_renderCompose(
+    ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    ecs_entity_t atmosphere_entity,
+    WGPUCommandEncoder encoder,
+    WGPUTextureView input_view,
+    WGPUTextureView output_view,
+    WGPUTextureFormat output_format,
+    WGPULoadOp output_load_op);
+
 ecs_entity_t flecsEngine_shader_ensure(
     ecs_world_t *world,
     const char *name,
     const FlecsShader *shader);
-
-void flecsEngine_ibl_ensureSkyBackground(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    const flecs_engine_background_t *background);
 
 void flecsEngine_renderView_extractAll(
     ecs_world_t *world,
@@ -216,10 +251,6 @@ bool flecsEngine_ibl_initResources(
     FlecsEngineImpl *engine,
     FlecsHdriImpl *ibl,
     const char *hdri_path,
-    const flecs_rgba_t *sky_color,
-    const flecs_rgba_t *ground_color,
-    const flecs_rgba_t *haze_color,
-    const flecs_rgba_t *horizon_color,
     uint32_t filter_sample_count,
     uint32_t lut_sample_count);
 

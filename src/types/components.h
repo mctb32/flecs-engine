@@ -58,6 +58,12 @@ typedef struct {
     uint32_t effect_target_width;
     uint32_t effect_target_height;
     WGPUTextureFormat effect_target_format;
+    /* When view.atmosphere is set we need a pre-compose scene texture; batch
+     * rendering writes here and atmosphere compose reads it. When atmosphere
+     * is not set this is NULL and the scene writes directly into
+     * effect_target_views[0]. */
+    WGPUTexture scene_target_texture;
+    WGPUTextureView scene_target_view;
     WGPUBindGroup passthrough_bind_group;
 } FlecsRenderViewImpl;
 
@@ -175,6 +181,37 @@ typedef struct {
     WGPURenderPipeline aerial_pipeline;
     WGPURenderPipeline compose_pipeline_hdr;
     WGPURenderPipeline compose_pipeline_surface;
+
+    /* Atmosphere IBL: a single cubemap with mips is populated each frame by
+     * rendering the sky-view LUT into each face of mip 0, then generating
+     * higher mips via 2x box-downsample. The same texture is bound to both
+     * the prefilter slot (full mip chain) and the irradiance slot (the
+     * highest/smallest mip only, which serves as a heavily blurred
+     * approximation). GGX-free because atmosphere content has no
+     * high-frequency detail — straight mip filtering suffices. */
+    WGPUBindGroupLayout cube_face_layout;
+    WGPURenderPipeline cube_face_pipeline;
+    WGPUBindGroupLayout cube_ds_layout;
+    WGPURenderPipeline cube_ds_pipeline;
+    WGPUBuffer face_index_buffers[6];
+    WGPUBindGroup cube_face_bind_groups[6];
+    /* Per-(mip, face) 2D render target views into the cubemap. Layout:
+     * index = mip * 6 + face. */
+    WGPUTextureView cube_mip_face_views[48]; /* 8 mips × 6 faces max */
+    /* Per-(mip>=1, face) cached downsample bind groups. Index 0..5 unused
+     * (mip 0 is the source render, not a downsample target). */
+    WGPUBindGroup cube_ds_bind_groups[48];
+    uint32_t cube_mip_count;
+
+    /* Cached bind groups for the LUT passes. All inputs referenced by these
+     * groups (uniform buffer, LUT views, sampler) are stable for the
+     * lifetime of the Impl, so they can be built once and reused. */
+    WGPUBindGroup trans_bind_group;
+    WGPUBindGroup ms_bind_group;
+    WGPUBindGroup skyview_bind_group;
+    /* Cached per-slice uniform buffers + bind groups for the aerial LUT. */
+    WGPUBuffer aerial_slice_buffers[32];
+    WGPUBindGroup aerial_bind_groups[32];
 } FlecsAtmosphereImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsAtmosphereImpl);
