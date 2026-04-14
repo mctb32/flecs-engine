@@ -139,4 +139,44 @@ typedef struct {
 
 extern ECS_COMPONENT_DECLARE(FlecsCameraImpl);
 
+typedef struct {
+    WGPUBuffer uniform_buffer;
+
+    /* Transmittance LUT (256x64, RGBA16F). */
+    WGPUTexture trans_texture;
+    WGPUTextureView trans_view;
+
+    /* Multi-scattering LUT (32x32, RGBA16F). */
+    WGPUTexture ms_texture;
+    WGPUTextureView ms_view;
+
+    /* Sky-view LUT (192x108, RGBA16F). */
+    WGPUTexture skyview_texture;
+    WGPUTextureView skyview_view;
+
+    /* Aerial perspective LUT (32x32x32 slices, 2D array RGBA16F, manual lerp
+     * along the depth axis in the compose shader). */
+    WGPUTexture aerial_texture;
+    WGPUTextureView aerial_view;
+    WGPUTextureView aerial_slice_views[32];
+    uint32_t aerial_slice_count;
+
+    WGPUSampler clamp_sampler;
+
+    WGPUBindGroupLayout trans_layout;
+    WGPUBindGroupLayout ms_layout;
+    WGPUBindGroupLayout skyview_layout;
+    WGPUBindGroupLayout aerial_layout;
+    WGPUBindGroupLayout compose_layout;
+
+    WGPURenderPipeline trans_pipeline;
+    WGPURenderPipeline ms_pipeline;
+    WGPURenderPipeline skyview_pipeline;
+    WGPURenderPipeline aerial_pipeline;
+    WGPURenderPipeline compose_pipeline_hdr;
+    WGPURenderPipeline compose_pipeline_surface;
+} FlecsAtmosphereImpl;
+
+extern ECS_COMPONENT_DECLARE(FlecsAtmosphereImpl);
+
 #endif
