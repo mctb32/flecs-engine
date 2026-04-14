@@ -542,6 +542,34 @@ void flecsEngine_renderView_extractShadowsAll(
     }
 }
 
+void flecsEngine_renderView_uploadAll(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine)
+{
+    ecs_iter_t it = ecs_query_iter(world, engine->view_query);
+    while (ecs_query_next(&it)) {
+        FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
+        for (int32_t i = 0; i < it.count; i ++) {
+            flecsEngine_renderView_uploadBatches(
+                world, it.entities[i], engine, &views[i]);
+        }
+    }
+}
+
+void flecsEngine_renderView_uploadShadowsAll(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine)
+{
+    ecs_iter_t it = ecs_query_iter(world, engine->view_query);
+    while (ecs_query_next(&it)) {
+        FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
+        for (int32_t i = 0; i < it.count; i ++) {
+            flecsEngine_renderView_uploadShadowBatches(
+                world, it.entities[i], engine, &views[i]);
+        }
+    }
+}
+
 void flecsEngine_renderView_renderAll(
     ecs_world_t *world,
     FlecsEngineImpl *engine,

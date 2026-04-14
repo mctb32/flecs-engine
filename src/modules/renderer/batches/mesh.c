@@ -153,8 +153,17 @@ redo: {
         shared->count = total;
     }
 
-    flecsEngine_batch_buffers_upload(engine, shared);
     FLECS_TRACY_ZONE_END;
+}
+
+static void flecsEngine_mesh_upload(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+    flecsEngine_mesh_ctx_t *mctx = batch->ctx;
+    flecsEngine_batch_buffers_upload(engine, &mctx->buffers);
 }
 
 static void flecsEngine_mesh_extractShadow(
@@ -213,8 +222,17 @@ redo_shadow: {
         }
     }
 
-    flecsEngine_batch_buffers_uploadShadow(engine, shared);
     FLECS_TRACY_ZONE_END;
+}
+
+static void flecsEngine_mesh_uploadShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+    flecsEngine_mesh_ctx_t *mctx = batch->ctx;
+    flecsEngine_batch_buffers_uploadShadow(engine, &mctx->buffers);
 }
 
 void flecsEngine_mesh_render(
@@ -333,6 +351,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
         },
         .extract_callback = flecsEngine_mesh_extract,
         .shadow_extract_callback = flecsEngine_mesh_extractShadow,
+        .upload_callback = flecsEngine_mesh_upload,
+        .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .ctx = flecsEngine_mesh_createCtx(false),
@@ -383,6 +403,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
         },
         .extract_callback = flecsEngine_mesh_extract,
         .shadow_extract_callback = flecsEngine_mesh_extractShadow,
+        .upload_callback = flecsEngine_mesh_upload,
+        .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .ctx = flecsEngine_mesh_createCtx(true),
@@ -467,6 +489,8 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
         },
         .extract_callback = flecsEngine_mesh_extract,
         .shadow_extract_callback = flecsEngine_mesh_extractShadow,
+        .upload_callback = flecsEngine_mesh_upload,
+        .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_textured_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .ctx = flecsEngine_mesh_createCtx(false),
@@ -781,6 +805,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
         },
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
+        .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_transparent_mesh_render,
         .ctx = flecsEngine_transparent_mesh_createCtx(batch, textured_helper),
         .free_ctx = flecsEngine_transparent_mesh_deleteCtx,
@@ -866,6 +891,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmission(
         },
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
+        .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_transmission_mesh_render,
         .ctx = flecsEngine_mesh_createCtx(false),
         .free_ctx = flecsEngine_mesh_deleteCtx,
@@ -948,6 +974,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmissionData(
         },
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
+        .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_transmissionData_mesh_render,
         .ctx = flecsEngine_mesh_createTransmissionDataCtx(),
         .free_ctx = flecsEngine_mesh_deleteCtx,

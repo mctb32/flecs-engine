@@ -54,6 +54,17 @@ static void flecsEngine_skybox_extractCallback(
     flecsEngine_skybox_extract(engine, ctx);
 }
 
+static void flecsEngine_skybox_uploadCallback(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+
+    flecs_engine_skybox_ctx_t *ctx = batch->ctx;
+    flecsEngine_batch_buffers_upload(engine, &ctx->buffers);
+}
+
 static void flecsEngine_skybox_renderCallback(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
@@ -84,6 +95,7 @@ void FlecsOnAddSkyBoxBatch(
             .cull_mode = WGPUCullMode_None,
             .depth_write = false,
             .extract_callback = flecsEngine_skybox_extractCallback,
+            .upload_callback = flecsEngine_skybox_uploadCallback,
             .callback = flecsEngine_skybox_renderCallback,
             .ctx = flecsEngine_skybox_createCtx((ecs_world_t*)it->world),
             .free_ctx = flecsEngine_skybox_deleteCtx

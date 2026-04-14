@@ -397,6 +397,22 @@ static void FlecsEngineExtractShadows(
     FLECS_TRACY_ZONE_END;
 }
 
+static void FlecsEngineUpload(
+    ecs_iter_t *it)
+{
+    FLECS_TRACY_ZONE_BEGIN("Upload");
+    FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
+
+    if (!impl->device || !impl->queue) {
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
+    flecsEngine_renderView_uploadAll(it->world, impl);
+    flecsEngine_renderView_uploadShadowsAll(it->world, impl);
+    FLECS_TRACY_ZONE_END;
+}
+
 static void FlecsEngineRender(
     ecs_iter_t *it)
 {
@@ -677,6 +693,9 @@ void FlecsEngineRendererImport(
         flecs.engine.EngineImpl);
 
     ECS_SYSTEM(world, FlecsEngineExtractShadows, EcsOnStore,
+        flecs.engine.EngineImpl);
+
+    ECS_SYSTEM(world, FlecsEngineUpload, EcsOnStore,
         flecs.engine.EngineImpl);
 
     ECS_SYSTEM(world, FlecsEngineRender, EcsOnStore,

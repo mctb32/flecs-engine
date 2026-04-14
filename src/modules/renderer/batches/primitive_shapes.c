@@ -51,7 +51,16 @@ redo:
     }
 
     buf->count = ctx->count;
-    flecsEngine_batch_buffers_upload(engine, buf);
+}
+
+static void flecsEngine_primitive_upload(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+    flecsEngine_primitive_ctx_t *pctx = batch->ctx;
+    flecsEngine_batch_buffers_upload(engine, &pctx->buffers);
 }
 
 static void flecsEngine_primitive_extractShadow(
@@ -85,7 +94,16 @@ redo_shadow:
     for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
         buf->shadow_count[c] = ctx->shadow_count[c];
     }
-    flecsEngine_batch_buffers_uploadShadow(engine, buf);
+}
+
+static void flecsEngine_primitive_uploadShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+    flecsEngine_primitive_ctx_t *pctx = batch->ctx;
+    flecsEngine_batch_buffers_uploadShadow(engine, &pctx->buffers);
 }
 
 static void flecsEngine_primitive_render(
@@ -210,6 +228,8 @@ static ecs_entity_t flecsEngine_createBatch_primitive_materialIndex(
         },
         .extract_callback = flecsEngine_primitive_extract,
         .shadow_extract_callback = flecsEngine_primitive_extractShadow,
+        .upload_callback = flecsEngine_primitive_upload,
+        .shadow_upload_callback = flecsEngine_primitive_uploadShadow,
         .callback = flecsEngine_primitive_render,
         .shadow_callback = flecsEngine_primitive_renderShadow,
         .ctx = flecsEngine_primitive_createCtx(
@@ -263,6 +283,8 @@ ecs_entity_t flecsEngine_createBatch_primitive(
         },
         .extract_callback = flecsEngine_primitive_extract,
         .shadow_extract_callback = flecsEngine_primitive_extractShadow,
+        .upload_callback = flecsEngine_primitive_upload,
+        .shadow_upload_callback = flecsEngine_primitive_uploadShadow,
         .callback = flecsEngine_primitive_render,
         .shadow_callback = flecsEngine_primitive_renderShadow,
         .ctx = flecsEngine_primitive_createCtx(

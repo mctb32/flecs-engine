@@ -381,8 +381,6 @@ void flecsEngine_batch_extractSingleInstance(
     buf->count = 1;
     batch->count = 1;
     batch->offset = 0;
-
-    flecsEngine_batch_buffers_upload(engine, buf);
 }
 
 void flecsEngine_batch_transformInstance(

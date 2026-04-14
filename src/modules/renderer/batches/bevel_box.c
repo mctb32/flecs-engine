@@ -304,9 +304,17 @@ static void flecsEngine_bevel_box_extract(
         }
     }
 
-    /* Single upload */
     buf->count = total;
-    flecsEngine_batch_buffers_upload(engine, buf);
+}
+
+static void flecsEngine_bevel_box_upload(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+    flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
+    flecsEngine_batch_buffers_upload(engine, &ctx->buffers);
 }
 
 static void flecsEngine_bevel_box_render(
@@ -409,6 +417,7 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes(
             ecs_id(FlecsEmissive)
         },
         .extract_callback = flecsEngine_bevel_box_extract,
+        .upload_callback = flecsEngine_bevel_box_upload,
         .callback = flecsEngine_bevel_box_render,
         .ctx = flecsEngine_bevel_box_createCtx(world, true),
         .free_ctx = flecsEngine_bevel_box_free
@@ -446,6 +455,7 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
             ecs_id(FlecsMaterialId)
         },
         .extract_callback = flecsEngine_bevel_box_extract,
+        .upload_callback = flecsEngine_bevel_box_upload,
         .callback = flecsEngine_bevel_box_render,
         .ctx = flecsEngine_bevel_box_createCtx(world, false),
         .free_ctx = flecsEngine_bevel_box_free

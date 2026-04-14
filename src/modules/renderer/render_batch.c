@@ -597,6 +597,40 @@ void flecsEngine_renderBatch_extractShadow(
     FLECS_TRACY_ZONE_END;
 }
 
+void flecsEngine_renderBatch_upload(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    ecs_entity_t batch_entity)
+{
+    FLECS_TRACY_ZONE_BEGIN("BatchUploadCallback");
+    const FlecsRenderBatch *batch = ecs_get(
+        world, batch_entity, FlecsRenderBatch);
+    if (!batch || !batch->upload_callback) {
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
+    batch->upload_callback(world, engine, batch);
+    FLECS_TRACY_ZONE_END;
+}
+
+void flecsEngine_renderBatch_uploadShadow(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    ecs_entity_t batch_entity)
+{
+    FLECS_TRACY_ZONE_BEGIN("BatchUploadShadowCallback");
+    const FlecsRenderBatch *batch = ecs_get(
+        world, batch_entity, FlecsRenderBatch);
+    if (!batch || !batch->shadow_upload_callback) {
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
+    batch->shadow_upload_callback(world, engine, batch);
+    FLECS_TRACY_ZONE_END;
+}
+
 void flecsEngine_renderBatch_renderShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,

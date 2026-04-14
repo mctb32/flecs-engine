@@ -70,6 +70,8 @@ ECS_STRUCT(FlecsRenderBatch, {
 ECS_PRIVATE
     flecs_render_batch_extract_callback extract_callback;
     flecs_render_batch_extract_callback shadow_extract_callback;
+    flecs_render_batch_extract_callback upload_callback;
+    flecs_render_batch_extract_callback shadow_upload_callback;
     flecs_render_batch_callback callback;
     flecs_render_batch_callback shadow_callback;
     void *ctx;
@@ -204,6 +206,16 @@ void flecsEngine_renderBatch_extractShadow(
     FlecsEngineImpl *impl,
     ecs_entity_t batch_entity);
 
+void flecsEngine_renderBatch_upload(
+    ecs_world_t *world,
+    FlecsEngineImpl *impl,
+    ecs_entity_t batch_entity);
+
+void flecsEngine_renderBatch_uploadShadow(
+    ecs_world_t *world,
+    FlecsEngineImpl *impl,
+    ecs_entity_t batch_entity);
+
 void flecsEngine_renderView_renderBatches(
     ecs_world_t *world,
     ecs_entity_t view_entity,
@@ -224,7 +236,27 @@ void flecsEngine_renderView_extractShadowBatches(
     FlecsEngineImpl *engine,
     const FlecsRenderView *view);
 
+void flecsEngine_renderView_uploadBatches(
+    ecs_world_t *world,
+    ecs_entity_t view_entity,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view);
+
+void flecsEngine_renderView_uploadShadowBatches(
+    ecs_world_t *world,
+    ecs_entity_t view_entity,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view);
+
 void flecsEngine_renderView_extractShadowsAll(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine);
+
+void flecsEngine_renderView_uploadAll(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine);
+
+void flecsEngine_renderView_uploadShadowsAll(
     ecs_world_t *world,
     FlecsEngineImpl *engine);
 
