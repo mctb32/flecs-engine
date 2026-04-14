@@ -10,8 +10,14 @@ option(FLECS_ENGINE_TRACY "Enable Tracy profiler integration" OFF)
 
 # Release build: highest optimization + link-time optimization
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-  set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" FORCE)
-  set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" FORCE)
+  if(MSVC)
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /DNDEBUG" CACHE STRING "" FORCE)
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG" CACHE STRING "" FORCE)
+  else()
+    set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" FORCE)
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" FORCE)
+  endif()
+
   if(NOT EMSCRIPTEN)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
   endif()
@@ -21,8 +27,10 @@ include(FetchContent)
 
 if(NOT EMSCRIPTEN)
   include(ExternalProject)
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(WGPU QUIET wgpu-native)
+  if(NOT WIN32)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(WGPU QUIET wgpu-native)
+  endif()
 endif()
 
 # -- GLFW (native only; emscripten uses -sUSE_GLFW=3) --
@@ -90,10 +98,14 @@ if(EMSCRIPTEN)
   file(GLOB_RECURSE FLECS_ENGINE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
   )
-else()
+elseif(APPLE)
   file(GLOB_RECURSE FLECS_ENGINE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.m"
+  )
+else()
+  file(GLOB_RECURSE FLECS_ENGINE_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
   )
 endif()
 
@@ -104,14 +116,65 @@ list(APPEND FLECS_ENGINE_SOURCES
 )
 
 add_executable(flecs_engine ${FLECS_ENGINE_SOURCES})
+set_property(TARGET flecs_engine PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 
 if(NOT EMSCRIPTEN)
-  target_compile_definitions(flecs_engine PRIVATE GLFW_EXPOSE_NATIVE_COCOA)
+  set_target_properties(flecs_engine PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+    set_target_properties(flecs_engine PROPERTIES
+      DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+  endif()
+
+  if(APPLE)
+    target_compile_definitions(flecs_engine PRIVATE GLFW_EXPOSE_NATIVE_COCOA)
+  elseif(WIN32)
+    target_compile_definitions(flecs_engine PRIVATE GLFW_EXPOSE_NATIVE_WIN32)
+  else()
+    message(FATAL_ERROR "Unsupported native platform. Only APPLE and WIN32 are currently supported for native builds.")
+  endif()
 endif()
 
 # -- wgpu (native only; emscripten uses -sUSE_WEBGPU=1) --
 if(NOT EMSCRIPTEN)
-  if(WGPU_FOUND)
+  if(WIN32)
+    FetchContent_Declare(
+      wgpu_native_prebuilt
+      URL https://github.com/gfx-rs/wgpu-native/releases/download/v27.0.4.0/wgpu-windows-x86_64-msvc-release.zip
+      URL_HASH SHA256=f14ca334b4d253881bde2605bd147f332178d705f56fbd74f81458797c77fce1
+      DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+      SOURCE_SUBDIR __no_cmake_subdir
+    )
+    FetchContent_MakeAvailable(wgpu_native_prebuilt)
+
+    set(WGPU_NATIVE_DIR ${wgpu_native_prebuilt_SOURCE_DIR})
+
+    add_library(wgpu_native_lib SHARED IMPORTED)
+    set_target_properties(wgpu_native_lib PROPERTIES
+      IMPORTED_LOCATION ${WGPU_NATIVE_DIR}/lib/wgpu_native.dll
+      IMPORTED_IMPLIB ${WGPU_NATIVE_DIR}/lib/wgpu_native.dll.lib
+      IMPORTED_LOCATION_RELEASE ${WGPU_NATIVE_DIR}/lib/wgpu_native.dll
+      IMPORTED_IMPLIB_RELEASE ${WGPU_NATIVE_DIR}/lib/wgpu_native.dll.lib
+    )
+
+    target_include_directories(flecs_engine PRIVATE ${WGPU_NATIVE_DIR}/include)
+    target_link_libraries(flecs_engine PRIVATE wgpu_native_lib)
+
+    add_custom_command(TARGET flecs_engine POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${WGPU_NATIVE_DIR}/lib/wgpu_native.dll"
+        "$<TARGET_FILE_DIR:flecs_engine>"
+    )
+    if(EXISTS "${WGPU_NATIVE_DIR}/lib/wgpu_native.pdb")
+      add_custom_command(TARGET flecs_engine POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${WGPU_NATIVE_DIR}/lib/wgpu_native.pdb"
+        "$<TARGET_FILE_DIR:flecs_engine>"
+      )
+    endif()
+  elseif(WGPU_FOUND)
     target_include_directories(flecs_engine PRIVATE ${WGPU_INCLUDE_DIRS})
     target_link_directories(flecs_engine PRIVATE ${WGPU_LIBRARY_DIRS})
     target_link_libraries(flecs_engine PRIVATE ${WGPU_LIBRARIES})

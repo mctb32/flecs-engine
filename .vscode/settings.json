@@ -1,0 +1,8 @@
+{
+  "cmake.generator": "Ninja",
+  "cmake.buildDirectory": "${workspaceFolder}/build/${variant:buildType}",
+  "cmake.debugConfig": {
+    "cwd": "${workspaceFolder}"
+  },
+  "terminal.integrated.cwd": "${workspaceFolder}"
+}

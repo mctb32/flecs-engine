@@ -5,6 +5,9 @@
 
 /* ---- GPU initialisation ---- */
 
+/* Create a WebGPU instance with platform-specific native options. */
+WGPUInstance flecsEngine_createInstance(void);
+
 /* Request an adapter, blocking until the request completes.
    Returns NULL on failure. */
 WGPUAdapter flecsEngine_requestAdapter(
@@ -57,6 +60,15 @@ int flecsEngine_configureSurface(
     FlecsEngineImpl *impl,
     FlecsSurfaceImpl *surf);
 
+/* Choose a supported present mode, checking capabilities to see if Immediate is available when vsync is false. */
+WGPUPresentMode flecsEngine_choosePresentMode(
+    WGPUSurface surface,
+    WGPUAdapter adapter,
+    bool vsync);
+
+/* Re-configure the surface / recreate the swap chain after a resize.
+    Caller must have already updated surf->surface_config with the new
+   width and height. */
 void flecsEngine_reconfigureSurface(
     FlecsEngineImpl *impl,
     FlecsSurfaceImpl *surf);

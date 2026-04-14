@@ -9,7 +9,17 @@
 #else
   #include <GLFW/glfw3.h>
   #include <GLFW/glfw3native.h>
-  #include <webgpu.h>
+  #ifdef _WIN32
+    #include <webgpu/webgpu.h>
+    #include <webgpu/wgpu.h>
+  #else
+    #include <webgpu.h>
+  #endif
+#ifdef _WIN32
+  #undef near
+  #undef far
+#endif
+
 #endif
 
 #include <flecs.h>

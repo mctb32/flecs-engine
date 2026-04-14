@@ -1,15 +1,23 @@
+ℹ️ This repository is an experimental fork of flecs-engine with work-in-progress Windows support. Windows builds currently require Visual Studio C++ build tools, CMake, Ninja, and network access during configure so CMake can fetch dependencies and the prebuilt `wgpu-native` archive. The Windows launcher scripts use `vswhere` to enter the MSVC developer environment automatically.
+
 # Flecs engine
 A fast, portable, low footprint, opinionated (but hackable), flecs native game engine.
-
-The project is still WIP and currently only works on MacOS.
 
 ## Usage
 Build & run the engine:
 ```sh
-cmake -S . -B build
-cmake --build build
-./build/flecs_engine
+cmake -S . -B build/debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/debug --config Debug
+./build/debug/flecs_engine
 ```
+
+On Windows:
+```bat
+run.bat
+run-release.bat
+```
+Or use VS Code with CMake Tools.
+
 
 ## Why should I use this?
 You should probably not use this, unless:
