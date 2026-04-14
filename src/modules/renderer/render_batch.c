@@ -82,27 +82,6 @@ ECS_MOVE(FlecsRenderBatchImpl, dst, src, {
     ecs_os_zeromem(src);
 })
 
-ECS_COMPONENT_DECLARE(FlecsRenderBatchSet);
-
-ECS_CTOR(FlecsRenderBatchSet, ptr, {
-    ecs_vec_init_t(NULL, &ptr->batches, ecs_entity_t, 0);
-})
-
-ECS_MOVE(FlecsRenderBatchSet, dst, src, {
-    ecs_vec_fini_t(NULL, &dst->batches, ecs_entity_t);
-    *dst = *src;
-    ecs_os_zeromem(src);
-})
-
-ECS_COPY(FlecsRenderBatchSet, dst, src, {
-    ecs_vec_fini_t(NULL, &dst->batches, ecs_entity_t);
-    dst->batches = ecs_vec_copy_t(NULL, &src->batches, ecs_entity_t);
-})
-
-ECS_DTOR(FlecsRenderBatchSet, ptr, {
-    ecs_vec_fini_t(NULL, &ptr->batches, ecs_entity_t);
-})
-
 static bool flecsEngine_renderBatch_usesMaterialId(
     const FlecsRenderBatch *batch)
 {
@@ -669,7 +648,6 @@ void flecsEngine_renderBatch_register(
 {
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatch);
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchImpl);
-    ECS_COMPONENT_DEFINE(world, FlecsRenderBatchSet);
 
     ecs_set_hooks(world, FlecsRenderBatch, {
         .ctor = flecs_default_ctor,
@@ -682,19 +660,5 @@ void flecsEngine_renderBatch_register(
         .ctor = flecs_default_ctor,
         .move = ecs_move(FlecsRenderBatchImpl),
         .dtor = ecs_dtor(FlecsRenderBatchImpl)
-    });
-
-    ecs_set_hooks(world, FlecsRenderBatchSet, {
-        .ctor = ecs_ctor(FlecsRenderBatchSet),
-        .move = ecs_move(FlecsRenderBatchSet),
-        .copy = ecs_copy(FlecsRenderBatchSet),
-        .dtor = ecs_dtor(FlecsRenderBatchSet)
-    });
-
-    ecs_struct(world, {
-        .entity = ecs_id(FlecsRenderBatchSet),
-        .members = {
-            { .name = "batches", .type = flecsEngine_vecEntity(world) }
-        }
     });
 }

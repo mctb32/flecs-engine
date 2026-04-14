@@ -659,6 +659,7 @@ void FlecsEngineRendererImport(
 
     flecsEngine_shader_register(world);
     flecsEngine_renderBatch_register(world);
+    flecsEngine_renderBatchSet_register(world);
     flecsEngine_renderEffect_register(world);
     flecsEngine_renderView_register(world);
     flecsEngine_batchSets_register(world);

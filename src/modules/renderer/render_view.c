@@ -342,6 +342,160 @@ static int flecsEngine_renderView_ensureTargets(
     return -1;
 }
 
+static WGPURenderPassEncoder flecsEngine_renderView_beginPass(
+    const FlecsEngineImpl *impl,
+    const FlecsRenderView *view,
+    WGPUCommandEncoder encoder,
+    WGPUTextureView color_view,
+    WGPULoadOp color_load_op,
+    WGPULoadOp depth_load_op)
+{
+    WGPUColor sky_color = {
+        .r = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.r),
+        .g = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.g),
+        .b = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.b),
+        .a = (double)flecsEngine_colorChannelToFloat(view->background.sky_color.a)
+    };
+
+    bool msaa = impl->sample_count > 1 && impl->depth.msaa_color_texture_view;
+
+    WGPURenderPassColorAttachment color_attachment = {
+        .view = msaa ? impl->depth.msaa_color_texture_view : color_view,
+        .resolveTarget = msaa ? color_view : NULL,
+        WGPU_DEPTH_SLICE
+        .loadOp = color_load_op,
+        .storeOp = WGPUStoreOp_Store,
+        .clearValue = sky_color
+    };
+
+    WGPURenderPassDepthStencilAttachment depth_attachment = {
+        .view = msaa ? impl->depth.msaa_depth_texture_view : impl->depth.depth_texture_view,
+        .depthLoadOp = depth_load_op,
+        .depthStoreOp = WGPUStoreOp_Store,
+        .depthClearValue = 1.0f,
+        .depthReadOnly = false,
+        .stencilLoadOp = WGPULoadOp_Undefined,
+        .stencilStoreOp = WGPUStoreOp_Undefined,
+        .stencilClearValue = 0,
+        .stencilReadOnly = true
+    };
+
+    WGPURenderPassDescriptor pass_desc = {
+        .colorAttachmentCount = 1,
+        .colorAttachments = &color_attachment,
+        .depthStencilAttachment = &depth_attachment
+    };
+
+    return wgpuCommandEncoderBeginRenderPass(encoder, &pass_desc);
+}
+
+static void flecsEngine_renderView_extractBatches(
+    ecs_world_t *world,
+    ecs_entity_t view_entity,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view)
+{
+    (void)view;
+    FLECS_TRACY_ZONE_BEGIN("ExtractBatches");
+    const FlecsRenderBatchSet *batch_set = ecs_get(
+        world, view_entity, FlecsRenderBatchSet);
+    ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    flecsEngine_renderBatchSet_extract(world, engine, batch_set);
+    FLECS_TRACY_ZONE_END;
+}
+
+static void flecsEngine_renderView_uploadBatches(
+    ecs_world_t *world,
+    ecs_entity_t view_entity,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view)
+{
+    (void)view;
+    FLECS_TRACY_ZONE_BEGIN("UploadBatches");
+    const FlecsRenderBatchSet *batch_set = ecs_get(
+        world, view_entity, FlecsRenderBatchSet);
+    ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    flecsEngine_renderBatchSet_upload(world, engine, batch_set);
+    FLECS_TRACY_ZONE_END;
+}
+
+static void flecsEngine_renderView_renderBatches(
+    ecs_world_t *world,
+    ecs_entity_t view_entity,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view,
+    const FlecsRenderViewImpl *viewImpl,
+    WGPUCommandEncoder encoder)
+{
+    FLECS_TRACY_ZONE_BEGIN("RenderBatches");
+    const FlecsRenderBatchSet *batch_set = ecs_get(
+        world, view_entity, FlecsRenderBatchSet);
+    ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    WGPUTextureView batch_target = viewImpl->effect_target_views[0];
+
+    bool has_transmission = flecsEngine_renderBatchSet_hasTransmission(
+        world, engine, batch_set);
+
+    if (has_transmission) {
+        /* Pass 1: render opaque batches (render_after_snapshot = false) */
+        {
+            WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
+                engine, view, encoder, batch_target,
+                WGPULoadOp_Clear, WGPULoadOp_Clear);
+            engine->last_pipeline = NULL;
+
+            flecsEngine_renderBatchSet_render(
+                world, engine, batch_set, pass, view, 1);
+
+            wgpuRenderPassEncoderEnd(pass);
+            wgpuRenderPassEncoderRelease(pass);
+        }
+
+        /* Snapshot the opaque result for transmission sampling */
+        {
+            WGPUTexture src_tex = viewImpl->effect_target_textures[0];
+            if (src_tex) {
+                flecsEngine_transmission_updateSnapshot(
+                    engine, encoder, src_tex,
+                    viewImpl->effect_target_width,
+                    viewImpl->effect_target_height);
+            }
+        }
+
+        /* Pass 2: render post-snapshot batches (transmission + transparent).
+         * LoadOp_Load preserves both color and depth from pass 1. */
+        {
+            WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
+                engine, view, encoder, batch_target,
+                WGPULoadOp_Load, WGPULoadOp_Load);
+            engine->last_pipeline = NULL;
+
+            flecsEngine_renderBatchSet_render(
+                world, engine, batch_set, pass, view, 2);
+
+            wgpuRenderPassEncoderEnd(pass);
+            wgpuRenderPassEncoderRelease(pass);
+        }
+    } else {
+        /* No transmissive materials — single pass, no snapshot needed */
+        WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
+            engine, view, encoder, batch_target,
+            WGPULoadOp_Clear, WGPULoadOp_Clear);
+        engine->last_pipeline = NULL;
+
+        flecsEngine_renderBatchSet_render(
+            world, engine, batch_set, pass, view, 0);
+
+        wgpuRenderPassEncoderEnd(pass);
+        wgpuRenderPassEncoderRelease(pass);
+    }
+
+    FLECS_TRACY_ZONE_END;
+}
+
 static void flecsEngine_renderView_render(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
@@ -476,36 +630,6 @@ static void flecsEngine_renderView_extract(
     FLECS_TRACY_ZONE_END;
 }
 
-static void flecsEngine_renderView_extractShadow(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    ecs_entity_t view_entity,
-    const FlecsRenderView *view)
-{
-    FLECS_TRACY_ZONE_BEGIN("ExtractShadowView");
-
-    /* Compute cascade light VP matrices and per-cascade frustum planes. */
-    engine->cascade_frustum_valid = false;
-    if (view->shadow.enabled && view->light) {
-        flecsEngine_shadow_computeCascades(
-            world, view, engine->shadow.map_size,
-            view->shadow.max_range,
-            engine->shadow.current_light_vp,
-            engine->shadow.cascade_splits);
-
-        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
-            flecsEngine_frustum_extractPlanes(
-                engine->shadow.current_light_vp[c],
-                engine->cascade_frustum_planes[c]);
-        }
-        engine->cascade_frustum_valid = true;
-    }
-
-    flecsEngine_renderView_extractShadowBatches(
-        world, view_entity, engine, view);
-    FLECS_TRACY_ZONE_END;
-}
-
 void flecsEngine_renderView_extractAll(
     ecs_world_t *world,
     FlecsEngineImpl *engine)
@@ -525,23 +649,6 @@ void flecsEngine_renderView_extractAll(
     }
 }
 
-void flecsEngine_renderView_extractShadowsAll(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine)
-{
-    ecs_iter_t it = ecs_query_iter(world, engine->view_query);
-    while (ecs_query_next(&it)) {
-        FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
-        for (int32_t i = 0; i < it.count; i ++) {
-            flecsEngine_renderView_extractShadow(
-                world,
-                engine,
-                it.entities[i],
-                &views[i]);
-        }
-    }
-}
-
 void flecsEngine_renderView_uploadAll(
     ecs_world_t *world,
     FlecsEngineImpl *engine)
@@ -551,20 +658,6 @@ void flecsEngine_renderView_uploadAll(
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
         for (int32_t i = 0; i < it.count; i ++) {
             flecsEngine_renderView_uploadBatches(
-                world, it.entities[i], engine, &views[i]);
-        }
-    }
-}
-
-void flecsEngine_renderView_uploadShadowsAll(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine)
-{
-    ecs_iter_t it = ecs_query_iter(world, engine->view_query);
-    while (ecs_query_next(&it)) {
-        FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
-        for (int32_t i = 0; i < it.count; i ++) {
-            flecsEngine_renderView_uploadShadowBatches(
                 world, it.entities[i], engine, &views[i]);
         }
     }

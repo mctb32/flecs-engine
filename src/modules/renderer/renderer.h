@@ -116,6 +116,48 @@ void flecsEngine_shader_register(
 void flecsEngine_renderBatch_register(
     ecs_world_t *world);
 
+void flecsEngine_renderBatchSet_register(
+    ecs_world_t *world);
+
+bool flecsEngine_renderBatchSet_hasTransmission(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set);
+
+void flecsEngine_renderBatchSet_extract(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set);
+
+void flecsEngine_renderBatchSet_extractShadow(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set);
+
+void flecsEngine_renderBatchSet_upload(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set);
+
+void flecsEngine_renderBatchSet_uploadShadow(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set);
+
+void flecsEngine_renderBatchSet_render(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set,
+    WGPURenderPassEncoder pass,
+    const FlecsRenderView *view,
+    int phase);
+
+void flecsEngine_renderBatchSet_renderShadow(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set,
+    WGPURenderPassEncoder pass);
+
 void flecsEngine_renderEffect_register(
     ecs_world_t *world);
 
@@ -215,38 +257,6 @@ void flecsEngine_renderBatch_uploadShadow(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
     ecs_entity_t batch_entity);
-
-void flecsEngine_renderView_renderBatches(
-    ecs_world_t *world,
-    ecs_entity_t view_entity,
-    FlecsEngineImpl *engine,
-    const FlecsRenderView *view,
-    const FlecsRenderViewImpl *viewImpl,
-    WGPUCommandEncoder encoder);
-
-void flecsEngine_renderView_extractBatches(
-    ecs_world_t *world,
-    ecs_entity_t view_entity,
-    FlecsEngineImpl *engine,
-    const FlecsRenderView *view);
-
-void flecsEngine_renderView_extractShadowBatches(
-    ecs_world_t *world,
-    ecs_entity_t view_entity,
-    FlecsEngineImpl *engine,
-    const FlecsRenderView *view);
-
-void flecsEngine_renderView_uploadBatches(
-    ecs_world_t *world,
-    ecs_entity_t view_entity,
-    FlecsEngineImpl *engine,
-    const FlecsRenderView *view);
-
-void flecsEngine_renderView_uploadShadowBatches(
-    ecs_world_t *world,
-    ecs_entity_t view_entity,
-    FlecsEngineImpl *engine,
-    const FlecsRenderView *view);
 
 void flecsEngine_renderView_extractShadowsAll(
     ecs_world_t *world,
