@@ -8,7 +8,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngine_shader_pbrColoredMaterialIndex(world);
+    ecs_entity_t shader = flecsEngine_shader_pbrColored(world);
 
     ecs_query_t *q = ecs_query(world, {
         .entity = batch,
@@ -41,7 +41,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
         .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
-        .ctx = flecsEngine_mesh_createCtx(false),
+        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_BUFFERS_STORAGE),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
 
@@ -81,9 +81,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
         .vertex_type = ecs_id(FlecsLitVertex),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
-            ecs_id(FlecsRgba),
-            ecs_id(FlecsPbrMaterial),
-            ecs_id(FlecsEmissive)
+            ecs_id(FlecsMaterialId)
         },
         .extract_callback = flecsEngine_mesh_extract,
         .shadow_extract_callback = flecsEngine_mesh_extractShadow,
@@ -91,7 +89,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
         .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
-        .ctx = flecsEngine_mesh_createCtx(true),
+        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_BUFFERS_STORAGE | FLECS_BATCH_BUFFERS_OWNS_MATERIAL),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
 
@@ -99,42 +97,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
 }
 
 /* --- Textured mesh batch --- */
-
-static void flecsEngine_textured_mesh_render(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const WGPURenderPassEncoder pass,
-    const FlecsRenderBatch *batch)
-{
-    (void)world;
-    FLECS_TRACY_ZONE_BEGIN("TexturedMeshRender");
-
-    if (!engine->materials.texture_array_bind_group) {
-        FLECS_TRACY_ZONE_END;
-        return;
-    }
-    wgpuRenderPassEncoderSetBindGroup(
-        pass, 1,
-        engine->materials.texture_array_bind_group, 0, NULL);
-
-    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
-    ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
-
-    ecs_map_iter_t git = ecs_map_iter(groups);
-    while (ecs_map_next(&git)) {
-        uint64_t group_id = ecs_map_key(&git);
-        if (!group_id) continue;
-
-        flecsEngine_batch_t *ctx =
-            ecs_query_get_group_ctx(batch->query, group_id);
-        ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
-
-        ctx->vertex_buffer = ctx->mesh.vertex_uv_buffer;
-        flecsEngine_batch_draw(engine, pass, ctx);
-    }
-
-    FLECS_TRACY_ZONE_END;
-}
 
 ecs_entity_t flecsEngine_createBatch_textured_mesh(
     ecs_world_t *world,
@@ -173,9 +135,9 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
         .shadow_extract_callback = flecsEngine_mesh_extractShadow,
         .upload_callback = flecsEngine_mesh_upload,
         .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
-        .callback = flecsEngine_textured_mesh_render,
+        .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
-        .ctx = flecsEngine_mesh_createCtx(false),
+        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_BUFFERS_DEFAULT),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
 
@@ -218,7 +180,8 @@ static flecsEngine_transparent_mesh_ctx_t* flecsEngine_transparent_mesh_createCt
 {
     flecsEngine_transparent_mesh_ctx_t *ctx =
         ecs_os_calloc_t(flecsEngine_transparent_mesh_ctx_t);
-    flecsEngine_batch_buffers_init(&ctx->buffers, false, false);
+    flecsEngine_batch_buffers_init(&ctx->buffers,
+        FLECS_BATCH_BUFFERS_STORAGE);
     ctx->self_entity = self_entity;
     ctx->textured_helper = textured_helper;
     return ctx;
@@ -244,6 +207,8 @@ static void flecsEngine_transparent_mesh_render(
     FLECS_TRACY_ZONE_BEGIN("TransparentMeshRender");
 
     flecsEngine_transparent_mesh_ctx_t *tctx = batch->ctx;
+    flecsEngine_batch_bindMaterialGroup(
+        (FlecsEngineImpl*)engine, pass, &tctx->buffers);
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
     ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
 
@@ -444,7 +409,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
     });
 
     /* Unified query matches all transparent meshes regardless of textures */
-    ecs_entity_t shader = flecsEngine_shader_pbrColoredMaterialIndex(world);
+    ecs_entity_t shader = flecsEngine_shader_pbrColored(world);
 
     ecs_query_t *q = ecs_query(world, {
         .entity = batch,
@@ -499,43 +464,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
 
 /* --- Transmissive mesh batch --- */
 
-static void flecsEngine_transmission_mesh_render(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const WGPURenderPassEncoder pass,
-    const FlecsRenderBatch *batch)
-{
-    (void)world;
-    FLECS_TRACY_ZONE_BEGIN("TransmissionMeshRender");
-
-    /* PBR material textures live at @group(1). */
-    if (!engine->materials.texture_array_bind_group) {
-        FLECS_TRACY_ZONE_END;
-        return;
-    }
-    wgpuRenderPassEncoderSetBindGroup(
-        pass, 1,
-        engine->materials.texture_array_bind_group, 0, NULL);
-
-    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
-    ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
-
-    ecs_map_iter_t git = ecs_map_iter(groups);
-    while (ecs_map_next(&git)) {
-        uint64_t group_id = ecs_map_key(&git);
-        if (!group_id) continue;
-
-        flecsEngine_batch_t *ctx =
-            ecs_query_get_group_ctx(batch->query, group_id);
-        ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
-
-        ctx->vertex_buffer = ctx->mesh.vertex_uv_buffer;
-        flecsEngine_batch_draw(engine, pass, ctx);
-    }
-
-    FLECS_TRACY_ZONE_END;
-}
-
 ecs_entity_t flecsEngine_createBatch_mesh_transmission(
     ecs_world_t *world,
     ecs_entity_t parent,
@@ -574,42 +502,14 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmission(
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
         .upload_callback = flecsEngine_mesh_upload,
-        .callback = flecsEngine_transmission_mesh_render,
-        .ctx = flecsEngine_mesh_createCtx(false),
+        .callback = flecsEngine_mesh_render,
+        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_BUFFERS_DEFAULT),
         .free_ctx = flecsEngine_mesh_deleteCtx,
         .render_after_snapshot = true,
         .needs_transmission = true
     });
 
     return batch;
-}
-
-static void flecsEngine_transmissionData_mesh_render(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const WGPURenderPassEncoder pass,
-    const FlecsRenderBatch *batch)
-{
-    (void)world;
-    FLECS_TRACY_ZONE_BEGIN("TransmissionDataMeshRender");
-
-    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
-    ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
-
-    ecs_map_iter_t git = ecs_map_iter(groups);
-    while (ecs_map_next(&git)) {
-        uint64_t group_id = ecs_map_key(&git);
-        if (!group_id) continue;
-
-        flecsEngine_batch_t *ctx =
-            ecs_query_get_group_ctx(batch->query, group_id);
-        ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
-
-        ctx->vertex_buffer = ctx->mesh.vertex_buffer;
-        flecsEngine_batch_draw(engine, pass, ctx);
-    }
-
-    FLECS_TRACY_ZONE_END;
 }
 
 ecs_entity_t flecsEngine_createBatch_mesh_transmissionData(
@@ -653,8 +553,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmissionData(
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
         .upload_callback = flecsEngine_mesh_upload,
-        .callback = flecsEngine_transmissionData_mesh_render,
-        .ctx = flecsEngine_mesh_createTransmissionDataCtx(),
+        .callback = flecsEngine_mesh_render,
+        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_BUFFERS_OWNS_MATERIAL | FLECS_BATCH_BUFFERS_OWNS_TRANSMISSION),
         .free_ctx = flecsEngine_mesh_deleteCtx,
         .render_after_snapshot = true,
         .needs_transmission = true

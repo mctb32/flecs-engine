@@ -15,8 +15,8 @@ bool flecsEngine_shader_usesCluster(
 ecs_entity_t flecsEngine_shader_pbrColored(
     ecs_world_t *world);
 
-ecs_entity_t flecsEngine_shader_pbrColoredMaterialIndex(
-    ecs_world_t *world);
+bool flecsEngine_shader_usesMaterialBuffer(
+    const FlecsShader *shader);
 
 ecs_entity_t flecsEngine_shader_infiniteGrid(
     ecs_world_t *world);

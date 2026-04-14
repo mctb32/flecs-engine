@@ -35,6 +35,13 @@ typedef struct {
     ecs_size_t material_count;
     FlecsEmissive *emissive;
     ecs_size_t emissive_count;
+
+    /* Identity MaterialId GPU buffer: [0, 1, 2, ..., N-1]. Used as the
+     * MaterialId VBO for owns-material-data batches, where each instance
+     * indexes its own private material storage buffer at its instance
+     * position. */
+    WGPUBuffer material_id_identity_buffer;
+    int32_t material_id_identity_capacity;
 } FlecsDefaultAttrCache;
 
 #endif

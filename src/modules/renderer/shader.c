@@ -79,6 +79,8 @@ static bool flecsEngine_shader_compile(
     shader_impl->uses_shadow = flecsEngine_shader_usesShadow(shader);
     shader_impl->uses_cluster = flecsEngine_shader_usesCluster(shader);
     shader_impl->uses_textures = flecsEngine_shader_usesTextures(shader);
+    shader_impl->uses_material_buffer =
+        flecsEngine_shader_usesMaterialBuffer(shader);
 
     return true;
 }

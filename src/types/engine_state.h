@@ -150,6 +150,9 @@ typedef struct {
     WGPUBindGroupLayout ibl_shadow_bind_layout;
     WGPUBindGroupLayout empty_bind_layout;
     WGPUBindGroup empty_bind_group;
+    WGPUBindGroupLayout material_bind_layout;
+    WGPUBindGroup scene_material_bind_group;
+    uint32_t scene_material_bind_version;
     uint32_t scene_bind_version;
 
     WGPUBuffer frame_uniform_buffer;

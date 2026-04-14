@@ -6,7 +6,7 @@ void* flecsEngine_mesh_onGroupCreate(
     void *ptr)
 {
     (void)ptr;
-    return flecsEngine_batch_create(world, NULL, group_id, false, 0, NULL);
+    return flecsEngine_batch_create(world, NULL, group_id, 0, NULL);
 }
 
 void flecsEngine_mesh_onGroupDelete(
@@ -49,19 +49,11 @@ uint64_t flecsEngine_mesh_groupByMesh(
 }
 
 flecsEngine_batch_buffers_t* flecsEngine_mesh_createCtx(
-    bool owns_material_data)
+    flecsEngine_batch_buffers_flags_t flags)
 {
     flecsEngine_batch_buffers_t *buffers =
         ecs_os_calloc_t(flecsEngine_batch_buffers_t);
-    flecsEngine_batch_buffers_init(buffers, owns_material_data, false);
-    return buffers;
-}
-
-flecsEngine_batch_buffers_t* flecsEngine_mesh_createTransmissionDataCtx(void)
-{
-    flecsEngine_batch_buffers_t *buffers =
-        ecs_os_calloc_t(flecsEngine_batch_buffers_t);
-    flecsEngine_batch_buffers_init(buffers, true, true);
+    flecsEngine_batch_buffers_init(buffers, flags);
     return buffers;
 }
 
@@ -163,6 +155,11 @@ void flecsEngine_mesh_render(
 
     (void)world;
 
+    flecsEngine_batch_buffers_t *buf = batch->ctx;
+    flecsEngine_batch_bindMaterialGroup((FlecsEngineImpl*)engine, pass, buf);
+
+    bool needs_uvs = batch->vertex_type == ecs_id(FlecsLitVertexUv);
+
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
     ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
 
@@ -174,6 +171,11 @@ void flecsEngine_mesh_render(
         flecsEngine_batch_t *ctx =
             ecs_query_get_group_ctx(batch->query, group);
         ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
+
+        if (needs_uvs) {
+            ctx->vertex_buffer = ctx->mesh.vertex_uv_buffer;
+        }
+
         flecsEngine_batch_draw(engine, pass, ctx);
     }
 

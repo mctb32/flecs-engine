@@ -10,7 +10,57 @@ void flecsEngine_defaultAttrCache_free(
     ecs_os_free(ptr->color);
     ecs_os_free(ptr->material);
     ecs_os_free(ptr->emissive);
+    if (ptr->material_id_identity_buffer) {
+        wgpuBufferRelease(ptr->material_id_identity_buffer);
+    }
     ecs_os_free(ptr);
+}
+
+WGPUBuffer flecsEngine_defaultAttrCache_getMaterialIdIdentityBuffer(
+    FlecsEngineImpl *engine,
+    int32_t count)
+{
+    FlecsDefaultAttrCache *cache = engine->default_attr_cache;
+
+    if (cache->material_id_identity_buffer &&
+        count <= cache->material_id_identity_capacity)
+    {
+        return cache->material_id_identity_buffer;
+    }
+
+    int32_t new_capacity = count;
+    if (new_capacity < 64) {
+        new_capacity = 64;
+    }
+
+    if (cache->material_id_identity_buffer) {
+        wgpuBufferRelease(cache->material_id_identity_buffer);
+        cache->material_id_identity_buffer = NULL;
+    }
+
+    cache->material_id_identity_buffer = wgpuDeviceCreateBuffer(
+        engine->device,
+        &(WGPUBufferDescriptor){
+            .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+            .size = (uint64_t)new_capacity * sizeof(FlecsMaterialId)
+        });
+
+    FlecsMaterialId *ids = ecs_os_malloc_n(FlecsMaterialId, new_capacity);
+    for (int32_t i = 0; i < new_capacity; i ++) {
+        ids[i].value = (uint32_t)i;
+    }
+
+    wgpuQueueWriteBuffer(
+        engine->queue,
+        cache->material_id_identity_buffer,
+        0,
+        ids,
+        (uint64_t)new_capacity * sizeof(FlecsMaterialId));
+
+    ecs_os_free(ids);
+
+    cache->material_id_identity_capacity = new_capacity;
+    return cache->material_id_identity_buffer;
 }
 
 FlecsRgba* flecsEngine_defaultAttrCache_getColor(

@@ -6,9 +6,7 @@
 #include "flecs_engine.h"
 
 flecsEngine_batch_buffers_t* flecsEngine_mesh_createCtx(
-    bool owns_material_data);
-
-flecsEngine_batch_buffers_t* flecsEngine_mesh_createTransmissionDataCtx(void);
+    flecsEngine_batch_buffers_flags_t flags);
 
 void flecsEngine_mesh_deleteCtx(void *ptr);
 

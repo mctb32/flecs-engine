@@ -228,6 +228,21 @@ bool flecsEngine_globals_createBindGroup(
     const FlecsEngineImpl *engine,
     FlecsHdriImpl *ibl);
 
+/* Per-batch material storage bind group (group 2) — see bind_groups/material.c */
+WGPUBindGroupLayout flecsEngine_materialBind_ensureLayout(
+    FlecsEngineImpl *impl);
+
+WGPUBindGroup flecsEngine_materialBind_createGroup(
+    const FlecsEngineImpl *engine,
+    WGPUBuffer buffer,
+    uint64_t size);
+
+WGPUBindGroup flecsEngine_materialBind_ensureScene(
+    FlecsEngineImpl *impl);
+
+void flecsEngine_materialBind_releaseScene(
+    FlecsEngineImpl *impl);
+
 void flecsEngine_ibl_releaseResources(
     FlecsEngineImpl *impl);
 
@@ -294,6 +309,10 @@ const FlecsShaderImpl* flecsEngine_shader_ensureImpl(
     ecs_entity_t shader_entity);
 
 FlecsDefaultAttrCache* flecsEngine_defaultAttrCache_create(void);
+
+WGPUBuffer flecsEngine_defaultAttrCache_getMaterialIdIdentityBuffer(
+    FlecsEngineImpl *engine,
+    int32_t count);
 
 void flecsEngine_defaultAttrCache_free(
     FlecsDefaultAttrCache *ptr);

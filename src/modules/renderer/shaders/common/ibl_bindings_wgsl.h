@@ -5,8 +5,6 @@
     "@group(0) @binding(1) var ibl_prefiltered_env : texture_cube<f32>;\n" \
     "@group(0) @binding(2) var ibl_sampler : sampler;\n" \
     "@group(0) @binding(4) var ibl_irradiance_env : texture_cube<f32>;\n" \
-    /* Karis/Lazarov analytical approximation of the BRDF integration LUT. \
-     * Replaces the texture_2d lookup that was at binding 3. */ \
     "fn envBRDFApprox(roughness : f32, ndotv : f32) -> vec2<f32> {\n" \
     "  let c0 = vec4<f32>(-1.0, -0.0275, -0.572, 0.022);\n" \
     "  let c1 = vec4<f32>(1.0, 0.0425, 1.04, -0.04);\n" \

@@ -7,58 +7,65 @@ typedef void (*flecsEngine_primitive_scale_t)(
     const void *value,
     float *out);
 
-/* Shared GPU+CPU instance buffers. One per batch, shared across all groups. */
 typedef struct {
-    WGPUBuffer instance_transform;
-    WGPUBuffer instance_color;
-    WGPUBuffer instance_pbr;
-    WGPUBuffer instance_emissive;
-    WGPUBuffer instance_transmission;
-    WGPUBuffer instance_material_id;
     FlecsInstanceTransform *cpu_transforms;
     FlecsRgba *cpu_colors;
     FlecsPbrMaterial *cpu_pbr_materials;
     FlecsEmissive *cpu_emissives;
     FlecsTransmission *cpu_transmissions;
     FlecsMaterialId *cpu_material_ids;
+    FlecsGpuMaterial *cpu_gpu_materials;
     int32_t count;
     int32_t capacity;
-    bool owns_material_data;
-    bool owns_transmission_data;
 
-    /* Per-cascade shadow transform buffers (only transforms needed) */
+    WGPUBuffer instance_transform;
+    WGPUBuffer instance_color;
+    WGPUBuffer instance_pbr;
+    WGPUBuffer instance_emissive;
+    WGPUBuffer instance_transmission;
+    WGPUBuffer instance_material_id;
+    WGPUBuffer material_storage;
+    WGPUBindGroup material_bind_group;
+
     WGPUBuffer shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     FlecsInstanceTransform *cpu_shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     int32_t shadow_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     int32_t shadow_capacity;
+
+    bool owns_material_data;
+    bool owns_transmission_data;
+    bool use_material_storage;
 } flecsEngine_batch_buffers_t;
 
-/* Per-group lightweight descriptor. Points into shared buffers at `offset`. */
 typedef struct {
     flecsEngine_batch_buffers_t *buffers;
     int32_t count;
     int32_t offset;
     FlecsMesh3Impl mesh;
-    WGPUBuffer vertex_buffer; /* vertex buffer used for drawing (set by caller) */
+    WGPUBuffer vertex_buffer;
 
     ecs_entity_t component;
     ecs_size_t component_size;
     flecsEngine_primitive_scale_t scale_callback;
 
     uint64_t group_id;
-    bool owns_material_data;
 
-    /* Per-cascade shadow instance counts and offsets */
     int32_t shadow_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     int32_t shadow_offset[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
 } flecsEngine_batch_t;
 
 /* --- Shared buffer lifecycle --- */
 
+typedef enum {
+    FLECS_BATCH_BUFFERS_DEFAULT = 0,
+    FLECS_BATCH_BUFFERS_OWNS_MATERIAL = 1 << 0,
+    FLECS_BATCH_BUFFERS_OWNS_TRANSMISSION = 1 << 1,
+    FLECS_BATCH_BUFFERS_STORAGE = 1 << 2
+} flecsEngine_batch_buffers_flags_t;
+
 void flecsEngine_batch_buffers_init(
     flecsEngine_batch_buffers_t *buf,
-    bool owns_material_data,
-    bool owns_transmission_data);
+    flecsEngine_batch_buffers_flags_t flags);
 
 void flecsEngine_batch_buffers_fini(
     flecsEngine_batch_buffers_t *buf);
@@ -88,7 +95,6 @@ void flecsEngine_batch_init(
     ecs_world_t *world,
     const FlecsMesh3Impl *mesh,
     uint64_t group_id,
-    bool owns_material_data,
     ecs_entity_t component,
     flecsEngine_primitive_scale_t scale_callback);
 
@@ -96,7 +102,6 @@ flecsEngine_batch_t* flecsEngine_batch_create(
     ecs_world_t *world,
     const FlecsMesh3Impl *mesh,
     uint64_t group_id,
-    bool owns_material_data,
     ecs_entity_t component,
     flecsEngine_primitive_scale_t scale_callback);
 
@@ -118,15 +123,22 @@ void flecsEngine_batch_extractShadowInstances(
     const FlecsRenderBatch *batch,
     flecsEngine_batch_t *ctx);
 
-/* Draw a single group using the shared buffers at ctx->offset.
- * Uses ctx->vertex_buffer for vertex slot 0. */
+FlecsGpuMaterial flecsEngine_batch_packGpuMaterial(
+    const FlecsEngineImpl *engine,
+    const FlecsRgba *color,
+    const FlecsPbrMaterial *pbr,
+    const FlecsEmissive *emissive);
+
+void flecsEngine_batch_bindMaterialGroup(
+    FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_buffers_t *buf);
+
 void flecsEngine_batch_draw(
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_t *ctx);
 
-/* Draw a single group for the current shadow cascade using per-cascade
- * shadow transform buffers populated during extraction. */
 void flecsEngine_batch_drawShadow(
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,

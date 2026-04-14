@@ -46,6 +46,7 @@ typedef struct {
     bool uses_shadow;
     bool uses_cluster;
     bool uses_textures;
+    bool uses_material_buffer;
 } FlecsShaderImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsShaderImpl);
@@ -70,6 +71,7 @@ typedef struct {
     bool uses_shadow;
     bool uses_cluster;
     bool uses_textures;
+    bool uses_material_buffer;
 } FlecsRenderBatchImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);

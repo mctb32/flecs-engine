@@ -1,7 +1,7 @@
 #ifndef FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_WGSL_H
 #define FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_WGSL_H
 
-#define FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_WGSL \
+#define FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_STRUCT_WGSL \
     "struct GpuMaterial {\n" \
     "  color : u32,\n" \
     "  metallic : f32,\n" \
@@ -22,7 +22,10 @@
     "  uv_scale_y : f32,\n" \
     "  uv_offset_x : f32,\n" \
     "  uv_offset_y : f32\n" \
-    "};\n" \
+    "};\n"
+
+#define FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_WGSL \
+    FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_STRUCT_WGSL \
     "@group(0) @binding(11) var<storage, read> materials : array<GpuMaterial>;\n"
 
 #endif

@@ -199,6 +199,7 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     const FlecsShader *shader,
     const FlecsShaderImpl *shader_impl,
     bool use_textures,
+    bool use_material_buffer,
     const WGPUBlendState *blend,
     WGPUCullMode cull_mode,
     WGPUCompareFunction depth_test,
@@ -215,9 +216,10 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     WGPUBindGroupLayout empty_layout =
         flecsEngine_renderBatch_ensureEmptyBindLayout((FlecsEngineImpl*)engine);
 
-    WGPUBindGroupLayout bind_layouts[2] = {
+    WGPUBindGroupLayout bind_layouts[3] = {
         engine->ibl_shadow_bind_layout,
-        empty_layout
+        empty_layout,
+        NULL
     };
     uint32_t bind_layout_count = 2u;
 
@@ -226,6 +228,15 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
             flecsEngine_textures_ensureBindLayout((FlecsEngineImpl*)engine);
         if (tex_layout) {
             bind_layouts[1] = tex_layout;
+        }
+    }
+
+    if (use_material_buffer) {
+        WGPUBindGroupLayout mat_layout =
+            flecsEngine_materialBind_ensureLayout((FlecsEngineImpl*)engine);
+        if (mat_layout) {
+            bind_layouts[2] = mat_layout;
+            bind_layout_count = 3u;
         }
     }
 
@@ -422,12 +433,12 @@ static void FlecsRenderBatch_on_set(
             vertex_attr_count, vertex_buffers, vertex_buffer_count,
             instance_attrs);
 
-        bool use_material_buffer = flecsEngine_renderBatch_usesMaterialId(&rb[i]);
-        impl.uses_material = use_material_buffer;
+        impl.uses_material = flecsEngine_renderBatch_usesMaterialId(&rb[i]);
         impl.uses_ibl = shader_impl->uses_ibl;
         impl.uses_shadow = shader_impl->uses_shadow;
         impl.uses_cluster = shader_impl->uses_cluster;
         impl.uses_textures = shader_impl->uses_textures;
+        impl.uses_material_buffer = shader_impl->uses_material_buffer;
         bool has_blend = rb[i].blend.color.operation != 0;
         const WGPUBlendState *blend = has_blend ? &rb[i].blend : NULL;
         WGPUCullMode cull_mode = rb[i].cull_mode;
@@ -463,6 +474,7 @@ static void FlecsRenderBatch_on_set(
             shader,
             shader_impl,
             impl.uses_textures,
+            impl.uses_material_buffer,
             blend,
             cull_mode,
             depth_test,
@@ -511,7 +523,15 @@ void flecsEngine_renderBatch_render(
         engine->last_pipeline = pipeline;
     }
 
-    if (!impl->uses_textures) {
+    if (impl->uses_textures) {
+        if (!engine->materials.texture_array_bind_group) {
+            /* Texture array not yet available this frame — skip. */
+            FLECS_TRACY_ZONE_END;
+            return;
+        }
+        wgpuRenderPassEncoderSetBindGroup(pass, 1,
+            engine->materials.texture_array_bind_group, 0, NULL);
+    } else {
         WGPUBindGroup empty = flecsEngine_renderBatch_ensureEmptyBindGroup(
             (FlecsEngineImpl*)engine);
         if (empty) {

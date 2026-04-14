@@ -16,9 +16,10 @@ static flecs_engine_skybox_ctx_t* flecsEngine_skybox_createCtx(
 {
     flecs_engine_skybox_ctx_t *result =
         ecs_os_calloc_t(flecs_engine_skybox_ctx_t);
-    flecsEngine_batch_buffers_init(&result->buffers, true, false);
+    flecsEngine_batch_buffers_init(&result->buffers,
+        FLECS_BATCH_BUFFERS_OWNS_MATERIAL);
     flecsEngine_batch_init(
-        &result->batch, world, flecsEngine_quad_getAsset(world), 0, true, 0, NULL);
+        &result->batch, world, flecsEngine_quad_getAsset(world), 0, 0, NULL);
     result->batch.buffers = &result->buffers;
     glm_mat4_identity(result->transform.m);
     result->color = (FlecsRgba){255, 255, 255, 255};

@@ -18,8 +18,10 @@ static void* flecsEngine_primitive_createCtx(
 {
     flecsEngine_primitive_ctx_t *ctx =
         ecs_os_calloc_t(flecsEngine_primitive_ctx_t);
-    flecsEngine_batch_buffers_init(&ctx->buffers, owns_material_data, false);
-    flecsEngine_batch_init(&ctx->group, world, mesh, 0, owns_material_data,
+    flecsEngine_batch_buffers_init(&ctx->buffers,
+        FLECS_BATCH_BUFFERS_STORAGE |
+        (owns_material_data ? FLECS_BATCH_BUFFERS_OWNS_MATERIAL : 0));
+    flecsEngine_batch_init(&ctx->group, world, mesh, 0,
         component, scale_callback);
     ctx->group.buffers = &ctx->buffers;
     return ctx;
@@ -114,8 +116,10 @@ static void flecsEngine_primitive_render(
 {
     (void)world;
 
-    flecsEngine_batch_t *ctx = batch->ctx;
-    flecsEngine_batch_draw(engine, pass, ctx);
+    flecsEngine_primitive_ctx_t *pctx = batch->ctx;
+    flecsEngine_batch_bindMaterialGroup(
+        (FlecsEngineImpl*)engine, pass, &pctx->buffers);
+    flecsEngine_batch_draw(engine, pass, &pctx->group);
 }
 
 static void flecsEngine_primitive_renderShadow(
@@ -126,8 +130,8 @@ static void flecsEngine_primitive_renderShadow(
 {
     (void)world;
 
-    flecsEngine_batch_t *ctx = batch->ctx;
-    flecsEngine_batch_drawShadow(engine, pass, ctx);
+    flecsEngine_primitive_ctx_t *pctx = batch->ctx;
+    flecsEngine_batch_drawShadow(engine, pass, &pctx->group);
 }
 
 static void flecsEngine_box_scale(
@@ -200,7 +204,7 @@ static ecs_entity_t flecsEngine_createBatch_primitive_materialIndex(
     ecs_entity_t exclude)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngine_shader_pbrColoredMaterialIndex(world);
+    ecs_entity_t shader = flecsEngine_shader_pbrColored(world);
 
     ecs_query_desc_t desc = {
         .entity = batch,
@@ -277,9 +281,7 @@ ecs_entity_t flecsEngine_createBatch_primitive(
         .vertex_type = ecs_id(FlecsLitVertex),
         .instance_types = {
             ecs_id(FlecsInstanceTransform),
-            ecs_id(FlecsRgba),
-            ecs_id(FlecsPbrMaterial),
-            ecs_id(FlecsEmissive)
+            ecs_id(FlecsMaterialId)
         },
         .extract_callback = flecsEngine_primitive_extract,
         .shadow_extract_callback = flecsEngine_primitive_extractShadow,

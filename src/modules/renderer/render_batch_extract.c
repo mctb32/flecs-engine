@@ -2,6 +2,33 @@
 #include "frustum_cull.h"
 #include "../../tracy_hooks.h"
 
+FlecsGpuMaterial flecsEngine_batch_packGpuMaterial(
+    const FlecsEngineImpl *engine,
+    const FlecsRgba *color,
+    const FlecsPbrMaterial *pbr,
+    const FlecsEmissive *emissive)
+{
+    FlecsRgba c = color ? *color :
+        *flecsEngine_defaultAttrCache_getColor(engine, 1);
+    FlecsPbrMaterial p = pbr ? *pbr :
+        *flecsEngine_defaultAttrCache_getMaterial(engine, 1);
+    FlecsEmissive e = emissive ? *emissive :
+        *flecsEngine_defaultAttrCache_getEmissive(engine, 1);
+
+    /* Leave em.color at (0,0,0) when unset — the shader's has_em_color
+     * check falls back to base color. */
+    return (FlecsGpuMaterial){
+        .color = c,
+        .metallic = p.metallic,
+        .roughness = p.roughness,
+        .emissive_strength = e.strength,
+        .emissive_color = e.color,
+        .texture_bucket = 1,
+        .uv_scale_x = 1.0f,
+        .uv_scale_y = 1.0f
+    };
+}
+
 void flecsEngine_batch_extractInstances(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
@@ -42,15 +69,15 @@ void flecsEngine_batch_extractInstances(
         const FlecsTransmission *transmissions = NULL;
         const FlecsMaterialId *material_id = NULL;
 
-        if (buf->owns_material_data) {
+        if (!buf->owns_material_data) {
+            material_id = ecs_field(&it, FlecsMaterialId, 2);
+        } else {
             colors = ecs_field(&it, FlecsRgba, 2);
             materials = ecs_field(&it, FlecsPbrMaterial, 3);
             emissives = ecs_field(&it, FlecsEmissive, 4);
             if (buf->owns_transmission_data) {
                 transmissions = ecs_field(&it, FlecsTransmission, 5);
             }
-        } else {
-            material_id = ecs_field(&it, FlecsMaterialId, 2);
         }
 
         int32_t added = 0;
@@ -91,7 +118,15 @@ void flecsEngine_batch_extractInstances(
             flecsEngine_batch_transformInstance(
                 &buf->cpu_transforms[out], &wt[i], sx, sy, sz);
 
-            if (buf->owns_material_data) {
+            if (!buf->owns_material_data) {
+                buf->cpu_material_ids[out] = material_id[0];
+            } else if (buf->use_material_storage) {
+                buf->cpu_gpu_materials[out] = flecsEngine_batch_packGpuMaterial(
+                    engine,
+                    colors ? &colors[i] : NULL,
+                    materials ? &materials[i] : NULL,
+                    emissives ? &emissives[i] : NULL);
+            } else {
                 buf->cpu_colors[out] = colors
                     ? colors[i]
                     : flecsEngine_defaultAttrCache_getColor(engine, 1)[0];
@@ -104,8 +139,6 @@ void flecsEngine_batch_extractInstances(
                 if (buf->owns_transmission_data) {
                     buf->cpu_transmissions[out] = transmissions[i];
                 }
-            } else {
-                buf->cpu_material_ids[out] = material_id[0];
             }
 
             added ++;

@@ -7,12 +7,15 @@
 #include "common/shadow_wgsl.h"
 #include "common/pbr_lighting_wgsl.h"
 #include "common/ibl_bindings_wgsl.h"
+#include "common/gpu_material_wgsl.h"
 
 static const char *kShaderSource =
     FLECS_ENGINE_SHADER_COMMON_UNIFORMS_WGSL
     FLECS_ENGINE_SHADER_COMMON_IBL_BINDINGS_WGSL
     FLECS_ENGINE_SHADER_COMMON_SHADOW_WGSL
     FLECS_ENGINE_SHADER_COMMON_CLUSTER_WGSL
+    FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_STRUCT_WGSL
+    "@group(2) @binding(0) var<storage, read> materials : array<GpuMaterial>;\n"
     "struct VertexInput {\n"
     "  @location(0) pos : vec3<f32>,\n"
     "  @location(1) nrm : vec3<f32>,\n"
@@ -20,21 +23,13 @@ static const char *kShaderSource =
     "  @location(3) m1 : vec3<f32>,\n"
     "  @location(4) m2 : vec3<f32>,\n"
     "  @location(5) m3 : vec3<f32>,\n"
-    "  @location(6) color : vec4<f32>,\n"
-    "  @location(7) metallic : f32,\n"
-    "  @location(8) roughness : f32,\n"
-    "  @location(9) emissive_strength : f32,\n"
-    "  @location(10) emissive_color : vec4<f32>\n"
+    "  @location(6) material_id : u32\n"
     "};\n"
     "struct VertexOutput {\n"
     "  @builtin(position) pos : vec4<f32>,\n"
-    "  @location(0) color : vec4<f32>,\n"
-    "  @location(1) normal : vec3<f32>,\n"
-    "  @location(2) world_pos : vec3<f32>,\n"
-    "  @location(3) metallic : f32,\n"
-    "  @location(4) roughness : f32,\n"
-    "  @location(5) emissive_strength : f32,\n"
-    "  @location(6) emissive_color : vec3<f32>\n"
+    "  @location(0) normal : vec3<f32>,\n"
+    "  @location(1) world_pos : vec3<f32>,\n"
+    "  @location(2) @interpolate(flat) material_id : u32\n"
     "};\n"
     FLECS_ENGINE_SHADER_COMMON_SHARED_VERTEX_WGSL
     "@vertex fn vs_main(input : VertexInput) -> VertexOutput {\n"
@@ -49,28 +44,27 @@ static const char *kShaderSource =
     "  out.pos = vertex.clip_pos;\n"
     "  out.normal = vertex.world_normal;\n"
     "  out.world_pos = vertex.world_pos;\n"
-    "  out.metallic = input.metallic;\n"
-    "  out.roughness = input.roughness;\n"
-    "  out.emissive_strength = input.emissive_strength;\n"
-    "  out.emissive_color = input.emissive_color.rgb;\n"
-    "  out.color = input.color;\n"
+    "  out.material_id = input.material_id;\n"
     "  return out;\n"
     "}\n"
     FLECS_ENGINE_SHADER_COMMON_PBR_FUNCTIONS_WGSL
     FLECS_ENGINE_SHADER_COMMON_PBR_LIGHTING_WGSL
     "@fragment fn fs_main(input : VertexOutput) -> @location(0) vec4<f32> {\n"
-    "  let has_em_color = dot(input.emissive_color, input.emissive_color) > 0.0;\n"
-    "  let em_base = select(input.color.rgb, input.emissive_color, has_em_color);\n"
-    "  let emissive = em_base * max(input.emissive_strength, 0.0);\n"
+    "  let material = materials[input.material_id];\n"
+    "  let color = unpack4x8unorm(material.color);\n"
+    "  let em_color = unpack4x8unorm(material.emissive_color).rgb;\n"
+    "  let has_em_color = dot(em_color, em_color) > 0.0;\n"
+    "  let em_base = select(color.rgb, em_color, has_em_color);\n"
+    "  let emissive = em_base * max(material.emissive_strength, 0.0);\n"
     "  let lit = computePbrLighting(\n"
-    "    input.color.rgb,\n"
-    "    input.metallic,\n"
-    "    input.roughness,\n"
+    "    color.rgb,\n"
+    "    material.metallic,\n"
+    "    material.roughness,\n"
     "    emissive,\n"
     "    input.world_pos,\n"
     "    input.normal,\n"
     "    input.pos);\n"
-    "  return vec4<f32>(lit, input.color.a);\n"
+    "  return vec4<f32>(lit, color.a);\n"
     "}\n";
 
 ecs_entity_t flecsEngine_shader_pbrColored(
