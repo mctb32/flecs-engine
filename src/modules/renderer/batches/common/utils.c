@@ -1,7 +1,4 @@
-#include <stddef.h>
-#include <string.h>
-#include "render_batch.h"
-#include "../../tracy_hooks.h"
+#include "common.h"
 
 /* --- Shared buffer lifecycle --- */
 
@@ -192,18 +189,11 @@ void flecsEngine_batch_buffers_ensureCapacity(
         ecs_os_malloc_n(FlecsInstanceTransform, new_capacity);
 
     if (!buf->owns_material_data) {
-        /* Non-owning (both storage and legacy): per-instance MaterialId VBO
-         * read by the shader as the lookup index into the materials buffer.
-         * For storage batches the group-2 bind group is refreshed at render
-         * time from the scene bind group. */
         buf->instance_material_id = flecsEngine_makeVertexBuffer(device,
             (uint64_t)new_capacity * sizeof(FlecsMaterialId));
         buf->cpu_material_ids =
             ecs_os_malloc_n(FlecsMaterialId, new_capacity);
     } else if (buf->use_material_storage) {
-        /* Storage owning: private FlecsGpuMaterial buffer + bind group.
-         * The identity MaterialId VBO is engine-wide and supplied at render
-         * time, so the batch doesn't allocate its own MaterialId buffer. */
         uint64_t storage_size =
             (uint64_t)new_capacity * sizeof(FlecsGpuMaterial);
         buf->material_storage = wgpuDeviceCreateBuffer(device,
@@ -218,9 +208,6 @@ void flecsEngine_batch_buffers_ensureCapacity(
         buf->material_bind_group = flecsEngine_materialBind_createGroup(
             engine, buf->material_storage, storage_size);
     } else {
-        /* Legacy VBO owning: separate color/pbr/emissive (+ transmission)
-         * vertex buffers — used by pbr_transmission_colored and the
-         * skybox batch. */
         buf->instance_color = flecsEngine_makeVertexBuffer(device,
             (uint64_t)new_capacity * sizeof(FlecsRgba));
         buf->instance_pbr = flecsEngine_makeVertexBuffer(device,

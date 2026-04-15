@@ -1,4 +1,4 @@
-#include "mesh.h"
+#include "common.h"
 
 void* flecsEngine_mesh_onGroupCreate(
     ecs_world_t *world,

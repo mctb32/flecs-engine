@@ -1,4 +1,4 @@
-#include "render_batch.h"
+#include "common.h"
 
 void flecsEngine_batch_bindMaterialGroup(
     FlecsEngineImpl *engine,
@@ -55,23 +55,17 @@ void flecsEngine_batch_draw(
         pass, 1, buf->instance_transform, transform_offset, transform_size);
 
     if (buf->owns_material_data && buf->use_material_storage) {
-        /* Owning storage batches bind the engine-wide identity MaterialId
-         * buffer [0, 1, 2, ...] — instance k reads id k, which indexes into
-         * the batch's private material storage buffer at position k. */
         WGPUBuffer identity =
             flecsEngine_defaultAttrCache_getMaterialIdIdentityBuffer(
                 (FlecsEngineImpl*)engine, ctx->count);
         wgpuRenderPassEncoderSetVertexBuffer(pass, 2, identity, 0,
             (uint64_t)ctx->count * sizeof(FlecsMaterialId));
     } else if (!buf->owns_material_data) {
-        /* Non-owning (storage or legacy): per-instance MaterialId VBO. */
         wgpuRenderPassEncoderSetVertexBuffer(pass, 2,
             buf->instance_material_id,
             (uint64_t)ctx->offset * sizeof(FlecsMaterialId),
             (uint64_t)ctx->count * sizeof(FlecsMaterialId));
     } else {
-        /* Legacy VBO owning: separate per-instance color/pbr/emissive
-         * (+ transmission) vertex buffers. */
         wgpuRenderPassEncoderSetVertexBuffer(pass, 2,
             buf->instance_color,
             (uint64_t)ctx->offset * sizeof(FlecsRgba),

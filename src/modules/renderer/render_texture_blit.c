@@ -193,7 +193,7 @@ static void flecsEngine_textureArray_doBlit(
         .loadOp = WGPULoadOp_Clear,
         .storeOp = WGPUStoreOp_Store,
         .clearValue = { 0, 0, 0, 0 },
-        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED
+        WGPU_DEPTH_SLICE
     };
     WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
         encoder, &(WGPURenderPassDescriptor){

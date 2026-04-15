@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "renderer.h"
+#include "../atmosphere/atmosphere.h"
 #include "frustum_cull.h"
 #include "../../tracy_hooks.h"
 #include "flecs_engine.h"
@@ -482,10 +483,6 @@ static void flecsEngine_renderView_renderBatches(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    /* When the view has an atmosphere, batches render into a dedicated
-     * scene texture; the atmosphere compose pass then writes the composed
-     * result into effect_target_views[0]. Without atmosphere, batches write
-     * effect_target_views[0] directly. */
     WGPUTextureView batch_target = view->atmosphere && viewImpl->scene_target_view
         ? viewImpl->scene_target_view
         : viewImpl->effect_target_views[0];
@@ -579,8 +576,6 @@ static void flecsEngine_renderView_render(
         return;
     }
 
-    /* The atmosphere owns the sky and aerial perspective when set; batches
-     * render into a dedicated scene texture that compose reads from. */
     bool have_atmosphere = view->atmosphere != 0;
     if (have_atmosphere) {
         FLECS_TRACY_ZONE_BEGIN_N(atm_ensure_zone, "AtmosEnsureImpl");
@@ -620,14 +615,8 @@ static void flecsEngine_renderView_render(
 
     flecsEngine_setupLights(world, engine);
     flecsEngine_cluster_build(world, engine, view);
-
-    /* Populate the engine-global frame uniform buffer for this view.
-     * Written once here instead of once per pipeline change per batch. */
     flecsEngine_renderView_writeFrameUniforms(world, engine, view);
 
-    /* Atmosphere LUTs + IBL happen BEFORE batches so that the IBL cubemaps
-     * reflect the current frame's sun & atmosphere state when batches sample
-     * them via the scene globals bind group. */
     if (have_atmosphere) {
         if (!flecsEngine_atmosphere_renderLuts(
             world, engine, view->atmosphere, view_entity, encoder))
@@ -648,8 +637,6 @@ static void flecsEngine_renderView_render(
         flecsEngine_depthResolve(engine, encoder);
     }
 
-    /* Compose runs AFTER batches — it reads the scene framebuffer to add
-     * sky for depth=far pixels and aerial perspective to geometry. */
     if (have_atmosphere) {
         if (!flecsEngine_atmosphere_renderCompose(
             world, engine, view->atmosphere, encoder,
@@ -677,7 +664,6 @@ static void flecsEngine_renderView_extract(
     FLECS_TRACY_ZONE_BEGIN("ExtractView");
     (void)impl;
 
-    /* Extract frustum planes from camera view-projection matrix */
     engine->frustum_valid = false;
     engine->shadow_frustum_valid = false;
 
@@ -714,7 +700,6 @@ static void flecsEngine_renderView_extract(
         }
     }
 
-    /* Compute screen-size culling factor from camera FOV and viewport */
     engine->screen_cull_valid = false;
     if (view->screen_size_threshold > 0.0f && view->camera) {
         const FlecsCamera *cam = ecs_get(

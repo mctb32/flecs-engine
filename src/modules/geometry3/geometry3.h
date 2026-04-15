@@ -30,9 +30,6 @@ ecs_entity_t flecsEngine_geometry3_createAsset(
 const FlecsMesh3Impl* flecsEngine_box_getAsset(
     ecs_world_t *world);
 
-const FlecsMesh3Impl* flecsEngine_cone_getAsset(
-    ecs_world_t *world);
-
 const FlecsMesh3Impl* flecsEngine_quad_getAsset(
     ecs_world_t *world);
 

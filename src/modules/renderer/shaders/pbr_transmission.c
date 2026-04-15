@@ -18,7 +18,7 @@ static const char *kShaderSource =
 
     FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_WGSL
 
-    /* Opaque scene snapshot at group 0 binding 3 (was BRDF LUT) */
+    /* Opaque scene snapshot at group 0 binding 3 */
     "@group(0) @binding(3) var opaque_snapshot : texture_2d<f32>;\n"
 
     FLECS_ENGINE_SHADER_COMMON_PBR_TEXTURES_WGSL

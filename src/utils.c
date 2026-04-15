@@ -175,11 +175,7 @@ WGPUTextureFormat flecsEngine_getHdrFormat(
 WGPUTextureFormat flecsEngine_getViewTargetFormat(
     const FlecsEngineImpl *impl)
 {
-#ifdef __EMSCRIPTEN__
-    return flecsEngine_getHdrFormat(impl);
-#else
     return impl->surface_config.format;
-#endif
 }
 
 ecs_entity_t flecsEngine_vecEntity(

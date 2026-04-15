@@ -1,0 +1,116 @@
+#ifndef FLECS_ENGINE_RENDER_EFFECTS_INTERNAL_H
+#define FLECS_ENGINE_RENDER_EFFECTS_INTERNAL_H
+
+struct FlecsRenderEffect;
+
+typedef bool (*flecs_render_effect_setup_callback)(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    ecs_entity_t effect_entity,
+    const struct FlecsRenderEffect *effect,
+    FlecsRenderEffectImpl *effect_impl,
+    WGPUBindGroupLayoutEntry *layout_entries,
+    uint32_t *entry_count);
+
+typedef bool (*flecs_render_effect_bind_callback)(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    ecs_entity_t effect_entity,
+    const struct FlecsRenderEffect *effect,
+    const FlecsRenderEffectImpl *effect_impl,
+    WGPUBindGroupEntry *entries,
+    uint32_t *entry_count);
+
+typedef bool (*flecs_render_effect_render_callback)(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    WGPUCommandEncoder encoder,
+    ecs_entity_t effect_entity,
+    const struct FlecsRenderEffect *effect,
+    FlecsRenderEffectImpl *effect_impl,
+    WGPUTextureView input_view,
+    WGPUTextureFormat input_format,
+    WGPUTextureView output_view,
+    WGPUTextureFormat output_format,
+    WGPULoadOp output_load_op);
+
+// Fullscreen post-process effect. Input uses chain indexing:
+// 0 = batches framebuffer, k > 0 = output of effect[k - 1].
+ECS_STRUCT(FlecsRenderEffect, {
+    ecs_entity_t shader;
+    int32_t input;
+ECS_PRIVATE
+    flecs_render_effect_setup_callback setup_callback;
+    flecs_render_effect_bind_callback bind_callback;
+    flecs_render_effect_render_callback render_callback;
+    void *ctx;
+    void (*free_ctx)(void *ctx);
+});
+
+int flecsEngine_initPassthrough(
+    FlecsEngineImpl *impl);
+
+int flecsEngine_initDepthResolve(
+    FlecsEngineImpl *impl);
+
+void flecsEngine_depthResolve(
+    const FlecsEngineImpl *impl,
+    WGPUCommandEncoder encoder);
+
+void flecsEngine_renderEffect_register(
+    ecs_world_t *world);
+
+void flecsEngine_tonyMcMapFace_register(
+    ecs_world_t *world);
+
+void flecsEngine_bloom_register(
+    ecs_world_t *world);
+
+void flecsEngine_heightFog_register(
+    ecs_world_t *world);
+
+void flecsEngine_ssao_register(
+    ecs_world_t *world);
+
+void flecsEngine_sunShafts_register(
+    ecs_world_t *world);
+
+void flecsEngine_renderEffect_render(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *impl,
+    const WGPURenderPassEncoder pass,
+    ecs_entity_t effect_entity,
+    const FlecsRenderEffect *effect,
+    const FlecsRenderEffectImpl *effect_impl,
+    WGPUTextureView input_view,
+    WGPUTextureFormat output_format);
+
+void flecsEngine_renderView_renderEffects(
+    ecs_world_t *world,
+    ecs_entity_t view_entity,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view,
+    FlecsRenderViewImpl *viewImpl,
+    WGPUTextureView view_texture,
+    WGPUCommandEncoder encoder);
+
+/* Shared fullscreen-triangle vertex shader used by all post-process effects.
+ * Produces a single triangle covering clip space with correct UVs. */
+#define FLECS_ENGINE_FULLSCREEN_VS_WGSL \
+    "struct VertexOutput {\n" \
+    "  @builtin(position) pos : vec4<f32>,\n" \
+    "  @location(0) uv : vec2<f32>\n" \
+    "};\n" \
+    "@vertex fn vs_main(@builtin(vertex_index) vid : u32) -> VertexOutput {\n" \
+    "  var out : VertexOutput;\n" \
+    "  var pos = array<vec2<f32>, 3>(\n" \
+    "      vec2<f32>(-1.0, -1.0),\n" \
+    "      vec2<f32>(3.0, -1.0),\n" \
+    "      vec2<f32>(-1.0, 3.0));\n" \
+    "  let p = pos[vid];\n" \
+    "  out.pos = vec4<f32>(p, 0.0, 1.0);\n" \
+    "  out.uv = vec2<f32>((p.x + 1.0) * 0.5, (1.0 - p.y) * 0.5);\n" \
+    "  return out;\n" \
+    "}\n"
+
+#endif

@@ -1,4 +1,4 @@
-#include "mesh.h"
+#include "common.h"
 
 static void flecsEngine_mesh_extractShadowGroup(
     const ecs_world_t *world,

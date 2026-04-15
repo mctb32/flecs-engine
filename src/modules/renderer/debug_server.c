@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "render_batch.h"
+#include "batches/common/common.h"
 #include "flecs_engine.h"
 
 #define FLECS_ENGINE_DEBUG_PORT 8000

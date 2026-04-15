@@ -9,7 +9,6 @@
 #include "flecs_engine.h"
 
 #define FLECS_ENGINE_IBL_ENV_SIZE (512u)
-/* BRDF LUT replaced by analytical Karis/Lazarov approximation in shader */
 #define FLECS_ENGINE_IBL_IRRADIANCE_SIZE (32u)
 #define FLECS_ENGINE_IBL_FALLBACK_IMAGE_SIZE (1u)
 

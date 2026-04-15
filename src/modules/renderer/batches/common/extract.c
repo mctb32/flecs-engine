@@ -1,6 +1,4 @@
-#include "render_batch.h"
-#include "frustum_cull.h"
-#include "../../tracy_hooks.h"
+#include "common.h"
 
 FlecsGpuMaterial flecsEngine_batch_packGpuMaterial(
     const FlecsEngineImpl *engine,

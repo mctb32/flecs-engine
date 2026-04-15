@@ -61,43 +61,14 @@ int flecsEngine_initPassthrough(
         return -1;
     }
 
-    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-        impl->device, &(WGPUPipelineLayoutDescriptor){
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &impl->depth.passthrough_bind_layout
-        });
-    if (!pipeline_layout) {
-        wgpuShaderModuleRelease(module);
-        return -1;
-    }
-
     WGPUColorTargetState color_target = {
         .format = flecsEngine_getViewTargetFormat(impl),
         .writeMask = WGPUColorWriteMask_All
     };
 
-    impl->depth.passthrough_pipeline = wgpuDeviceCreateRenderPipeline(
-        impl->device, &(WGPURenderPipelineDescriptor){
-            .layout = pipeline_layout,
-            .vertex = {
-                .module = module,
-                .entryPoint = WGPU_STR("vs_main")
-            },
-            .fragment = &(WGPUFragmentState){
-                .module = module,
-                .entryPoint = WGPU_STR("fs_main"),
-                .targetCount = 1,
-                .targets = &color_target
-            },
-            .primitive = {
-                .topology = WGPUPrimitiveTopology_TriangleList,
-                .cullMode = WGPUCullMode_None,
-                .frontFace = WGPUFrontFace_CCW
-            },
-            .multisample = WGPU_MULTISAMPLE_DEFAULT
-        });
+    impl->depth.passthrough_pipeline = flecsEngine_createFullscreenPipeline(
+        impl, module, impl->depth.passthrough_bind_layout, &color_target, NULL);
 
-    wgpuPipelineLayoutRelease(pipeline_layout);
     wgpuShaderModuleRelease(module);
 
     return impl->depth.passthrough_pipeline ? 0 : -1;

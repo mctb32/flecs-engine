@@ -1,258 +1,118 @@
 #ifndef FLECS_ENGINE_RENDER_BATCH_H
 #define FLECS_ENGINE_RENDER_BATCH_H
 
-#include "renderer.h"
+struct FlecsRenderBatch;
 
-typedef void (*flecsEngine_primitive_scale_t)(
-    const void *value,
-    float *out);
-
-typedef struct {
-    FlecsInstanceTransform *cpu_transforms;
-    FlecsRgba *cpu_colors;
-    FlecsPbrMaterial *cpu_pbr_materials;
-    FlecsEmissive *cpu_emissives;
-    FlecsTransmission *cpu_transmissions;
-    FlecsMaterialId *cpu_material_ids;
-    FlecsGpuMaterial *cpu_gpu_materials;
-    int32_t count;
-    int32_t capacity;
-
-    WGPUBuffer instance_transform;
-    WGPUBuffer instance_color;
-    WGPUBuffer instance_pbr;
-    WGPUBuffer instance_emissive;
-    WGPUBuffer instance_transmission;
-    WGPUBuffer instance_material_id;
-    WGPUBuffer material_storage;
-    WGPUBindGroup material_bind_group;
-
-    WGPUBuffer shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    FlecsInstanceTransform *cpu_shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    int32_t shadow_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    int32_t shadow_capacity;
-
-    bool owns_material_data;
-    bool owns_transmission_data;
-    bool use_material_storage;
-} flecsEngine_batch_buffers_t;
-
-typedef struct {
-    flecsEngine_batch_buffers_t *buffers;
-    int32_t count;
-    int32_t offset;
-    FlecsMesh3Impl mesh;
-    WGPUBuffer vertex_buffer;
-
-    ecs_entity_t component;
-    ecs_size_t component_size;
-    flecsEngine_primitive_scale_t scale_callback;
-
-    uint64_t group_id;
-
-    int32_t shadow_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    int32_t shadow_offset[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-} flecsEngine_batch_t;
-
-/* --- Shared buffer lifecycle --- */
-
-typedef enum {
-    FLECS_BATCH_BUFFERS_DEFAULT = 0,
-    FLECS_BATCH_BUFFERS_OWNS_MATERIAL = 1 << 0,
-    FLECS_BATCH_BUFFERS_OWNS_TRANSMISSION = 1 << 1,
-    FLECS_BATCH_BUFFERS_STORAGE = 1 << 2
-} flecsEngine_batch_buffers_flags_t;
-
-void flecsEngine_batch_buffers_init(
-    flecsEngine_batch_buffers_t *buf,
-    flecsEngine_batch_buffers_flags_t flags);
-
-void flecsEngine_batch_buffers_fini(
-    flecsEngine_batch_buffers_t *buf);
-
-void flecsEngine_batch_buffers_ensureCapacity(
-    const FlecsEngineImpl *engine,
-    flecsEngine_batch_buffers_t *buf,
-    int32_t count);
-
-void flecsEngine_batch_buffers_ensureShadowCapacity(
-    const FlecsEngineImpl *engine,
-    flecsEngine_batch_buffers_t *buf,
-    int32_t count);
-
-void flecsEngine_batch_buffers_upload(
-    const FlecsEngineImpl *engine,
-    const flecsEngine_batch_buffers_t *buf);
-
-void flecsEngine_batch_buffers_uploadShadow(
-    const FlecsEngineImpl *engine,
-    const flecsEngine_batch_buffers_t *buf);
-
-/* --- Per-group batch lifecycle --- */
-
-void flecsEngine_batch_init(
-    flecsEngine_batch_t* batch,
-    ecs_world_t *world,
-    const FlecsMesh3Impl *mesh,
-    uint64_t group_id,
-    ecs_entity_t component,
-    flecsEngine_primitive_scale_t scale_callback);
-
-flecsEngine_batch_t* flecsEngine_batch_create(
-    ecs_world_t *world,
-    const FlecsMesh3Impl *mesh,
-    uint64_t group_id,
-    ecs_entity_t component,
-    flecsEngine_primitive_scale_t scale_callback);
-
-void flecsEngine_batch_fini(
-    flecsEngine_batch_t *ptr);
-
-void flecsEngine_batch_delete(
-    void *ptr);
-
-void flecsEngine_batch_extractInstances(
+typedef void (*flecs_render_batch_callback)(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
-    const FlecsRenderBatch *batch,
-    flecsEngine_batch_t *ctx);
+    const WGPURenderPassEncoder pass,
+    const struct FlecsRenderBatch *batch);
 
-void flecsEngine_batch_extractShadowInstances(
+typedef void (*flecs_render_batch_extract_callback)(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
-    const FlecsRenderBatch *batch,
-    flecsEngine_batch_t *ctx);
+    const struct FlecsRenderBatch *batch);
 
-FlecsGpuMaterial flecsEngine_batch_packGpuMaterial(
-    const FlecsEngineImpl *engine,
-    const FlecsRgba *color,
-    const FlecsPbrMaterial *pbr,
-    const FlecsEmissive *emissive);
+// Render entities matching a query with specified shader
+ECS_STRUCT(FlecsRenderBatch, {
+    ecs_entity_t shader;
+    ecs_query_t *query;
+    ecs_entity_t vertex_type;
+    ecs_entity_t instance_types[FLECS_ENGINE_INSTANCE_TYPES_MAX];
+    WGPUCompareFunction depth_test;
+    WGPUCullMode cull_mode;
+    WGPUBlendState blend;
+    bool depth_write;
+ECS_PRIVATE
+    flecs_render_batch_extract_callback extract_callback;
+    flecs_render_batch_extract_callback shadow_extract_callback;
+    flecs_render_batch_extract_callback upload_callback;
+    flecs_render_batch_extract_callback shadow_upload_callback;
+    flecs_render_batch_callback callback;
+    flecs_render_batch_callback shadow_callback;
+    void *ctx;
+    void (*free_ctx)(void *ctx);
+    bool render_after_snapshot;
+    bool needs_transmission;
+});
 
-void flecsEngine_batch_bindMaterialGroup(
+void flecsEngine_renderBatch_render(
+    ecs_world_t *world,
+    FlecsEngineImpl *impl,
+    const WGPURenderPassEncoder pass,
+    const FlecsRenderView *view,
+    ecs_entity_t batch_entity);
+
+void flecsEngine_renderBatch_renderShadow(
+    ecs_world_t *world,
     FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_buffers_t *buf);
+    ecs_entity_t batch_entity);
 
-void flecsEngine_batch_draw(
-    const FlecsEngineImpl *engine,
-    const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_t *ctx);
-
-void flecsEngine_batch_drawShadow(
-    const FlecsEngineImpl *engine,
-    const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_t *ctx);
-
-void flecsEngine_batch_transformInstance(
-    FlecsInstanceTransform *out,
-    const FlecsWorldTransform3 *wt,
-    float scale_x,
-    float scale_y,
-    float scale_z);
-
-void flecsEngine_batch_extractSingleInstance(
-    const FlecsEngineImpl *engine,
-    flecsEngine_batch_t *batch,
-    const FlecsWorldTransform3 *transform,
-    const FlecsRgba *color,
-    float scale_x,
-    float scale_y,
-    float scale_z);
-
-ecs_entity_t flecsEngine_createBatch_mesh_materialData(
+void flecsEngine_renderBatch_extract(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *impl,
+    ecs_entity_t batch_entity);
 
-ecs_entity_t flecsEngine_createBatch_boxes(
+void flecsEngine_renderBatch_extractShadow(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *impl,
+    ecs_entity_t batch_entity);
 
-ecs_entity_t flecsEngine_createBatch_quads(
+void flecsEngine_renderBatch_upload(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *impl,
+    ecs_entity_t batch_entity);
 
-ecs_entity_t flecsEngine_createBatch_triangles(
+void flecsEngine_renderBatch_uploadShadow(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *impl,
+    ecs_entity_t batch_entity);
 
-ecs_entity_t flecsEngine_createBatch_right_triangles(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+void flecsEngine_renderBatch_register(
+    ecs_world_t *world);
 
-ecs_entity_t flecsEngine_createBatch_triangle_prisms(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+void flecsEngine_renderBatchSet_register(
+    ecs_world_t *world);
 
-ecs_entity_t flecsEngine_createBatch_right_triangle_prisms(
+bool flecsEngine_renderBatchSet_hasTransmission(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set);
 
-ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
+void flecsEngine_renderBatchSet_extract(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set);
 
-ecs_entity_t flecsEngine_createBatch_boxes_materialIndex(
+void flecsEngine_renderBatchSet_extractShadow(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set);
 
-ecs_entity_t flecsEngine_createBatch_quads_materialIndex(
+void flecsEngine_renderBatchSet_upload(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set);
 
-ecs_entity_t flecsEngine_createBatch_triangles_materialIndex(
+void flecsEngine_renderBatchSet_uploadShadow(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set);
 
-ecs_entity_t flecsEngine_createBatch_right_triangles_materialIndex(
+void flecsEngine_renderBatchSet_render(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set,
+    WGPURenderPassEncoder pass,
+    const FlecsRenderView *view,
+    int phase);
 
-ecs_entity_t flecsEngine_createBatch_triangle_prisms_materialIndex(
+void flecsEngine_renderBatchSet_renderShadow(
     ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
-
-ecs_entity_t flecsEngine_createBatch_right_triangle_prisms_materialIndex(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
-
-ecs_entity_t flecsEngine_createBatch_bevel_boxes(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
-
-ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
-
-ecs_entity_t flecsEngine_createBatch_mesh_transparent(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
-
-ecs_entity_t flecsEngine_createBatch_mesh_transmission(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
-
-ecs_entity_t flecsEngine_createBatch_mesh_transmissionData(
-    ecs_world_t *world,
-    ecs_entity_t parent,
-    const char *name);
+    FlecsEngineImpl *engine,
+    const FlecsRenderBatchSet *batch_set,
+    WGPURenderPassEncoder pass);
 
 #endif

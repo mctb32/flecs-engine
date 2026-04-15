@@ -12,7 +12,9 @@ option(FLECS_ENGINE_TRACY "Enable Tracy profiler integration" OFF)
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" FORCE)
   set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" FORCE)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  if(NOT EMSCRIPTEN)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
 endif()
 
 include(FetchContent)
@@ -171,10 +173,8 @@ if(EMSCRIPTEN)
     -sASYNCIFY_STACK_SIZE=65536
     -sSTACK_SIZE=1048576
     "-sASYNCIFY_IMPORTS=['emscripten_sleep']"
-    "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/city.flecs@city.flecs"
-    "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/cube.flecs@cube.flecs"
-    "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/empty.flecs@empty.flecs"
-    "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/museum.flecs@museum.flecs"
+    "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/etc/assets/scenes/cube.flecs@etc/assets/scenes/cube.flecs"
+    "SHELL:--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/etc/assets/scenes/empty.flecs@etc/assets/scenes/empty.flecs"
     "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/shell.html"
   )
 

@@ -382,7 +382,9 @@ const char* flecsEngine_texture_formatName(
     case WGPUTextureFormat_RGBA8Sint: return "RGBA8Sint";
     case WGPUTextureFormat_BGRA8Unorm: return "BGRA8Unorm";
     case WGPUTextureFormat_BGRA8UnormSrgb: return "BGRA8UnormSrgb";
+#ifndef __EMSCRIPTEN__
     case WGPUTextureFormat_RGB10A2Uint: return "RGB10A2Uint";
+#endif
     case WGPUTextureFormat_RGB10A2Unorm: return "RGB10A2Unorm";
     case WGPUTextureFormat_RG11B10Ufloat: return "RG11B10Ufloat";
     case WGPUTextureFormat_RGB9E5Ufloat: return "RGB9E5Ufloat";

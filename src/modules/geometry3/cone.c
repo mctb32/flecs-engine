@@ -301,13 +301,6 @@ static ecs_entity_t flecsEngine_cone_getEntity(
     return asset;
 }
 
-const FlecsMesh3Impl* flecsEngine_cone_getAsset(
-    ecs_world_t *world)
-{
-    ecs_entity_t asset = flecsEngine_cone_getEntity(world, 4, false, 1.0f);
-    return ecs_get(world, asset, FlecsMesh3Impl);
-}
-
 void FlecsCone_on_replace(
     ecs_iter_t *it)
 {

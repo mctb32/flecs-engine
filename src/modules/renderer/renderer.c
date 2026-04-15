@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "batches/batches.h"
 #include "../engine/engine.h"
 #include "../../tracy_hooks.h"
 
@@ -122,7 +123,7 @@ static int flecsEngine_ensureDepthResources(
     return 0;
 }
 
-void flecsEngine_releaseMsaaResources(
+static void flecsEngine_releaseMsaaResources(
     FlecsEngineImpl *impl)
 {
     if (impl->depth.msaa_color_texture_view) {
@@ -145,6 +146,45 @@ void flecsEngine_releaseMsaaResources(
     impl->depth.msaa_texture_height = 0;
     impl->depth.msaa_texture_sample_count = 0;
     impl->depth.msaa_color_format = WGPUTextureFormat_Undefined;
+}
+
+void flecsEngine_renderer_cleanup(
+    FlecsEngineImpl *impl)
+{
+    if (impl->depth.passthrough_pipeline) {
+        wgpuRenderPipelineRelease(impl->depth.passthrough_pipeline);
+        impl->depth.passthrough_pipeline = NULL;
+    }
+    if (impl->depth.passthrough_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->depth.passthrough_bind_layout);
+        impl->depth.passthrough_bind_layout = NULL;
+    }
+    if (impl->depth.passthrough_sampler) {
+        wgpuSamplerRelease(impl->depth.passthrough_sampler);
+        impl->depth.passthrough_sampler = NULL;
+    }
+
+    if (impl->depth.depth_resolve_pipeline) {
+        wgpuRenderPipelineRelease(impl->depth.depth_resolve_pipeline);
+        impl->depth.depth_resolve_pipeline = NULL;
+    }
+    if (impl->depth.depth_resolve_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->depth.depth_resolve_bind_layout);
+        impl->depth.depth_resolve_bind_layout = NULL;
+    }
+
+    flecsEngine_releaseMsaaResources(impl);
+
+    if (impl->depth.depth_texture_view) {
+        wgpuTextureViewRelease(impl->depth.depth_texture_view);
+        impl->depth.depth_texture_view = NULL;
+    }
+    if (impl->depth.depth_texture) {
+        wgpuTextureRelease(impl->depth.depth_texture);
+        impl->depth.depth_texture = NULL;
+    }
+    impl->depth.depth_texture_width = 0;
+    impl->depth.depth_texture_height = 0;
 }
 
 static int flecsEngine_ensureMsaaResources(
@@ -197,15 +237,14 @@ static int flecsEngine_ensureMsaaResources(
         impl->device, &color_desc);
     if (!impl->depth.msaa_color_texture) {
         ecs_err("Failed to create MSAA color texture");
-        return -1;
+        goto error;
     }
 
     impl->depth.msaa_color_texture_view = wgpuTextureCreateView(
         impl->depth.msaa_color_texture, NULL);
     if (!impl->depth.msaa_color_texture_view) {
         ecs_err("Failed to create MSAA color texture view");
-        flecsEngine_releaseMsaaResources(impl);
-        return -1;
+        goto error;
     }
 
     /* MSAA depth texture */
@@ -226,16 +265,14 @@ static int flecsEngine_ensureMsaaResources(
         impl->device, &depth_desc);
     if (!impl->depth.msaa_depth_texture) {
         ecs_err("Failed to create MSAA depth texture");
-        flecsEngine_releaseMsaaResources(impl);
-        return -1;
+        goto error;
     }
 
     impl->depth.msaa_depth_texture_view = wgpuTextureCreateView(
         impl->depth.msaa_depth_texture, NULL);
     if (!impl->depth.msaa_depth_texture_view) {
         ecs_err("Failed to create MSAA depth texture view");
-        flecsEngine_releaseMsaaResources(impl);
-        return -1;
+        goto error;
     }
 
     impl->depth.msaa_texture_width = width;
@@ -243,6 +280,10 @@ static int flecsEngine_ensureMsaaResources(
     impl->depth.msaa_texture_sample_count = sc;
     impl->depth.msaa_color_format = color_format;
     return 0;
+
+error:
+    flecsEngine_releaseMsaaResources(impl);
+    return -1;
 }
 
 static void flecsEngine_rebuildBatchPipelines(
@@ -417,9 +458,11 @@ static void FlecsEngineRender(
     ecs_iter_t *it)
 {
     FLECS_TRACY_ZONE_BEGIN("Render");
+#ifndef __EMSCRIPTEN__
     FLECS_TRACY_ZONE_BEGIN_N(__dbg, "DebugServerDequeue");
     flecsEngine_debugServer_dequeue(it->delta_time);
     FLECS_TRACY_ZONE_END_N(__dbg);
+#endif
     FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
 
     const FlecsEngineSurfaceInterface *surface_impl = impl->surface_impl;
@@ -720,5 +763,7 @@ void FlecsEngineRendererImport(
     ECS_SYSTEM(world, FlecsEngineRender, EcsOnStore,
         flecs.engine.EngineImpl);
 
+#ifndef __EMSCRIPTEN__
     flecsEngine_debugServer_init(world);
+#endif
 }

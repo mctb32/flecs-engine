@@ -212,10 +212,9 @@ typedef struct {
     WGPUBindGroup ms_bind_group;
     WGPUBindGroup skyview_bind_group;
 
-    /* Aerial LUT compute pipeline — one dispatch writes all 32x32x32 voxels
-     * in a single encoder command, replacing the old 32 fragment passes. */
+    /* Aerial LUT compute pipeline — one dispatch writes all 32x32x32 voxels. */
     WGPUBindGroupLayout aerial_compute_layout;
-    WGPURenderPipeline aerial_compute_pipeline; /* WGPUComputePipeline */
+    WGPUComputePipeline aerial_compute_pipeline;
     WGPUBindGroup aerial_compute_bind_group;
     WGPUTextureView aerial_storage_view;        /* storage-write view */
 } FlecsAtmosphereImpl;

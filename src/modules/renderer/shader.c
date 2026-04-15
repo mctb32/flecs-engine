@@ -21,6 +21,48 @@ WGPUShaderModule flecsEngine_createShaderModule(
         });
 }
 
+WGPURenderPipeline flecsEngine_createFullscreenPipeline(
+    const FlecsEngineImpl *impl,
+    WGPUShaderModule module,
+    WGPUBindGroupLayout bind_layout,
+    const WGPUColorTargetState *color_target,
+    const WGPUDepthStencilState *depth_stencil)
+{
+    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+        impl->device, &(WGPUPipelineLayoutDescriptor){
+            .bindGroupLayoutCount = 1,
+            .bindGroupLayouts = &bind_layout
+        });
+    if (!pipeline_layout) {
+        return NULL;
+    }
+
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
+        impl->device, &(WGPURenderPipelineDescriptor){
+            .layout = pipeline_layout,
+            .vertex = {
+                .module = module,
+                .entryPoint = WGPU_STR("vs_main")
+            },
+            .fragment = &(WGPUFragmentState){
+                .module = module,
+                .entryPoint = WGPU_STR("fs_main"),
+                .targetCount = color_target ? 1 : 0,
+                .targets = color_target
+            },
+            .primitive = {
+                .topology = WGPUPrimitiveTopology_TriangleList,
+                .cullMode = WGPUCullMode_None,
+                .frontFace = WGPUFrontFace_CCW
+            },
+            .depthStencil = depth_stencil,
+            .multisample = WGPU_MULTISAMPLE_DEFAULT
+        });
+
+    wgpuPipelineLayoutRelease(pipeline_layout);
+    return pipeline;
+}
+
 static void flecsShaderImplRelease(
     FlecsShaderImpl *ptr)
 {

@@ -1,4 +1,4 @@
-#include "mesh/mesh.h"
+#include "common/common.h"
 
 /* --- Non-textured mesh batch creation --- */
 

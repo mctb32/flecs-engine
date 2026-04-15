@@ -45,45 +45,15 @@ int flecsEngine_initDepthResolve(
         return -1;
     }
 
-    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-        impl->device, &(WGPUPipelineLayoutDescriptor){
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &impl->depth.depth_resolve_bind_layout
-        });
-    if (!pipeline_layout) {
-        wgpuShaderModuleRelease(module);
-        return -1;
-    }
-
     WGPUDepthStencilState depth_stencil = {
         .format = WGPUTextureFormat_Depth24Plus,
         .depthWriteEnabled = true,
         .depthCompare = WGPUCompareFunction_Always
     };
 
-    impl->depth.depth_resolve_pipeline = wgpuDeviceCreateRenderPipeline(
-        impl->device, &(WGPURenderPipelineDescriptor){
-            .layout = pipeline_layout,
-            .vertex = {
-                .module = module,
-                .entryPoint = WGPU_STR("vs_main")
-            },
-            .fragment = &(WGPUFragmentState){
-                .module = module,
-                .entryPoint = WGPU_STR("fs_main"),
-                .targetCount = 0,
-                .targets = NULL
-            },
-            .primitive = {
-                .topology = WGPUPrimitiveTopology_TriangleList,
-                .cullMode = WGPUCullMode_None,
-                .frontFace = WGPUFrontFace_CCW
-            },
-            .depthStencil = &depth_stencil,
-            .multisample = WGPU_MULTISAMPLE_DEFAULT
-        });
+    impl->depth.depth_resolve_pipeline = flecsEngine_createFullscreenPipeline(
+        impl, module, impl->depth.depth_resolve_bind_layout, NULL, &depth_stencil);
 
-    wgpuPipelineLayoutRelease(pipeline_layout);
     wgpuShaderModuleRelease(module);
 
     return impl->depth.depth_resolve_pipeline ? 0 : -1;

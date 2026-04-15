@@ -1,6 +1,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "atmosphere.h"
 #include "../renderer/renderer.h"
 #include "../renderer/ibl/ibl_internal.h"
 #include "../../tracy_hooks.h"
@@ -986,281 +987,120 @@ static WGPUComputePipeline flecsEngine_atmos_createComputePipeline(
     return p;
 }
 
+typedef enum {
+    ATMOS_BIND_UNIFORM,
+    ATMOS_BIND_TEX2D,
+    ATMOS_BIND_TEX2DARRAY,
+    ATMOS_BIND_TEX_DEPTH,
+    ATMOS_BIND_SAMPLER,
+    ATMOS_BIND_STORAGE2DARRAY
+} flecsEngine_atmos_bind_kind_t;
+
+static WGPUBindGroupLayout flecsEngine_atmos_makeLayout(
+    const FlecsEngineImpl *engine,
+    WGPUShaderStage stage,
+    const flecsEngine_atmos_bind_kind_t *kinds,
+    uint32_t count)
+{
+    WGPUBindGroupLayoutEntry entries[16] = {0};
+    ecs_assert(count <= 16, ECS_INTERNAL_ERROR, NULL);
+    for (uint32_t i = 0; i < count; i ++) {
+        entries[i].binding = i;
+        entries[i].visibility = stage;
+        switch (kinds[i]) {
+        case ATMOS_BIND_UNIFORM:
+            entries[i].buffer.type = WGPUBufferBindingType_Uniform;
+            entries[i].buffer.minBindingSize = sizeof(FlecsAtmosphereUniform);
+            break;
+        case ATMOS_BIND_TEX2D:
+            entries[i].texture.sampleType = WGPUTextureSampleType_Float;
+            entries[i].texture.viewDimension = WGPUTextureViewDimension_2D;
+            break;
+        case ATMOS_BIND_TEX2DARRAY:
+            entries[i].texture.sampleType = WGPUTextureSampleType_Float;
+            entries[i].texture.viewDimension = WGPUTextureViewDimension_2DArray;
+            break;
+        case ATMOS_BIND_TEX_DEPTH:
+            entries[i].texture.sampleType = WGPUTextureSampleType_Depth;
+            entries[i].texture.viewDimension = WGPUTextureViewDimension_2D;
+            break;
+        case ATMOS_BIND_SAMPLER:
+            entries[i].sampler.type = WGPUSamplerBindingType_Filtering;
+            break;
+        case ATMOS_BIND_STORAGE2DARRAY:
+            entries[i].storageTexture.access = WGPUStorageTextureAccess_WriteOnly;
+            entries[i].storageTexture.format = FLECS_ATMOS_FORMAT;
+            entries[i].storageTexture.viewDimension = WGPUTextureViewDimension_2DArray;
+            break;
+        }
+    }
+    WGPUBindGroupLayoutDescriptor d = { .entryCount = count, .entries = entries };
+    return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
+}
+
 static WGPUBindGroupLayout flecsEngine_atmos_layoutUniformOnly(
     const FlecsEngineImpl *engine)
 {
-    WGPUBindGroupLayoutEntry entries[1] = {
-        {
-            .binding = 0,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(FlecsAtmosphereUniform)
-            }
-        }
-    };
-    WGPUBindGroupLayoutDescriptor d = { .entryCount = 1, .entries = entries };
-    return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
+    static const flecsEngine_atmos_bind_kind_t k[] = { ATMOS_BIND_UNIFORM };
+    return flecsEngine_atmos_makeLayout(engine, WGPUShaderStage_Fragment, k, 1);
 }
 
 static WGPUBindGroupLayout flecsEngine_atmos_layoutMS(
     const FlecsEngineImpl *engine)
 {
-    WGPUBindGroupLayoutEntry entries[3] = {
-        {
-            .binding = 0,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(FlecsAtmosphereUniform)
-            }
-        },
-        {
-            .binding = 1,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 2,
-            .visibility = WGPUShaderStage_Fragment,
-            .sampler = { .type = WGPUSamplerBindingType_Filtering }
-        }
+    static const flecsEngine_atmos_bind_kind_t k[] = {
+        ATMOS_BIND_UNIFORM, ATMOS_BIND_TEX2D, ATMOS_BIND_SAMPLER
     };
-    WGPUBindGroupLayoutDescriptor d = { .entryCount = 3, .entries = entries };
-    return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
+    return flecsEngine_atmos_makeLayout(engine, WGPUShaderStage_Fragment, k, 3);
 }
 
 static WGPUBindGroupLayout flecsEngine_atmos_layoutSkyView(
     const FlecsEngineImpl *engine)
 {
-    WGPUBindGroupLayoutEntry entries[4] = {
-        {
-            .binding = 0,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(FlecsAtmosphereUniform)
-            }
-        },
-        {
-            .binding = 1,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 2,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 3,
-            .visibility = WGPUShaderStage_Fragment,
-            .sampler = { .type = WGPUSamplerBindingType_Filtering }
-        }
+    static const flecsEngine_atmos_bind_kind_t k[] = {
+        ATMOS_BIND_UNIFORM, ATMOS_BIND_TEX2D, ATMOS_BIND_TEX2D, ATMOS_BIND_SAMPLER
     };
-    WGPUBindGroupLayoutDescriptor d = { .entryCount = 4, .entries = entries };
-    return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
+    return flecsEngine_atmos_makeLayout(engine, WGPUShaderStage_Fragment, k, 4);
 }
 
 static WGPUBindGroupLayout flecsEngine_atmos_layoutAerialCompute(
     const FlecsEngineImpl *engine)
 {
-    WGPUBindGroupLayoutEntry entries[5] = {
-        {
-            .binding = 0,
-            .visibility = WGPUShaderStage_Compute,
-            .buffer = {
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(FlecsAtmosphereUniform)
-            }
-        },
-        {
-            .binding = 1,
-            .visibility = WGPUShaderStage_Compute,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D
-            }
-        },
-        {
-            .binding = 2,
-            .visibility = WGPUShaderStage_Compute,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D
-            }
-        },
-        {
-            .binding = 3,
-            .visibility = WGPUShaderStage_Compute,
-            .sampler = { .type = WGPUSamplerBindingType_Filtering }
-        },
-        {
-            .binding = 4,
-            .visibility = WGPUShaderStage_Compute,
-            .storageTexture = {
-                .access = WGPUStorageTextureAccess_WriteOnly,
-                .format = FLECS_ATMOS_FORMAT,
-                .viewDimension = WGPUTextureViewDimension_2DArray
-            }
-        }
+    static const flecsEngine_atmos_bind_kind_t k[] = {
+        ATMOS_BIND_UNIFORM, ATMOS_BIND_TEX2D, ATMOS_BIND_TEX2D,
+        ATMOS_BIND_SAMPLER, ATMOS_BIND_STORAGE2DARRAY
     };
-    WGPUBindGroupLayoutDescriptor d = { .entryCount = 5, .entries = entries };
-    return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
+    return flecsEngine_atmos_makeLayout(engine, WGPUShaderStage_Compute, k, 5);
 }
 
 static WGPUBindGroupLayout flecsEngine_atmos_layoutCubeFaceCompute(
     const FlecsEngineImpl *engine)
 {
-    WGPUBindGroupLayoutEntry entries[4] = {
-        {
-            .binding = 0,
-            .visibility = WGPUShaderStage_Compute,
-            .buffer = {
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(FlecsAtmosphereUniform)
-            }
-        },
-        {
-            .binding = 1,
-            .visibility = WGPUShaderStage_Compute,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D
-            }
-        },
-        {
-            .binding = 2,
-            .visibility = WGPUShaderStage_Compute,
-            .sampler = { .type = WGPUSamplerBindingType_Filtering }
-        },
-        {
-            .binding = 3,
-            .visibility = WGPUShaderStage_Compute,
-            .storageTexture = {
-                .access = WGPUStorageTextureAccess_WriteOnly,
-                .format = FLECS_ATMOS_FORMAT,
-                .viewDimension = WGPUTextureViewDimension_2DArray
-            }
-        }
+    static const flecsEngine_atmos_bind_kind_t k[] = {
+        ATMOS_BIND_UNIFORM, ATMOS_BIND_TEX2D,
+        ATMOS_BIND_SAMPLER, ATMOS_BIND_STORAGE2DARRAY
     };
-    WGPUBindGroupLayoutDescriptor d = { .entryCount = 4, .entries = entries };
-    return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
+    return flecsEngine_atmos_makeLayout(engine, WGPUShaderStage_Compute, k, 4);
 }
 
 static WGPUBindGroupLayout flecsEngine_atmos_layoutCubeDsCompute(
     const FlecsEngineImpl *engine)
 {
-    WGPUBindGroupLayoutEntry entries[3] = {
-        {
-            .binding = 0,
-            .visibility = WGPUShaderStage_Compute,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2DArray
-            }
-        },
-        {
-            .binding = 1,
-            .visibility = WGPUShaderStage_Compute,
-            .sampler = { .type = WGPUSamplerBindingType_Filtering }
-        },
-        {
-            .binding = 2,
-            .visibility = WGPUShaderStage_Compute,
-            .storageTexture = {
-                .access = WGPUStorageTextureAccess_WriteOnly,
-                .format = FLECS_ATMOS_FORMAT,
-                .viewDimension = WGPUTextureViewDimension_2DArray
-            }
-        }
+    static const flecsEngine_atmos_bind_kind_t k[] = {
+        ATMOS_BIND_TEX2DARRAY, ATMOS_BIND_SAMPLER, ATMOS_BIND_STORAGE2DARRAY
     };
-    WGPUBindGroupLayoutDescriptor d = { .entryCount = 3, .entries = entries };
-    return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
+    return flecsEngine_atmos_makeLayout(engine, WGPUShaderStage_Compute, k, 3);
 }
 
 static WGPUBindGroupLayout flecsEngine_atmos_layoutCompose(
     const FlecsEngineImpl *engine)
 {
-    WGPUBindGroupLayoutEntry entries[8] = {
-        {
-            .binding = 0,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 1,
-            .visibility = WGPUShaderStage_Fragment,
-            .sampler = { .type = WGPUSamplerBindingType_Filtering }
-        },
-        {
-            .binding = 2,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Depth,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 3,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(FlecsAtmosphereUniform)
-            }
-        },
-        {
-            .binding = 4,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 5,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 6,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2DArray,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 7,
-            .visibility = WGPUShaderStage_Fragment,
-            .sampler = { .type = WGPUSamplerBindingType_Filtering }
-        }
+    static const flecsEngine_atmos_bind_kind_t k[] = {
+        ATMOS_BIND_TEX2D, ATMOS_BIND_SAMPLER, ATMOS_BIND_TEX_DEPTH,
+        ATMOS_BIND_UNIFORM, ATMOS_BIND_TEX2D, ATMOS_BIND_TEX2D,
+        ATMOS_BIND_TEX2DARRAY, ATMOS_BIND_SAMPLER
     };
-    WGPUBindGroupLayoutDescriptor d = { .entryCount = 8, .entries = entries };
-    return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
+    return flecsEngine_atmos_makeLayout(engine, WGPUShaderStage_Fragment, k, 8);
 }
 
 bool flecsEngine_atmosphere_ensureImpl(
@@ -1622,7 +1462,7 @@ static bool flecsEngine_atmos_runAerial(
 
 static bool flecsEngine_atmos_runCompose(
     const FlecsEngineImpl *engine,
-    FlecsAtmosphereImpl *a,
+    const FlecsAtmosphereImpl *a,
     WGPUCommandEncoder encoder,
     WGPUTextureView input_view,
     WGPUTextureView output_view,

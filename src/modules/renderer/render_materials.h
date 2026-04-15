@@ -1,0 +1,62 @@
+#ifndef FLECS_ENGINE_RENDER_MATERIALS_H
+#define FLECS_ENGINE_RENDER_MATERIALS_H
+
+#include "renderer.h"
+
+void flecsEngine_material_uploadBuffer(
+    const ecs_world_t *world,
+    FlecsEngineImpl *impl);
+
+void flecsEngine_material_releaseBuffer(
+    FlecsEngineImpl *impl);
+
+WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
+    FlecsEngineImpl *impl);
+
+bool flecsEngine_globals_createBindGroup(
+    const FlecsEngineImpl *engine,
+    FlecsHdriImpl *ibl);
+
+WGPUBindGroupLayout flecsEngine_materialBind_ensureLayout(
+    FlecsEngineImpl *impl);
+
+WGPUBindGroup flecsEngine_materialBind_createGroup(
+    const FlecsEngineImpl *engine,
+    WGPUBuffer buffer,
+    uint64_t size);
+
+WGPUBindGroup flecsEngine_materialBind_ensureScene(
+    FlecsEngineImpl *impl);
+
+void flecsEngine_materialBind_releaseScene(
+    FlecsEngineImpl *impl);
+
+void flecsEngine_material_ensureBuffer(
+    FlecsEngineImpl *impl);
+
+FlecsDefaultAttrCache* flecsEngine_defaultAttrCache_create(void);
+
+WGPUBuffer flecsEngine_defaultAttrCache_getMaterialIdIdentityBuffer(
+    FlecsEngineImpl *engine,
+    int32_t count);
+
+void flecsEngine_defaultAttrCache_free(
+    FlecsDefaultAttrCache *ptr);
+
+FlecsPbrMaterial* flecsEngine_defaultAttrCache_getMaterial(
+    const FlecsEngineImpl *engine,
+    int32_t count);
+
+FlecsEmissive* flecsEngine_defaultAttrCache_getEmissive(
+    const FlecsEngineImpl *engine,
+    int32_t count);
+
+FlecsRgba* flecsEngine_defaultAttrCache_getColor(
+    const FlecsEngineImpl *engine,
+    int32_t count);
+
+void flecsEngine_setupLights(
+    const ecs_world_t *world,
+    FlecsEngineImpl *engine);
+
+#endif
