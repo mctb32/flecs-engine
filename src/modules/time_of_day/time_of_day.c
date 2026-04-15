@@ -10,29 +10,6 @@ static float flecsEngine_smoothstep01(float t) {
     return t * t * (3.0f - 2.0f * t);
 }
 
-/* Direct-beam atmospheric transmittance at the given sun altitude,
- * normalized so the zenith sun returns 1.0. This is the physical
- * directional-sun attenuation and matches measured direct-normal
- * irradiance from clear-sky reference tables (ASHRAE / NREL):
- *
- *   altitude 45° → 0.96   altitude 30° → 0.90   altitude 15° → 0.75
- *   altitude  5° → 0.35   altitude  2° → 0.12   altitude  1° → 0.074
- *   altitude  0° → 0.025
- *
- * Model:
- *   - Kasten-Young relative air mass (1989): accounts for the increasing
- *     atmospheric path length as the sun approaches the horizon,
- *     including the near-horizon geometric correction that prevents the
- *     pure 1/sin(alt) formulation from blowing up.
- *   - Beer-Lambert extinction with τ = 0.1, the broadband optical depth
- *     of a clear atmosphere (≈ Linke turbidity 2.5, i.e. a typical clear
- *     day, not a hazy one). τ is applied to (AM - 1) so the zenith case
- *     comes out at 1.0 and `sun_intensity` on the component represents
- *     the noon brightness you want.
- *
- * Below the horizon the direct beam is geometrically zero — any warmth
- * you still see in the world at twilight comes from the atmospheric IBL
- * and scattered sky luminance, not from this light source. */
 static float flecsEngine_sunTransmittance(float altitude_rad) {
     if (altitude_rad <= 0.0f) {
         return 0.0f;
@@ -50,12 +27,6 @@ static float flecsEngine_sunTransmittance(float altitude_rad) {
     return trans;
 }
 
-/* Tint the direct sun by altitude to approximate Rayleigh extinction of
- * short wavelengths when the beam travels through a lot of atmosphere.
- * Endpoints are hand-picked to look right (not spectral), but they sit in
- * the plausible range:
- *   high sun (>~20°): ~5500 K, slightly warm white
- *   horizon         : ~2000-2500 K, deep orange */
 static void flecsEngine_sunColor(float altitude_rad, float *r, float *g, float *b) {
     float altitude_deg = altitude_rad * (180.0f / GLM_PIf);
     float t = flecsEngine_smoothstep01((altitude_deg - 2.0f) / 18.0f);
@@ -74,9 +45,6 @@ static float flecsEngine_wrap24(float h) {
     return h;
 }
 
-/* Returns sun altitude and azimuth in radians.
- * Altitude: angle above horizon (negative = below).
- * Azimuth: measured clockwise from north (0 = north, π/2 = east). */
 static void flecsEngine_solarPosition(
     float hour,
     float day_of_year,
@@ -132,16 +100,21 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
         flecsEngine_solarPosition(
             t->hour, t->day_of_year, t->latitude, &altitude, &azimuth);
 
-        /* Sun altitude above horizon → pitch angle of the light ray (which
-         * points from the sun toward the scene, so pitch = -altitude).
-         * Azimuth is the compass bearing of the sun; the ray travels in the
-         * opposite horizontal direction (+π). north_offset lets the scene
-         * pick which world-yaw points north. */
         float north_rad = glm_rad(t->north_offset);
         float pitch = -altitude;
         float yaw = azimuth + north_rad + GLM_PIf;
 
-        float transmittance = flecsEngine_sunTransmittance(altitude);
+        float atm_trans_rgb[3] = { 0.0f, 0.0f, 0.0f };
+        const FlecsAtmosphere *atm_settings = NULL;
+
+        if (t->atmosphere) {
+            atm_settings = ecs_get(
+                world, t->atmosphere, FlecsAtmosphere);
+            if (atm_settings) {
+                flecsEngine_atmos_sunTransmittance(
+                    atm_settings, sinf(altitude), atm_trans_rgb);
+            }
+        }
 
         if (t->light) {
             FlecsRotation3 *rot = ecs_get_mut(
@@ -153,35 +126,42 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
                 ecs_modified(world, t->light, FlecsRotation3);
             }
 
+            float light_intensity;
+            float light_r, light_g, light_b;
+            if (atm_settings) {
+                float m = atm_trans_rgb[0];
+                if (atm_trans_rgb[1] > m) m = atm_trans_rgb[1];
+                if (atm_trans_rgb[2] > m) m = atm_trans_rgb[2];
+                light_intensity = t->sun_intensity * m;
+                if (m > 1e-6f) {
+                    light_r = atm_trans_rgb[0] / m;
+                    light_g = atm_trans_rgb[1] / m;
+                    light_b = atm_trans_rgb[2] / m;
+                } else {
+                    light_r = light_g = light_b = 0.0f;
+                }
+            } else {
+                float transmittance = flecsEngine_sunTransmittance(altitude);
+                light_intensity = t->sun_intensity * transmittance;
+                flecsEngine_sunColor(altitude, &light_r, &light_g, &light_b);
+            }
+
             FlecsDirectionalLight *dl = ecs_get_mut(
                 world, t->light, FlecsDirectionalLight);
             if (dl) {
-                dl->intensity = t->sun_intensity * transmittance;
+                dl->intensity = light_intensity;
                 ecs_modified(world, t->light, FlecsDirectionalLight);
             }
 
-            /* Write warm/cool tint via FlecsRgba. The renderer multiplies
-             * this into light_color each frame, so updating it drives the
-             * sunrise/sunset color shift of the direct beam. */
             FlecsRgba *rgba = ecs_get_mut(world, t->light, FlecsRgba);
             if (rgba) {
-                float r, g, b;
-                flecsEngine_sunColor(altitude, &r, &g, &b);
-                rgba->r = (uint8_t)(glm_clamp(r, 0.0f, 1.0f) * 255.0f);
-                rgba->g = (uint8_t)(glm_clamp(g, 0.0f, 1.0f) * 255.0f);
-                rgba->b = (uint8_t)(glm_clamp(b, 0.0f, 1.0f) * 255.0f);
+                rgba->r = (uint8_t)(glm_clamp(light_r, 0.0f, 1.0f) * 255.0f);
+                rgba->g = (uint8_t)(glm_clamp(light_g, 0.0f, 1.0f) * 255.0f);
+                rgba->b = (uint8_t)(glm_clamp(light_b, 0.0f, 1.0f) * 255.0f);
                 rgba->a = 255;
                 ecs_modified(world, t->light, FlecsRgba);
             }
         }
-
-        /* The atmosphere shader already models sun-angle-dependent
-         * extinction and scattering, so the sun_intensity on
-         * FlecsAtmosphere stays at its configured value and is not
-         * modulated here. The atmosphere field on the component is kept
-         * so users can wire the scene up front without needing a separate
-         * reference. */
-        (void)t->atmosphere;
     }
     FLECS_TRACY_ZONE_END;
 }
@@ -194,9 +174,5 @@ void FlecsEngineTime_of_dayImport(
     ecs_set_name_prefix(world, "Flecs");
 
     ECS_META_COMPONENT(world, FlecsTimeOfDay);
-
-    /* Runs in PreStore so it wins over Transform3's RotationFromLookAt
-     * (PostUpdate): any LookAt left on the driven light is recomputed
-     * first, then time_of_day rewrites Rotation3 from the solar position. */
     ECS_SYSTEM(world, FlecsAdvanceTimeOfDay, EcsPreStore, [inout] TimeOfDay);
 }

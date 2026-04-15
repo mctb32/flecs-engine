@@ -92,6 +92,8 @@ extern ECS_COMPONENT_DECLARE(FlecsRenderEffectImpl);
 
 typedef struct {
     WGPUBuffer uniform_buffer;
+    WGPUTexture fallback_texture;
+    WGPUTextureView fallback_view;
 } FlecsHeightFogImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsHeightFogImpl);

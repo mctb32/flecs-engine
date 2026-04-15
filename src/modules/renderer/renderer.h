@@ -185,9 +185,6 @@ void flecsEngine_ssao_register(
 void flecsEngine_sunShafts_register(
     ecs_world_t *world);
 
-void flecsEngine_atmosphere_register(
-    ecs_world_t *world);
-
 /* Create per-atmosphere GPU resources (LUT textures, bind group layouts,
  * pipelines) on the atmosphere entity if they don't exist yet. Returns true
  * if the entity has a FlecsAtmosphereImpl after the call. */

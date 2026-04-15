@@ -9,6 +9,7 @@ typedef struct FlecsHeightFogUniform {
     float camera_pos[4];
     float fog_color_density[4];
     float fog_params[4];
+    float atmos_params[4];
 } FlecsHeightFogUniform;
 
 static const char *kShaderSource =
@@ -18,11 +19,30 @@ static const char *kShaderSource =
     "  camera_pos : vec4<f32>,\n"
     "  fog_color_density : vec4<f32>,\n"
     "  fog_params : vec4<f32>,\n"
+    "  atmos_params : vec4<f32>,\n"
     "};\n"
     "@group(0) @binding(0) var input_texture : texture_2d<f32>;\n"
     "@group(0) @binding(1) var input_sampler : sampler;\n"
     "@group(0) @binding(2) var depth_texture : texture_depth_2d;\n"
     "@group(0) @binding(3) var<uniform> uniforms : FogUniforms;\n"
+    "@group(0) @binding(4) var skyview_lut : texture_2d<f32>;\n"
+    "const FOG_PI : f32 = 3.14159265358979323846;\n"
+    "fn fog_skyview_uv(dir : vec3<f32>, view_r : f32, planet_r : f32) -> vec2<f32> {\n"
+    "  let horizon_cos = -sqrt(max(0.0, view_r * view_r - planet_r * planet_r))\n"
+    "                    / max(view_r, 1e-4);\n"
+    "  let horizon_ang = acos(clamp(horizon_cos, -1.0, 1.0));\n"
+    "  let uu = atan2(dir.x, dir.z) / (2.0 * FOG_PI) + 0.5;\n"
+    "  let zenith = acos(clamp(dir.y, -1.0, 1.0));\n"
+    "  var vv = 0.0;\n"
+    "  if (zenith < horizon_ang) {\n"
+    "    let t = zenith / max(horizon_ang, 1e-6);\n"
+    "    vv = 0.5 * sqrt(clamp(t, 0.0, 1.0));\n"
+    "  } else {\n"
+    "    let t = (zenith - horizon_ang) / max(FOG_PI - horizon_ang, 1e-6);\n"
+    "    vv = 0.5 + 0.5 * sqrt(clamp(t, 0.0, 1.0));\n"
+    "  }\n"
+    "  return vec2<f32>(clamp(uu, 0.0, 1.0), clamp(vv, 0.0, 1.0));\n"
+    "}\n"
     "fn reconstruct_world_pos(uv : vec2<f32>, depth : f32) -> vec3<f32> {\n"
     "  let ndc = vec4<f32>(uv.x * 2.0 - 1.0, (1.0 - uv.y) * 2.0 - 1.0, depth, 1.0);\n"
     "  let h = uniforms.inv_vp * ndc;\n"
@@ -46,10 +66,6 @@ static const char *kShaderSource =
     "  let max_opacity = clamp(uniforms.fog_params.z, 0.0, 1.0);\n"
     "  let camera_height = uniforms.camera_pos.y - base_height;\n"
     "  let e0 = exp(clamp(-falloff * camera_height, -80.0, 80.0));\n"
-    /* Analytical integral of density(h) = exp(-falloff * (h - base)) along
-     * the view ray. Sky pixels use the semi-infinite form (no world_pos
-     * endpoint); scene pixels use the two-endpoint form with a dy -> 0
-     * limit fallback. */
     "  var integral : f32;\n"
     "  if (is_sky) {\n"
     "    let view_dir_y = ray.y / max(distance, 1e-6);\n"
@@ -70,7 +86,23 @@ static const char *kShaderSource =
     "  }\n"
     "  let optical_depth = max(0.0, density * integral);\n"
     "  let fog_factor = min(max_opacity, 1.0 - exp(clamp(-optical_depth, -80.0, 0.0)));\n"
-    "  let fogged = mix(src.rgb, uniforms.fog_color_density.rgb, fog_factor);\n"
+    "  var fog_color = uniforms.fog_color_density.rgb;\n"
+    "  if (uniforms.fog_params.w > 0.5) {\n"
+    "    let view_dir = ray / max(distance, 1e-6);\n"
+    "    let planet_r = uniforms.atmos_params.x;\n"
+    "    let view_r = planet_r + max(uniforms.atmos_params.y, 0.001);\n"
+    "    let horizon_offset = uniforms.atmos_params.z;\n"
+    "    let xz_len = max(sqrt(view_dir.x * view_dir.x + view_dir.z * view_dir.z), 1e-6);\n"
+    "    let azim_x = view_dir.x / xz_len;\n"
+    "    let azim_z = view_dir.z / xz_len;\n"
+    "    let sample_dir = vec3<f32>(\n"
+    "      azim_x * cos(horizon_offset),\n"
+    "      sin(horizon_offset),\n"
+    "      azim_z * cos(horizon_offset));\n"
+    "    let sv_uv = fog_skyview_uv(sample_dir, view_r, planet_r);\n"
+    "    fog_color = textureSampleLevel(skyview_lut, input_sampler, sv_uv, 0.0).rgb;\n"
+    "  }\n"
+    "  let fogged = mix(src.rgb, fog_color, fog_factor);\n"
     "  return vec4<f32>(fogged, src.a);\n"
     "}\n";
 
@@ -91,6 +123,14 @@ static void flecsEngine_heightFog_releaseResources(
     if (impl->uniform_buffer) {
         wgpuBufferRelease(impl->uniform_buffer);
         impl->uniform_buffer = NULL;
+    }
+    if (impl->fallback_view) {
+        wgpuTextureViewRelease(impl->fallback_view);
+        impl->fallback_view = NULL;
+    }
+    if (impl->fallback_texture) {
+        wgpuTextureRelease(impl->fallback_texture);
+        impl->fallback_texture = NULL;
     }
 }
 
@@ -124,7 +164,12 @@ static void flecsEngine_heightFog_fillUniform(
     uniform->fog_params[0] = fog->falloff;
     uniform->fog_params[1] = fog->base_height;
     uniform->fog_params[2] = fog->max_opacity;
-    uniform->fog_params[3] = 0.0f;
+    uniform->fog_params[3] = 0.0f;   /* use_atmosphere flag; set below */
+
+    uniform->atmos_params[0] = 0.0f;
+    uniform->atmos_params[1] = 0.0f;
+    uniform->atmos_params[2] = 0.0f;
+    uniform->atmos_params[3] = 0.0f;
 
     ecs_entity_t view_entity = ecs_get_target(world, effect_entity, EcsChildOf, 0);
     if (!view_entity) return;
@@ -145,6 +190,26 @@ static void flecsEngine_heightFog_fillUniform(
         uniform->camera_pos[0] = camera_transform->m[3][0];
         uniform->camera_pos[1] = camera_transform->m[3][1];
         uniform->camera_pos[2] = camera_transform->m[3][2];
+    }
+
+    if (fog->atmosphere) {
+        const FlecsAtmosphere *atm = ecs_get(
+            world, fog->atmosphere, FlecsAtmosphere);
+        const FlecsAtmosphereImpl *atm_impl = ecs_get(
+            world, fog->atmosphere, FlecsAtmosphereImpl);
+        if (atm && atm_impl && atm_impl->skyview_view) {
+            float planet_r = atm->planet_radius_km > 0.0f
+                ? atm->planet_radius_km : 6360.0f;
+            float units_per_km = atm->world_units_per_km > 1e-6f
+                ? atm->world_units_per_km : 1000.0f;
+            float alt_km = atm->ground_altitude_km +
+                (uniform->camera_pos[1] - atm->sea_level_y) / units_per_km;
+            if (alt_km < 0.001f) alt_km = 0.001f;
+            uniform->atmos_params[0] = planet_r;
+            uniform->atmos_params[1] = alt_km;
+            uniform->atmos_params[2] = fog->horizon_offset;
+            uniform->fog_params[3] = 1.0f;
+        }
     }
 }
 
@@ -176,6 +241,29 @@ static bool flecsEngine_heightFog_setup(
         return false;
     }
 
+    WGPUTextureDescriptor fallback_desc = {
+        .usage = WGPUTextureUsage_TextureBinding,
+        .dimension = WGPUTextureDimension_2D,
+        .size = { 1, 1, 1 },
+        .format = WGPUTextureFormat_RGBA8Unorm,
+        .mipLevelCount = 1,
+        .sampleCount = 1
+    };
+    fog_impl.fallback_texture = wgpuDeviceCreateTexture(
+        engine->device, &fallback_desc);
+    if (!fog_impl.fallback_texture) {
+        wgpuBufferRelease(fog_impl.uniform_buffer);
+        return false;
+    }
+    WGPUTextureViewDescriptor fallback_view_desc = {
+        .format = WGPUTextureFormat_RGBA8Unorm,
+        .dimension = WGPUTextureViewDimension_2D,
+        .mipLevelCount = 1,
+        .arrayLayerCount = 1
+    };
+    fog_impl.fallback_view = wgpuTextureCreateView(
+        fog_impl.fallback_texture, &fallback_view_desc);
+
     layout_entries[2] = (WGPUBindGroupLayoutEntry){
         .binding = 2,
         .visibility = WGPUShaderStage_Fragment,
@@ -195,9 +283,19 @@ static bool flecsEngine_heightFog_setup(
         }
     };
 
+    layout_entries[4] = (WGPUBindGroupLayoutEntry){
+        .binding = 4,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = {
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_2D,
+            .multisampled = false
+        }
+    };
+
     ecs_set_ptr((ecs_world_t*)world, effect_entity, FlecsHeightFogImpl, &fog_impl);
 
-    *entry_count = 4;
+    *entry_count = 5;
     return true;
 }
 
@@ -253,7 +351,20 @@ static bool flecsEngine_heightFog_bind(
         .size = sizeof(FlecsHeightFogUniform)
     };
 
-    *entry_count = 4;
+    WGPUTextureView skyview = fog_impl->fallback_view;
+    if (fog->atmosphere) {
+        const FlecsAtmosphereImpl *atm_impl = ecs_get(
+            world, fog->atmosphere, FlecsAtmosphereImpl);
+        if (atm_impl && atm_impl->skyview_view) {
+            skyview = atm_impl->skyview_view;
+        }
+    }
+    entries[4] = (WGPUBindGroupEntry){
+        .binding = 4,
+        .textureView = skyview
+    };
+
+    *entry_count = 5;
     return true;
 }
 
@@ -264,7 +375,9 @@ FlecsHeightFog flecsEngine_heightFogSettingsDefault(void)
         .falloff = 0.3f,
         .base_height = 0.0f,
         .max_opacity = 1.0f,
-        .color = {191, 158, 140, 255}
+        .color = {191, 158, 140, 255},
+        .atmosphere = 0,
+        .horizon_offset = 0.1f
     };
 }
 
@@ -311,7 +424,9 @@ void flecsEngine_heightFog_register(
             { .name = "falloff", .type = ecs_id(ecs_f32_t) },
             { .name = "base_height", .type = ecs_id(ecs_f32_t) },
             { .name = "max_opacity", .type = ecs_id(ecs_f32_t) },
-            { .name = "color", .type = ecs_id(flecs_rgba_t) }
+            { .name = "color", .type = ecs_id(flecs_rgba_t) },
+            { .name = "atmosphere", .type = ecs_id(ecs_entity_t) },
+            { .name = "horizon_offset", .type = ecs_id(ecs_f32_t) }
         }
     });
 }

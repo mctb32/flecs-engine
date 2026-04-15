@@ -139,10 +139,10 @@ void initEngine(
     .shadow = {
       .enabled = true,
       .map_size = 4096,
-      .max_range = 100,
+      .max_range = 200,
       .bias = 0.0001
     },
-    .ambient_intensity = 0.2f,
+    .ambient_intensity = 0.4f,
     .screen_size_threshold = 5.0
   };
 
@@ -170,9 +170,9 @@ void initEngine(
   // Camera
   view.camera = ecs_entity(world, { .name = "camera" });
   ecs_set(world, view.camera, FlecsCamera, {
-      .fov = glm_rad(60.0f),
-      .near_ = 0.01f,
-      .far_ = 300.0f,
+      .fov = glm_rad(70.0f),
+      .near_ = 1.0f,
+      .far_ = 1000.0f,
       .aspect_ratio = options.width / (float)options.height
   });
   ecs_add(world, view.camera, FlecsCameraController);
@@ -214,15 +214,13 @@ void initEngine(
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
   FlecsHeightFog fog_settings =
     flecsEngine_heightFogSettingsDefault();
-  fog_settings.density = 0.3;
-  fog_settings.falloff = 1.3;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_ssao(world, view_entity,
         "ssao", 0, &ssao_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = false, .effect =
+    (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_heightFog(world, view_entity,
         "heightFog", 1, &fog_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =

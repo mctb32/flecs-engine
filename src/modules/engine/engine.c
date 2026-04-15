@@ -277,6 +277,7 @@ void FlecsEngineImport(
     ECS_IMPORT(world, FlecsEngineLight);
     ECS_IMPORT(world, FlecsEngineTexture);
     ECS_IMPORT(world, FlecsEngineMaterial);
+    ECS_IMPORT(world, FlecsEngineAtmosphere);
     ECS_IMPORT(world, FlecsEngineRenderer);
     ECS_IMPORT(world, FlecsEngineGeometry3);
     ECS_IMPORT(world, FlecsEngineTransform3);

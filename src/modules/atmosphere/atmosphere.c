@@ -1,22 +1,9 @@
-/* Physically-based sky and aerial perspective (Hillaire 2020).
- *
- * Pipeline, re-evaluated every frame:
- *   1. Transmittance LUT       (256x64, RGBA16F)
- *   2. Multi-scattering LUT    (32x32,  RGBA16F)
- *   3. Sky-view LUT            (192x108, RGBA16F)
- *   4. Aerial perspective LUT  (32x32x32 as 2D array, RGBA16F)
- *   5. Compose pass: samples sky-view for sky pixels, aerial LUT for scene
- *      pixels, adds the sun disk, writes to the effect output target.
- *
- * All raymarching is done in kilometres; scattering coefficients are per-km.
- */
-
 #include <math.h>
 #include <string.h>
 
-#include "../../renderer.h"
-#include "../../ibl/ibl_internal.h"
-#include "../../../../tracy_hooks.h"
+#include "../renderer/renderer.h"
+#include "../renderer/ibl/ibl_internal.h"
+#include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 ECS_COMPONENT_DECLARE(FlecsAtmosphere);
@@ -34,49 +21,29 @@ ECS_COMPONENT_DECLARE(FlecsAtmosphereImpl);
 
 #define FLECS_ATMOS_FORMAT (WGPUTextureFormat_RGBA16Float)
 
-/* -------------------------------------------------------------------------- */
-/* Uniform block                                                              */
-/* -------------------------------------------------------------------------- */
-
 typedef struct FlecsAtmosphereUniform {
     mat4 inv_vp;
-    /* xyz: camera world pos; w: camera altitude in km above sea level */
     float camera_pos_world[4];
-    /* xyz: world-space direction *to* the sun; w: sun illuminance multiplier */
     float sun_direction[4];
-    /* rgb: sun light color * intensity; a: 1 */
     float sun_color[4];
     float ground_albedo[4];
-    /* x: planet radius (km), y: atmosphere top (km),
-     * z: rayleigh scale height (km), w: mie scale height (km) */
     float atmosphere[4];
-    /* x: mie anisotropy g, y: max aerial distance (km),
-     * z: sun disk cos-half-angle, w: sun disk intensity */
     float mie_params[4];
-    /* x: world units per km, y: 1 / world units per km,
-     * z: sea_level_y, w: ground_altitude_km */
     float world_scale[4];
-    float scat_rayleigh[4];   /* rgb: rayleigh scattering per km; w: 0 */
-    float ext_mie[4];         /* x: mie scattering, y: mie extinction, zw: 0 */
-    float abs_ozone[4];       /* rgb: ozone absorption per km; w: 0 */
-    /* x: ap slices, y: 0, z: 0, w: 0 */
+    float scat_rayleigh[4];
+    float scat_mie[4];
+    float ext_mie[4];
+    float abs_ozone[4];
+    float abs_strat_aerosol[4];
     float misc[4];
-    /* x: aerial perspective intensity multiplier, yzw: unused. MUST stay
-     * last to match the WGSL `AtmosUniforms` struct layout. */
     float aerial_params[4];
 } FlecsAtmosphereUniform;
 
-/* Aerial-perspective slice selector (one 16-byte uniform per slice, bound
- * separately so we don't have to mutate the main uniform mid-frame). */
 typedef struct FlecsAtmosphereSliceUniform {
     uint32_t slice_index;
     uint32_t slice_count;
     float _pad[2];
 } FlecsAtmosphereSliceUniform;
-
-/* -------------------------------------------------------------------------- */
-/* WGSL                                                                       */
-/* -------------------------------------------------------------------------- */
 
 static const char *kAtmosphereCommonWgsl =
 "const PI : f32 = 3.14159265358979323846;\n"
@@ -91,8 +58,10 @@ static const char *kAtmosphereCommonWgsl =
 "  mie_params : vec4<f32>,\n"
 "  world_scale : vec4<f32>,\n"
 "  scat_rayleigh : vec4<f32>,\n"
+"  scat_mie : vec4<f32>,\n"
 "  ext_mie : vec4<f32>,\n"
 "  abs_ozone : vec4<f32>,\n"
+"  abs_strat_aerosol : vec4<f32>,\n"
 "  misc : vec4<f32>,\n"
 "  aerial_params : vec4<f32>,\n"
 "};\n"
@@ -108,16 +77,18 @@ static const char *kAtmosphereCommonWgsl =
 "  let density_ray = exp(-alt_km / u.atmosphere.z);\n"
 "  let density_mie = exp(-alt_km / u.atmosphere.w);\n"
 "  let density_ozone = max(0.0, 1.0 - abs(alt_km - 25.0) / 15.0);\n"
+"  let density_strat = max(0.0, 1.0 - abs(alt_km - 20.0) / 5.0);\n"
 "  let scat_ray = u.scat_rayleigh.xyz * density_ray;\n"
-"  let scat_mie = vec3<f32>(u.ext_mie.x) * density_mie;\n"
+"  let scat_mie = u.scat_mie.xyz * density_mie;\n"
 "  let ext_ray = scat_ray;\n"
-"  let ext_mie = vec3<f32>(u.ext_mie.y) * density_mie;\n"
+"  let ext_mie = u.ext_mie.xyz * density_mie;\n"
 "  let abs_ozone = u.abs_ozone.xyz * density_ozone;\n"
+"  let abs_strat = u.abs_strat_aerosol.xyz * density_strat;\n"
 "  var m : Medium;\n"
 "  m.scattering_rayleigh = scat_ray;\n"
 "  m.scattering_mie = scat_mie;\n"
 "  m.scattering = scat_ray + scat_mie;\n"
-"  m.extinction = ext_ray + ext_mie + abs_ozone;\n"
+"  m.extinction = ext_ray + ext_mie + abs_ozone + abs_strat;\n"
 "  return m;\n"
 "}\n"
 "fn rayleigh_phase(c : f32) -> f32 {\n"
@@ -128,7 +99,6 @@ static const char *kAtmosphereCommonWgsl =
 "  let denom = 1.0 + g * g - 2.0 * g * c;\n"
 "  return k * (1.0 + c * c) / max(pow(max(denom, 1e-6), 1.5), 1e-6);\n"
 "}\n"
-/* Return t > 0 for the nearest positive intersection; < 0 if none. */
 "fn ray_sphere_nearest(ro : vec3<f32>, rd : vec3<f32>, r : f32) -> f32 {\n"
 "  let b = dot(ro, rd);\n"
 "  let c = dot(ro, ro) - r * r;\n"
@@ -141,7 +111,6 @@ static const char *kAtmosphereCommonWgsl =
 "  if (t1 >= 0.0) { return t1; }\n"
 "  return -1.0;\n"
 "}\n"
-/* Bruneton 2008 transmittance LUT parameterisation (Hillaire 2020 uses it). */
 "fn uv_to_trans_params(uv : vec2<f32>, u : AtmosUniforms) -> vec2<f32> {\n"
 "  let Rb = bottomR(u);\n"
 "  let Rt = topR(u);\n"
@@ -175,7 +144,6 @@ static const char *kAtmosphereCommonWgsl =
 "  let uv = trans_params_to_uv(r, mu, u);\n"
 "  return textureSampleLevel(trans, smp, uv, 0.0).rgb;\n"
 "}\n"
-/* Multi-scattering LUT UV: x=cos(sun_zenith), y=altitude fraction. */
 "fn ms_uv_to_params(uv : vec2<f32>, u : AtmosUniforms) -> vec2<f32> {\n"
 "  let cos_sun = uv.x * 2.0 - 1.0;\n"
 "  let alt = uv.y * (topR(u) - bottomR(u));\n"
@@ -186,7 +154,6 @@ static const char *kAtmosphereCommonWgsl =
 "  return vec2<f32>(clamp(0.5 + 0.5 * cos_sun, 0.0, 1.0),\n"
 "                   clamp(alt / (topR(u) - bottomR(u)), 0.0, 1.0));\n"
 "}\n"
-/* Sky-view LUT parameterisation: azimuth uniform, zenith split around horizon. */
 "fn skyview_uv_to_dir(uv : vec2<f32>, view_r : f32, u : AtmosUniforms) -> vec3<f32> {\n"
 "  let Rb = bottomR(u);\n"
 "  let horizon_cos = -sqrt(max(0.0, view_r * view_r - Rb * Rb)) / max(view_r, 1e-4);\n"
@@ -221,8 +188,6 @@ static const char *kAtmosphereCommonWgsl =
 "}\n"
 ;
 
-/* -------- Transmittance LUT shader ---------------------------------------- */
-
 static const char *kTransShaderSource =
     FLECS_ENGINE_FULLSCREEN_VS_WGSL
     "@group(0) @binding(0) var<uniform> u : AtmosUniforms;\n"
@@ -249,11 +214,6 @@ static const char *kTransShaderSource =
     "  }\n"
     "  return vec4<f32>(exp(-od), 1.0);\n"
     "}\n";
-
-/* -------- Multi-scattering LUT shader ------------------------------------- */
-/* Hillaire 2020 section 5.2: 2nd-order scattering with analytic multi-scatter
- * series. SAMPLE_COUNT rays per texel (uniform spherical), SAMPLES_STEPS steps
- * each. f_ms is the multi-scatter transfer, L_2 is the second-order radiance. */
 
 static const char *kMSShaderSource =
     FLECS_ENGINE_FULLSCREEN_VS_WGSL
@@ -283,7 +243,6 @@ static const char *kMSShaderSource =
     "    let alt = r_p - bottomR(u);\n"
     "    let m = sample_medium(max(alt, 0.0), u);\n"
     "    let step_trans = exp(-m.extinction * dt);\n"
-    /* Isotropic phase (1/4π) for multi-scattering derivation. */
     "    let up = pos / max(r_p, 1e-4);\n"
     "    let mu_sun = clamp(dot(up, sun), -1.0, 1.0);\n"
     "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u);\n"
@@ -333,8 +292,6 @@ static const char *kMSShaderSource =
     "  return vec4<f32>(psi_ms, 1.0);\n"
     "}\n";
 
-/* -------- Sky-view LUT shader --------------------------------------------- */
-
 static const char *kSkyViewShaderSource =
     FLECS_ENGINE_FULLSCREEN_VS_WGSL
     "@group(0) @binding(0) var<uniform> u : AtmosUniforms;\n"
@@ -368,7 +325,6 @@ static const char *kSkyViewShaderSource =
     "    let up = pos / max(r_p, 1e-4);\n"
     "    let mu_sun = clamp(dot(up, sun), -1.0, 1.0);\n"
     "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u);\n"
-    /* Phase-weighted single scattering + isotropic multi-scattering. */
     "    let scat_r = m.scattering_rayleigh * rayleigh_phase(cos_sv);\n"
     "    let scat_m = m.scattering_mie * mie_phase(cos_sv, mie_g);\n"
     "    let single = (scat_r + scat_m) * sun_trans;\n"
@@ -391,10 +347,6 @@ static const char *kSkyViewShaderSource =
     "  return vec4<f32>(L, 1.0);\n"
     "}\n";
 
-/* -------- Compute: sky-view -> cube face + cube mip downsample ----------- */
-
-/* Single compute dispatch writes all 6 cube faces of mip 0, replacing the
- * old 6 fragment passes. */
 static const char *kCubeFaceComputeShaderSource =
     "@group(0) @binding(0) var<uniform> u : AtmosUniforms;\n"
     "@group(0) @binding(1) var skyview_lut : texture_2d<f32>;\n"
@@ -429,8 +381,6 @@ static const char *kCubeFaceComputeShaderSource =
     "    i32(gid.z), vec4<f32>(sky, 1.0));\n"
     "}\n";
 
-/* 2x box mip downsample — one dispatch per target mip, replacing 42
- * fragment passes with 7 compute dispatches. */
 static const char *kCubeDownsampleComputeShaderSource =
     "@group(0) @binding(0) var input_cube : texture_2d_array<f32>;\n"
     "@group(0) @binding(1) var lin_samp : sampler;\n"
@@ -446,8 +396,6 @@ static const char *kCubeDownsampleComputeShaderSource =
     "    i32(gid.z), c);\n"
     "}\n";
 
-/* Aerial perspective compute shader — writes the full 32x32x32 LUT in a
- * single dispatch, replacing 32 fragment passes. */
 static const char *kAerialComputeShaderSource =
     "@group(0) @binding(0) var<uniform> u : AtmosUniforms;\n"
     "@group(0) @binding(1) var trans_lut : texture_2d<f32>;\n"
@@ -461,7 +409,6 @@ static const char *kAerialComputeShaderSource =
     "  if (gid.x >= dims.x || gid.y >= dims.y || gid.z >= u32(u.misc.x)) { return; }\n"
     "  let uv = (vec2<f32>(f32(gid.x), f32(gid.y)) + vec2<f32>(0.5)) /\n"
     "    vec2<f32>(f32(dims.x), f32(dims.y));\n"
-    /* NDC -> world-space view ray (direction only). */
     "  let ndc = vec4<f32>(uv.x * 2.0 - 1.0, (1.0 - uv.y) * 2.0 - 1.0, 1.0, 1.0);\n"
     "  let world_h = u.inv_vp * ndc;\n"
     "  var world_pos = world_h.xyz;\n"
@@ -515,8 +462,6 @@ static const char *kAerialComputeShaderSource =
     "    i32(gid.z), vec4<f32>(L, t_avg));\n"
     "}\n";
 
-/* -------- Compose shader -------------------------------------------------- */
-
 static const char *kComposeShaderSource =
     FLECS_ENGINE_FULLSCREEN_VS_WGSL
     "@group(0) @binding(0) var input_texture : texture_2d<f32>;\n"
@@ -533,12 +478,6 @@ static const char *kComposeShaderSource =
     "  if (abs(h.w) > 1e-6) { return h.xyz / h.w; }\n"
     "  return h.xyz;\n"
     "}\n"
-    /* Aerial LUT uses endpoint sampling: slice k stores the in-scatter and
-     * transmittance integrated from the camera to t = ((k+1)/N) * max_dist.
-     * So for a pixel at distance d, the matching fractional slice is
-     *   slice_f = (d / max_dist) * N - 1
-     * and we lerp with a virtual "slice -1" = identity (0, 0, 0, 1) to get a
-     * smooth fadeout for d < max_dist / N (close-up scene pixels). */
     "fn sample_aerial(uv : vec2<f32>, d_km : f32, max_km : f32, slice_count : f32) -> vec4<f32> {\n"
     "  let sf = clamp(d_km / max_km, 0.0, 1.0) * slice_count - 1.0;\n"
     "  let lo = i32(floor(sf));\n"
@@ -571,7 +510,6 @@ static const char *kComposeShaderSource =
     "    let view_r = bottomR(u) + max(alt_km, PLANET_OFFSET);\n"
     "    let sv_uv = dir_to_skyview_uv(rd, view_r, u);\n"
     "    var sky = textureSampleLevel(skyview_lut, lut_sampler, sv_uv, 0.0).rgb;\n"
-    /* Sun disk: only visible when looking above horizon. */
     "    let sun_cos = dot(rd, u.sun_direction.xyz);\n"
     "    let disk_cos = u.mie_params.z;\n"
     "    let disk_int = u.mie_params.w;\n"
@@ -581,8 +519,6 @@ static const char *kComposeShaderSource =
     "      if (t_ground < 0.0) {\n"
     "        let mu = clamp(u.sun_direction.y, -1.0, 1.0);\n"
     "        let t_sun = sample_transmittance_lut(trans_lut, lut_sampler, view_r, mu, u);\n"
-    /* Hard centre, soft outer edge: aa = 1 at sun_cos = 1, fades to 0 at\n"
-     * disk_cos. The fade zone is the outer 25% of the disk angular extent. */
     "        let fade_start = mix(1.0, disk_cos, 0.25);\n"
     "        let aa = smoothstep(disk_cos, fade_start, sun_cos);\n"
     "        sky = sky + t_sun * u.sun_color.rgb * disk_int * aa;\n"
@@ -597,20 +533,11 @@ static const char *kComposeShaderSource =
     "  let max_km = u.mie_params.y;\n"
     "  let slice_count = u.misc.x;\n"
     "  let ap = sample_aerial(in.uv, dist_km, max_km, slice_count);\n"
-    /* Artistic push: scale haze and the corresponding transmittance loss
-     * by `aerial_params.x`. At 1.0 this reduces to the physical blend
-     *   composed = scene * T + L
-     * At k > 1, transmittance is pushed towards `1 - k*(1-T)` (more loss)
-     * and in-scatter is boosted by k, giving a stronger "atmospheric" look. */
     "  let k = u.aerial_params.x;\n"
     "  let t_scaled = max(0.0, 1.0 - k * (1.0 - ap.a));\n"
     "  var composed = src.rgb * t_scaled + ap.rgb * k;\n"
     "  return vec4<f32>(composed, src.a);\n"
     "}\n";
-
-/* -------------------------------------------------------------------------- */
-/* Resource lifecycle                                                         */
-/* -------------------------------------------------------------------------- */
 
 static void flecsEngine_atmos_releaseTextures(FlecsAtmosphereImpl *a)
 {
@@ -631,7 +558,7 @@ static void flecsEngine_atmos_releaseTextures(FlecsAtmosphereImpl *a)
 static void flecsEngine_atmos_releaseResources(FlecsAtmosphereImpl *a)
 {
     flecsEngine_atmos_releaseTextures(a);
-    /* Cached LUT / aerial / cube bind groups. */
+
     if (a->trans_bind_group) {
         wgpuBindGroupRelease(a->trans_bind_group);
         a->trans_bind_group = NULL;
@@ -747,10 +674,6 @@ ECS_MOVE(FlecsAtmosphereImpl, dst, src, {
     ecs_os_zeromem(src);
 })
 
-/* -------------------------------------------------------------------------- */
-/* Settings & uniform fill                                                    */
-/* -------------------------------------------------------------------------- */
-
 FlecsAtmosphere flecsEngine_atmosphereSettingsDefault(void)
 {
     return (FlecsAtmosphere){
@@ -764,11 +687,18 @@ FlecsAtmosphere flecsEngine_atmosphereSettingsDefault(void)
         .ground_altitude_km = 0.5f,
         .planet_radius_km = 6360.0f,
         .atmosphere_thickness_km = 100.0f,
-        .rayleigh_scale_height_km = 8.0f,
-        .mie_scale_height_km = 1.2f,
-        .mie_anisotropy = 0.8f,
-        .mie_scattering_scale = 1.0f,
+        .rayleigh = {
+            .scale_height_km = 8.0f,
+            .scattering_scale = 1.0f,
+        },
+        .mie = {
+            .scale_height_km = 1.2f,
+            .anisotropy = 0.8f,
+            .scattering_scale = 1.0f,
+            .tint = { 255, 255, 255, 255 },
+        },
         .ozone_scale = 1.0f,
+        .stratospheric_aerosol_scale = 0.0f,
         .ground_albedo = { 77, 77, 77, 255 }
     };
 }
@@ -787,20 +717,28 @@ static void flecsEngine_atmos_fillUniform(
 
     out->atmosphere[0] = planet_r;
     out->atmosphere[1] = top_r;
-    out->atmosphere[2] = s->rayleigh_scale_height_km;
-    out->atmosphere[3] = s->mie_scale_height_km;
+    out->atmosphere[2] = s->rayleigh.scale_height_km;
+    out->atmosphere[3] = s->mie.scale_height_km;
 
-    /* Earth-like scattering coefficients (per km). From the Unreal
-     * SkyAtmosphere reference implementation. */
-    out->scat_rayleigh[0] = 0.005802f;
-    out->scat_rayleigh[1] = 0.013558f;
-    out->scat_rayleigh[2] = 0.033100f;
+    float rayleigh_scale = s->rayleigh.scattering_scale >= 0.0f
+        ? s->rayleigh.scattering_scale : 1.0f;
+    out->scat_rayleigh[0] = 0.005802f * rayleigh_scale;
+    out->scat_rayleigh[1] = 0.013558f * rayleigh_scale;
+    out->scat_rayleigh[2] = 0.033100f * rayleigh_scale;
     out->scat_rayleigh[3] = 0.0f;
 
-    float mie_scale = s->mie_scattering_scale > 0.0f ? s->mie_scattering_scale : 1.0f;
-    out->ext_mie[0] = 0.003996f * mie_scale; /* mie scattering */
-    out->ext_mie[1] = 0.004400f * mie_scale; /* mie extinction (scattering + absorption) */
-    out->ext_mie[2] = 0.0f;
+    float mie_scale = s->mie.scattering_scale > 0.0f ? s->mie.scattering_scale : 1.0f;
+    float mie_tint_r = flecsEngine_colorChannelToFloat(s->mie.tint.r);
+    float mie_tint_g = flecsEngine_colorChannelToFloat(s->mie.tint.g);
+    float mie_tint_b = flecsEngine_colorChannelToFloat(s->mie.tint.b);
+
+    out->scat_mie[0] = 0.003996f * mie_scale * mie_tint_r;
+    out->scat_mie[1] = 0.003996f * mie_scale * mie_tint_g;
+    out->scat_mie[2] = 0.003996f * mie_scale * mie_tint_b;
+    out->scat_mie[3] = 0.0f;
+    out->ext_mie[0] = 0.004400f * mie_scale * mie_tint_r;
+    out->ext_mie[1] = 0.004400f * mie_scale * mie_tint_g;
+    out->ext_mie[2] = 0.004400f * mie_scale * mie_tint_b;
     out->ext_mie[3] = 0.0f;
 
     float ozone_scale = s->ozone_scale >= 0.0f ? s->ozone_scale : 1.0f;
@@ -809,6 +747,13 @@ static void flecsEngine_atmos_fillUniform(
     out->abs_ozone[2] = 0.000085f * ozone_scale;
     out->abs_ozone[3] = 0.0f;
 
+    float strat = s->stratospheric_aerosol_scale > 0.0f
+        ? s->stratospheric_aerosol_scale : 0.0f;
+    out->abs_strat_aerosol[0] = 0.001950f * strat;
+    out->abs_strat_aerosol[1] = 0.005643f * strat;
+    out->abs_strat_aerosol[2] = 0.000255f * strat;
+    out->abs_strat_aerosol[3] = 0.0f;
+
     out->ground_albedo[0] = flecsEngine_colorChannelToFloat(s->ground_albedo.r);
     out->ground_albedo[1] = flecsEngine_colorChannelToFloat(s->ground_albedo.g);
     out->ground_albedo[2] = flecsEngine_colorChannelToFloat(s->ground_albedo.b);
@@ -816,7 +761,7 @@ static void flecsEngine_atmos_fillUniform(
 
     float disk_half_angle = s->sun_disk_angular_radius > 1e-6f
         ? s->sun_disk_angular_radius : 0.00465f;
-    out->mie_params[0] = s->mie_anisotropy;
+    out->mie_params[0] = s->mie.anisotropy;
     out->mie_params[1] = s->aerial_perspective_distance_km;
     out->mie_params[2] = cosf(disk_half_angle);
     out->mie_params[3] = s->sun_disk_intensity;
@@ -834,7 +779,6 @@ static void flecsEngine_atmos_fillUniform(
 
     out->camera_pos_world[3] = s->ground_altitude_km;
 
-    /* Default sun straight up with modest illuminance (in case no light entity). */
     out->sun_direction[0] = 0.0f;
     out->sun_direction[1] = 1.0f;
     out->sun_direction[2] = 0.0f;
@@ -879,24 +823,13 @@ static void flecsEngine_atmos_fillUniform(
                 out->sun_direction[2] = -ray_dir[2];
             }
         }
-        /* Atmosphere uses its own absolute sun intensity; the directional
-         * light's intensity only controls scene shading, not the sky. The
-         * RGBA color is reused so e.g. a warm sun tints both the scene and
-         * the scattering consistently. */
-        const FlecsRgba *rgb = ecs_get(world, view->light, FlecsRgba);
-        float r = rgb ? flecsEngine_colorChannelToFloat(rgb->r) : 1.0f;
-        float g = rgb ? flecsEngine_colorChannelToFloat(rgb->g) : 1.0f;
-        float b = rgb ? flecsEngine_colorChannelToFloat(rgb->b) : 1.0f;
-        out->sun_color[0] = r * s->sun_intensity;
-        out->sun_color[1] = g * s->sun_intensity;
-        out->sun_color[2] = b * s->sun_intensity;
+
+        out->sun_color[0] = s->sun_intensity;
+        out->sun_color[1] = s->sun_intensity;
+        out->sun_color[2] = s->sun_intensity;
         out->sun_direction[3] = s->sun_intensity;
     }
 }
-
-/* -------------------------------------------------------------------------- */
-/* Texture creation                                                           */
-/* -------------------------------------------------------------------------- */
 
 static bool flecsEngine_atmos_createSimpleTexture(
     const FlecsEngineImpl *engine,
@@ -941,8 +874,6 @@ static bool flecsEngine_atmos_createAerialTexture(
     FlecsAtmosphereImpl *a)
 {
     WGPUTextureDescriptor desc = {
-        /* TextureBinding: read by the compose shader as texture_2d_array.
-         * StorageBinding: written by the aerial compute shader. */
         .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding,
         .dimension = WGPUTextureDimension_2D,
         .size = { FLECS_ATMOS_AERIAL_W, FLECS_ATMOS_AERIAL_H, FLECS_ATMOS_AERIAL_SLICES },
@@ -965,15 +896,9 @@ static bool flecsEngine_atmos_createAerialTexture(
     a->aerial_view = wgpuTextureCreateView(a->aerial_texture, &array_desc);
     if (!a->aerial_view) return false;
 
-    /* Storage-write view for the compute shader. Same dimension/layers as
-     * the sample view above; WebGPU just needs a separate view handle. */
     a->aerial_storage_view = wgpuTextureCreateView(a->aerial_texture, &array_desc);
     return a->aerial_storage_view != NULL;
 }
-
-/* -------------------------------------------------------------------------- */
-/* Pipeline creation                                                          */
-/* -------------------------------------------------------------------------- */
 
 static WGPUShaderModule flecsEngine_atmos_createModule(
     const FlecsEngineImpl *engine,
@@ -1060,10 +985,6 @@ static WGPUComputePipeline flecsEngine_atmos_createComputePipeline(
     wgpuPipelineLayoutRelease(pl);
     return p;
 }
-
-/* -------------------------------------------------------------------------- */
-/* Bind group layout helpers                                                  */
-/* -------------------------------------------------------------------------- */
 
 static WGPUBindGroupLayout flecsEngine_atmos_layoutUniformOnly(
     const FlecsEngineImpl *engine)
@@ -1153,8 +1074,6 @@ static WGPUBindGroupLayout flecsEngine_atmos_layoutSkyView(
     return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
 }
 
-/* Aerial compute pipeline layout: uniform + trans LUT + MS LUT + sampler
- * + aerial storage output. */
 static WGPUBindGroupLayout flecsEngine_atmos_layoutAerialCompute(
     const FlecsEngineImpl *engine)
 {
@@ -1202,7 +1121,6 @@ static WGPUBindGroupLayout flecsEngine_atmos_layoutAerialCompute(
     return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
 }
 
-/* Cube face compute layout: uniform + skyview LUT + sampler + cube storage. */
 static WGPUBindGroupLayout flecsEngine_atmos_layoutCubeFaceCompute(
     const FlecsEngineImpl *engine)
 {
@@ -1242,7 +1160,6 @@ static WGPUBindGroupLayout flecsEngine_atmos_layoutCubeFaceCompute(
     return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
 }
 
-/* Cube mip downsample compute layout: input array + sampler + output array. */
 static WGPUBindGroupLayout flecsEngine_atmos_layoutCubeDsCompute(
     const FlecsEngineImpl *engine)
 {
@@ -1346,19 +1263,11 @@ static WGPUBindGroupLayout flecsEngine_atmos_layoutCompose(
     return wgpuDeviceCreateBindGroupLayout(engine->device, &d);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Setup callback                                                             */
-/* -------------------------------------------------------------------------- */
-
 bool flecsEngine_atmosphere_ensureImpl(
     ecs_world_t *world,
     const FlecsEngineImpl *engine,
     ecs_entity_t atmosphere_entity)
 {
-    /* Component writes from inside a running system are deferred by flecs,
-     * which means our populated struct would land in a staging buffer and
-     * get zero-filled on the next frame's ensure. Suspend defer so the
-     * component is materialized immediately. */
     bool was_deferred = ecs_is_deferred(world);
     if (was_deferred) {
         ecs_defer_suspend(world);
@@ -1368,7 +1277,7 @@ bool flecsEngine_atmosphere_ensureImpl(
         world, atmosphere_entity, FlecsAtmosphereImpl);
     if (existing->uniform_buffer) {
         if (was_deferred) ecs_defer_resume(world);
-        return true; /* already initialized */
+        return true;
     }
 
     FlecsAtmosphereImpl a = {0};
@@ -1480,15 +1389,7 @@ bool flecsEngine_atmosphere_ensureImpl(
     *existing = a;
     ecs_modified(world, atmosphere_entity, FlecsAtmosphereImpl);
 
-    /* Attach an IBL (FlecsHdriImpl) to the same entity. A single cubemap
-     * with mips serves as both the prefilter source (full chain) and the
-     * irradiance source (just the top/smallest mip exposed as a 1-mip
-     * view). Populated each frame by sky-view-to-face rendering + 2x mip
-     * downsampling; no GGX prefiltering since atmosphere has no
-     * high-frequency content. */
     FlecsHdriImpl *hdri = ecs_ensure(world, atmosphere_entity, FlecsHdriImpl);
-    /* Adding the HdriImpl may have changed the entity's archetype, so the
-     * previous `existing` pointer is now stale — re-fetch before writing. */
     existing = ecs_ensure(world, atmosphere_entity, FlecsAtmosphereImpl);
     if (!hdri->ibl_prefiltered_cubemap) {
         const uint32_t cube_size = 128u;
@@ -1497,8 +1398,6 @@ bool flecsEngine_atmosphere_ensureImpl(
         existing->cube_mip_count = mips;
         hdri->ibl_prefilter_mip_count = mips;
 
-        /* Cubemap — populated by compute, so usage is StorageBinding +
-         * TextureBinding (no RenderAttachment needed). */
         WGPUTextureDescriptor desc = {
             .usage = WGPUTextureUsage_StorageBinding |
                      WGPUTextureUsage_TextureBinding,
@@ -1517,7 +1416,7 @@ bool flecsEngine_atmosphere_ensureImpl(
                 .baseMipLevel = 0, .mipLevelCount = mips,
                 .baseArrayLayer = 0, .arrayLayerCount = 6
             });
-        /* Top-mip cube view (irradiance binding). */
+
         hdri->ibl_irradiance_cubemap = NULL;
         hdri->ibl_irradiance_cubemap_view = wgpuTextureCreateView(
             hdri->ibl_prefiltered_cubemap, &(WGPUTextureViewDescriptor){
@@ -1528,8 +1427,6 @@ bool flecsEngine_atmosphere_ensureImpl(
             });
         flecsIblCreateSampler(engine, hdri);
 
-        /* Per-mip storage-write 2D-array views (used as compute outputs)
-         * and per-mip read views (used when sampling the previous mip). */
         for (uint32_t m = 0; m < mips; m++) {
             existing->cube_mip_storage_views[m] = wgpuTextureCreateView(
                 hdri->ibl_prefiltered_cubemap,
@@ -1553,12 +1450,7 @@ bool flecsEngine_atmosphere_ensureImpl(
         ecs_modified(world, atmosphere_entity, FlecsHdriImpl);
     }
 
-    /* Pre-build cached bind groups for the LUT + downsample passes. All
-     * referenced resources (uniform buffer, LUT views, sampler, cubemap face
-     * views, per-slice buffers) are now stable. This eliminates ~80 bind
-     * group creations per frame. */
     {
-        /* Transmittance LUT bind group — uniform only. */
         WGPUBindGroupEntry t_entries[1] = {
             { .binding = 0, .buffer = existing->uniform_buffer,
               .offset = 0, .size = sizeof(FlecsAtmosphereUniform) }
@@ -1568,7 +1460,6 @@ bool flecsEngine_atmosphere_ensureImpl(
                 .layout = existing->trans_layout,
                 .entryCount = 1, .entries = t_entries });
 
-        /* Multi-scattering bind group — uniform + trans LUT + sampler. */
         WGPUBindGroupEntry ms_entries[3] = {
             { .binding = 0, .buffer = existing->uniform_buffer,
               .offset = 0, .size = sizeof(FlecsAtmosphereUniform) },
@@ -1580,7 +1471,6 @@ bool flecsEngine_atmosphere_ensureImpl(
                 .layout = existing->ms_layout,
                 .entryCount = 3, .entries = ms_entries });
 
-        /* Sky-view bind group — uniform + trans + MS + sampler. */
         WGPUBindGroupEntry sv_entries[4] = {
             { .binding = 0, .buffer = existing->uniform_buffer,
               .offset = 0, .size = sizeof(FlecsAtmosphereUniform) },
@@ -1593,8 +1483,6 @@ bool flecsEngine_atmosphere_ensureImpl(
                 .layout = existing->skyview_layout,
                 .entryCount = 4, .entries = sv_entries });
 
-        /* Aerial LUT compute bind group — a single group dispatched once
-         * per frame to populate all 32^3 voxels. */
         WGPUBindGroupEntry a_entries[5] = {
             { .binding = 0, .buffer = existing->uniform_buffer,
               .offset = 0, .size = sizeof(FlecsAtmosphereUniform) },
@@ -1608,8 +1496,6 @@ bool flecsEngine_atmosphere_ensureImpl(
                 .layout = existing->aerial_compute_layout,
                 .entryCount = 5, .entries = a_entries });
 
-        /* Cube face compute bind group — writes mip 0 (all 6 faces) in one
-         * dispatch. */
         WGPUBindGroupEntry cf_entries[4] = {
             { .binding = 0, .buffer = existing->uniform_buffer,
               .offset = 0, .size = sizeof(FlecsAtmosphereUniform) },
@@ -1622,8 +1508,6 @@ bool flecsEngine_atmosphere_ensureImpl(
                 .layout = existing->cube_face_layout,
                 .entryCount = 4, .entries = cf_entries });
 
-        /* Cube-mip downsample bind groups — one per mip (m >= 1). Reads the
-         * previous mip's 2D-array view. */
         for (uint32_t m = 1; m < existing->cube_mip_count; m++) {
             WGPUBindGroupEntry ds_entries[3] = {
                 { .binding = 0,
@@ -1642,10 +1526,6 @@ bool flecsEngine_atmosphere_ensureImpl(
     if (was_deferred) ecs_defer_resume(world);
     return true;
 }
-
-/* -------------------------------------------------------------------------- */
-/* Pass helpers                                                               */
-/* -------------------------------------------------------------------------- */
 
 static bool flecsEngine_atmos_runPassBG(
     const FlecsEngineImpl *engine,
@@ -1705,8 +1585,6 @@ static bool flecsEngine_atmos_runSkyView(
         a->skyview_bind_group, a->skyview_view);
 }
 
-/* Helper: run a compute pass with one cached bind group and a single
- * dispatch. Single command per call. */
 static bool flecsEngine_atmos_runComputePass(
     WGPUCommandEncoder encoder,
     WGPUComputePipeline pipeline,
@@ -1732,7 +1610,7 @@ static bool flecsEngine_atmos_runAerial(
 {
     (void)engine;
     FLECS_TRACY_ZONE_BEGIN("AtmosAerial");
-    /* 32x32x32 texels, workgroup size (8,8,1) -> dispatch (4,4,32). */
+
     bool ok = flecsEngine_atmos_runComputePass(
         encoder, a->aerial_compute_pipeline, a->aerial_compute_bind_group,
         (FLECS_ATMOS_AERIAL_W + 7) / 8,
@@ -1803,10 +1681,6 @@ static bool flecsEngine_atmos_runCompose(
     return true;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Public render API                                                          */
-/* -------------------------------------------------------------------------- */
-
 bool flecsEngine_atmosphere_renderLuts(
     ecs_world_t *world,
     const FlecsEngineImpl *engine,
@@ -1867,16 +1741,14 @@ bool flecsEngine_atmosphere_renderIbl(
         return false;
     }
 
-    /* Pass 1: single compute dispatch writes all 6 cube faces of mip 0. */
     FLECS_TRACY_ZONE_BEGIN_N(faces_zone, "AtmosIbl.faces");
-    uint32_t top_size = 128u; /* matches cube_size in ensureImpl */
+    uint32_t top_size = 128u;
     bool ok = flecsEngine_atmos_runComputePass(
         encoder, a->cube_face_pipeline, a->cube_face_bind_group,
         (top_size + 7) / 8, (top_size + 7) / 8, 6);
     FLECS_TRACY_ZONE_END_N(faces_zone);
     if (!ok) { FLECS_TRACY_ZONE_END; return false; }
 
-    /* Pass 2+: one compute dispatch per target mip (7 total for 8 mips). */
     FLECS_TRACY_ZONE_BEGIN_N(ds_zone, "AtmosIbl.downsample");
     for (uint32_t m = 1; m < a->cube_mip_count; m++) {
         uint32_t size = top_size >> m;
@@ -1914,8 +1786,119 @@ bool flecsEngine_atmosphere_renderCompose(
         engine, a, encoder, input_view, output_view, output_format, output_load_op);
 }
 
-void flecsEngine_atmosphere_register(ecs_world_t *world)
+/* CPU transmittance function for calculating light color from time of day */
+void flecsEngine_atmos_sunTransmittance(
+    const FlecsAtmosphere *atm,
+    float sun_cos_zenith,
+    float out_rgb[3])
 {
+    if (!atm || !out_rgb) {
+        return;
+    }
+
+    if (sun_cos_zenith > 1.0f) sun_cos_zenith = 1.0f;
+    if (sun_cos_zenith < -1.0f) sun_cos_zenith = -1.0f;
+
+    if (sun_cos_zenith <= 0.0f) {
+        out_rgb[0] = out_rgb[1] = out_rgb[2] = 0.0f;
+        return;
+    }
+
+    float planet_r = atm->planet_radius_km > 0.0f
+        ? atm->planet_radius_km : 6360.0f;
+    float thickness = atm->atmosphere_thickness_km > 0.0f
+        ? atm->atmosphere_thickness_km : 100.0f;
+    float top_r = planet_r + thickness;
+    float alt_km = atm->ground_altitude_km > 0.0f
+        ? atm->ground_altitude_km : 0.0f;
+    float view_r = planet_r + alt_km;
+
+    float b = view_r * sun_cos_zenith;
+    float c = view_r * view_r - top_r * top_r;
+    float disc = b * b - c;
+    if (disc <= 0.0f) {
+        out_rgb[0] = out_rgb[1] = out_rgb[2] = 1.0f;
+        return;
+    }
+    float t_max = -b + sqrtf(disc);
+    if (t_max <= 0.0f) {
+        out_rgb[0] = out_rgb[1] = out_rgb[2] = 1.0f;
+        return;
+    }
+
+    float rayleigh_scale = atm->rayleigh.scattering_scale >= 0.0f
+        ? atm->rayleigh.scattering_scale : 1.0f;
+    float ray_r = 0.005802f * rayleigh_scale;
+    float ray_g = 0.013558f * rayleigh_scale;
+    float ray_b = 0.033100f * rayleigh_scale;
+
+    float mie_scale = atm->mie.scattering_scale > 0.0f
+        ? atm->mie.scattering_scale : 1.0f;
+    float tint_r = (float)atm->mie.tint.r * (1.0f / 255.0f);
+    float tint_g = (float)atm->mie.tint.g * (1.0f / 255.0f);
+    float tint_b = (float)atm->mie.tint.b * (1.0f / 255.0f);
+    float mie_ext_r = 0.004400f * mie_scale * tint_r;
+    float mie_ext_g = 0.004400f * mie_scale * tint_g;
+    float mie_ext_b = 0.004400f * mie_scale * tint_b;
+
+    float ozone_scale = atm->ozone_scale >= 0.0f ? atm->ozone_scale : 1.0f;
+    float oz_r = 0.000650f * ozone_scale;
+    float oz_g = 0.001881f * ozone_scale;
+    float oz_b = 0.000085f * ozone_scale;
+
+    float strat = atm->stratospheric_aerosol_scale > 0.0f
+        ? atm->stratospheric_aerosol_scale : 0.0f;
+    float st_r = 0.001950f * strat;
+    float st_g = 0.005643f * strat;
+    float st_b = 0.000255f * strat;
+
+    float ray_h = atm->rayleigh.scale_height_km > 0.0f
+        ? atm->rayleigh.scale_height_km : 8.0f;
+    float mie_h = atm->mie.scale_height_km > 0.0f
+        ? atm->mie.scale_height_km : 1.2f;
+
+    const int STEPS = 40;
+    float dt = t_max / (float)STEPS;
+    float rd_x = sqrtf(fmaxf(0.0f, 1.0f - sun_cos_zenith * sun_cos_zenith));
+    float rd_y = sun_cos_zenith;
+
+    float od_r = 0.0f, od_g = 0.0f, od_b = 0.0f;
+
+    for (int i = 0; i < STEPS; i++) {
+        float t = ((float)i + 0.5f) * dt;
+        float px = rd_x * t;
+        float py = view_r + rd_y * t;
+        float r_p = sqrtf(px * px + py * py);
+        float alt = r_p - planet_r;
+        if (alt < 0.0f) alt = 0.0f;
+
+        float d_ray = expf(-alt / ray_h);
+        float d_mie = expf(-alt / mie_h);
+        float d_oz = 1.0f - fabsf(alt - 25.0f) / 15.0f;
+        if (d_oz < 0.0f) d_oz = 0.0f;
+        float d_st = 1.0f - fabsf(alt - 20.0f) / 5.0f;
+        if (d_st < 0.0f) d_st = 0.0f;
+
+        float ext_r = ray_r * d_ray + mie_ext_r * d_mie + oz_r * d_oz + st_r * d_st;
+        float ext_g = ray_g * d_ray + mie_ext_g * d_mie + oz_g * d_oz + st_g * d_st;
+        float ext_b = ray_b * d_ray + mie_ext_b * d_mie + oz_b * d_oz + st_b * d_st;
+
+        od_r += ext_r * dt;
+        od_g += ext_g * dt;
+        od_b += ext_b * dt;
+    }
+
+    out_rgb[0] = expf(-od_r);
+    out_rgb[1] = expf(-od_g);
+    out_rgb[2] = expf(-od_b);
+}
+
+void FlecsEngineAtmosphereImport(ecs_world_t *world)
+{
+    ECS_MODULE(world, FlecsEngineAtmosphere);
+
+    ecs_set_name_prefix(world, "Flecs");
+
     ECS_COMPONENT_DEFINE(world, FlecsAtmosphere);
     ECS_COMPONENT_DEFINE(world, FlecsAtmosphereImpl);
 
@@ -1923,6 +1906,24 @@ void flecsEngine_atmosphere_register(ecs_world_t *world)
         .ctor = flecs_default_ctor,
         .move = ecs_move(FlecsAtmosphereImpl),
         .dtor = ecs_dtor(FlecsAtmosphereImpl)
+    });
+
+    ecs_entity_t rayleigh_t = ecs_struct(world, {
+        .entity = ecs_entity(world, { .name = "FlecsAtmosphereRayleigh" }),
+        .members = {
+            { .name = "scale_height_km", .type = ecs_id(ecs_f32_t) },
+            { .name = "scattering_scale", .type = ecs_id(ecs_f32_t) }
+        }
+    });
+
+    ecs_entity_t mie_t = ecs_struct(world, {
+        .entity = ecs_entity(world, { .name = "FlecsAtmosphereMie" }),
+        .members = {
+            { .name = "scale_height_km", .type = ecs_id(ecs_f32_t) },
+            { .name = "anisotropy", .type = ecs_id(ecs_f32_t) },
+            { .name = "scattering_scale", .type = ecs_id(ecs_f32_t) },
+            { .name = "tint", .type = ecs_id(flecs_rgba_t) }
+        }
     });
 
     ecs_struct(world, {
@@ -1938,11 +1939,10 @@ void flecsEngine_atmosphere_register(ecs_world_t *world)
             { .name = "ground_altitude_km", .type = ecs_id(ecs_f32_t) },
             { .name = "planet_radius_km", .type = ecs_id(ecs_f32_t) },
             { .name = "atmosphere_thickness_km", .type = ecs_id(ecs_f32_t) },
-            { .name = "rayleigh_scale_height_km", .type = ecs_id(ecs_f32_t) },
-            { .name = "mie_scale_height_km", .type = ecs_id(ecs_f32_t) },
-            { .name = "mie_anisotropy", .type = ecs_id(ecs_f32_t) },
-            { .name = "mie_scattering_scale", .type = ecs_id(ecs_f32_t) },
+            { .name = "rayleigh", .type = rayleigh_t },
+            { .name = "mie", .type = mie_t },
             { .name = "ozone_scale", .type = ecs_id(ecs_f32_t) },
+            { .name = "stratospheric_aerosol_scale", .type = ecs_id(ecs_f32_t) },
             { .name = "ground_albedo", .type = ecs_id(flecs_rgba_t) }
         }
     });

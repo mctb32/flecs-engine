@@ -25,6 +25,12 @@ ECS_STRUCT(FlecsHeightFog, {
     float base_height;
     float max_opacity;
     flecs_rgba_t color;
+
+    /* Set to atmosphere entity to derive fog color from atmosphere */
+    ecs_entity_t atmosphere;
+
+    /* Angle from which to sample the horizon color */
+    float horizon_offset;
 });
 
 extern ECS_COMPONENT_DECLARE(FlecsHeightFog);
@@ -38,60 +44,16 @@ ECS_STRUCT(FlecsSSAO, {
 
 extern ECS_COMPONENT_DECLARE(FlecsSSAO);
 
-/* Screen-space sun shafts (crepuscular rays).
- * Radial-blur accumulation of sky pixels from the sun's projected screen
- * position. Requires the same directional light that lights the scene on the
- * enclosing FlecsRenderView. */
 ECS_STRUCT(FlecsSunShafts, {
-    float intensity;    /* overall multiplier; 0 disables the effect */
-    float density;      /* radial march length in UV space (~0.5-1.0) */
-    float weight;       /* per-sample contribution */
-    float decay;        /* geometric per-sample falloff (~0.95) */
-    float exposure;     /* final scalar applied to the accumulated shafts */
-    flecs_rgba_t color; /* shaft tint */
+    float intensity;
+    float density;
+    float weight;
+    float decay;
+    float exposure;
+    flecs_rgba_t color;
 });
 
 extern ECS_COMPONENT_DECLARE(FlecsSunShafts);
-
-/* Physically-based sky & aerial-perspective effect (Hillaire 2020).
- * Builds 4 LUTs per frame (transmittance / multi-scattering / sky-view /
- * aerial perspective) and composites them with the scene in a final pass. */
-ECS_STRUCT(FlecsAtmosphere, {
-    float sun_intensity;              /* multiplies the directional light intensity */
-    float sun_disk_intensity;         /* 0 disables the disk */
-    float sun_disk_angular_radius;    /* radians; real sun ~0.00465 (~0.27 deg) */
-    float aerial_perspective_distance_km; /* depth range stored in the 3D LUT;
-                                           * set close to your scene's max depth */
-    float aerial_perspective_intensity;   /* scalar multiplier on aerial haze;
-                                           * 1 = physical, higher = artistic push */
-
-    float sea_level_y;                /* world-y of sea level */
-    float world_units_per_km;         /* engine unit scale; 1000 = 1 unit is 1 m */
-    float ground_altitude_km;         /* altitude at sea_level_y */
-
-    float planet_radius_km;           /* Earth: 6360 */
-    float atmosphere_thickness_km;    /* Earth: 100 */
-    float rayleigh_scale_height_km;   /* Earth: 8 */
-    float mie_scale_height_km;        /* Earth: 1.2 */
-    float mie_anisotropy;             /* Henyey-Greenstein g; Earth: 0.8 */
-
-    /* Aerosol density multiplier on Mie scattering + extinction.
-     * 1 = clean dry continental air. Raise for humid/coastal (~2), urban
-     * smog or wildfire smoke (~5-10), dust or volcanic haze. This is the
-     * primary per-scene/weather knob and desaturates red sunsets toward
-     * pink/orange as it grows. */
-    float mie_scattering_scale;
-
-    /* Ozone column multiplier. 1 = Earth mid-latitude average; varies ~2x
-     * by latitude and season on Earth. Higher values push dusk/dawn toward
-     * purple/blue twilight (the "Belt of Venus" and post-volcanic skies)
-     * by absorbing more yellow/green from the low-sun sky. */
-    float ozone_scale;
-
-    flecs_rgba_t ground_albedo;       /* for multi-scattering */
-});
-
-extern ECS_COMPONENT_DECLARE(FlecsAtmosphere);
 
 ecs_entity_t flecsEngine_createEffect_tonyMcMapFace(
     ecs_world_t *world,
@@ -146,7 +108,5 @@ ecs_entity_t flecsEngine_createEffect_gammaCorrect(
     ecs_entity_t parent,
     const char *name,
     int32_t input);
-
-FlecsAtmosphere flecsEngine_atmosphereSettingsDefault(void);
 
 #endif

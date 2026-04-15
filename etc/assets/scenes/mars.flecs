@@ -4,64 +4,67 @@ using flecs.engine.*
 const rng = math.Rng: {}
 
 camera {
-    Position3: {-6.931, 7.672, 37.811}
-    LookAt: {-6.91, 7.447, 36.836}
-}
-
-view.atmosphere {
-    Atmosphere: {
-        sun_intensity: 16,
-        sun_disk_intensity: 20,
-        sun_disk_angular_radius: 0.015,
-        aerial_perspective_distance_km: 6,
-        aerial_perspective_intensity: 1.6,
-        sea_level_y: 0,
-        world_units_per_km: 1000,
-        ground_altitude_km: 0.01,
-        planet_radius_km: 6360,
-        atmosphere_thickness_km: 100,
-        rayleigh: { scale_height_km: 8, scattering_scale: 1.0 },
-        mie: {
-            scale_height_km: 5,
-            anisotropy: 0.5,
-            scattering_scale: 2,
-            tint: {255, 215, 180, 255}
-        },
-        ozone_scale: 2,
-        stratospheric_aerosol_scale: 1.5,
-        ground_albedo: {180, 160, 140, 255}
-    }
+    Position3: {-8.44, 9.354, -66}
+    LookAt: {-9.26, 9.236, -65.4}
 }
 
 time_of_day {
     TimeOfDay: {
         light: light,
         atmosphere: view.atmosphere,
-        hour: 17.5,
-        day_of_year: 80,
-        latitude: 25.2,
+        hour: 18.5,
+        day_of_year: 172,
+        latitude: 22.0,
         north_offset: 0,
         time_scale: 0.0,
-        sun_intensity: 5.0
+        sun_intensity: 6.0
+    }
+}
+
+view.atmosphere {
+    Atmosphere: {
+        sun_intensity: 9.0,
+        sun_disk_intensity: 400.0,
+        sun_disk_angular_radius: 0.01,
+        aerial_perspective_distance_km: 24.0,
+        aerial_perspective_intensity: 1.4,
+        sea_level_y: 0,
+        world_units_per_km: 1000,
+        ground_altitude_km: 0.5,
+        planet_radius_km: 3389,
+        atmosphere_thickness_km: 80,
+        rayleigh: { scale_height_km: 11, scattering_scale: 0.01 },
+        mie: {
+            scale_height_km: 11,
+            anisotropy: 0.6,
+            scattering_scale: 20,
+            tint: {255, 170, 110, 255}
+        },
+        ozone_scale: 0,
+        stratospheric_aerosol_scale: 0,
+        ground_albedo: {200, 140, 100, 255}
     }
 }
 
 view.heightFog {
     HeightFog: {
-        density: 0.013,
-        falloff: 0.1,
+        density: 0.015,
+        falloff: 0.12,
         base_height: 0,
         max_opacity: 1,
-        atmosphere: view.atmosphere
-        horizon_offset: 0.07
+        color: {20, 20, 20, 255}
     }
 }
 
-ground {
-  Quad: {10000, 10000}
-  Position3: {}
-  Rotation3: {x: -math.PI / 2}
-  Rgba: {20, 20, 20}
+view.sunShafts {
+    SunShafts: {
+        intensity: 0.1,
+        density: 0.8,
+        weight: 0.05,
+        decay: 0.98,
+        exposure: 0.3,
+        color: {105, 165, 255, 255}
+    }
 }
 
 prefabs {
@@ -1122,7 +1125,7 @@ template KenneyCity {
   }
 }
 
-KenneyCity city(10) {
+KenneyCity city(30) {
   Position3: {y: 1}
   Scale3: {2, 2, 2}
 }

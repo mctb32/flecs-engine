@@ -34,42 +34,62 @@ You should probably not use this, unless:
   - IcoSphere
   - HemiSphere
   - NGon
-
-- Primitive shapes
 - Meshes
-- GLTF loader
-- Movement systems
-- Instancing
-- PBR materials
-- Transmissive materials
+- Instanced rendering
+
+### Assets
+- glTF loader
+- PNG loader
+- DDS loader
+- HDR / EXR loader (for HDRI)
+
+### Materials
+- Metallic
+- Roughness
+- Cubemap based reflections
+- Emissive
+- Transmissive (rough/smooth objects)
+- PBR textures
+- Per-instance materials
+- Shared materials
+
+### Lighting
 - Directional light
-- Pointlights
-- Spotlights
+- Point lights
+- Spot lights
 - Clustered light rendering
 - Cascading shadow maps
-- Frustum culling
-- Image based lighting (support for .exr and .hdr)
-- Skybox
-- Bloom
-- Height based fog
-- Dynamic atmosphere skybox
+- Image based lighting
+
+### Atmosphere
+- Dynamic atmosphere
 - Dynamic atmosphere IBL
-- Sun shafts effect
+
+### Effects
+- Bloom
+- SSAO
+- Height fog (flat color & from atmosphere)
+- Screen space sun shafts
 - Tony McMapFace tone mapping
-- MSAA
-- Infinite grid
-- Infinite plane
+
+### Misc
 - Input handling
 - Camera controller
-- Data-driven engine setup
-- Rendering to image
+- Time of day system
+- Movement systems
+- Tracy profiling
+- Image-based rendering regression testing
+- MSAA
+- CPU frustum culling
+- Render to image
 
 ## Dependencies
 - cglm
 - cgltf
 - glfw
-- tinyexr
 - stb_image
+- tinyexr
+- tracy
 
 ## Assets used
 - [Kronos sample assets](https://github.com/KhronosGroup/glTF-Sample-Assets)
