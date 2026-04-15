@@ -767,6 +767,8 @@ FlecsAtmosphere flecsEngine_atmosphereSettingsDefault(void)
         .rayleigh_scale_height_km = 8.0f,
         .mie_scale_height_km = 1.2f,
         .mie_anisotropy = 0.8f,
+        .mie_scattering_scale = 1.0f,
+        .ozone_scale = 1.0f,
         .ground_albedo = { 77, 77, 77, 255 }
     };
 }
@@ -795,14 +797,16 @@ static void flecsEngine_atmos_fillUniform(
     out->scat_rayleigh[2] = 0.033100f;
     out->scat_rayleigh[3] = 0.0f;
 
-    out->ext_mie[0] = 0.003996f; /* mie scattering */
-    out->ext_mie[1] = 0.004400f; /* mie extinction (scattering + absorption) */
+    float mie_scale = s->mie_scattering_scale > 0.0f ? s->mie_scattering_scale : 1.0f;
+    out->ext_mie[0] = 0.003996f * mie_scale; /* mie scattering */
+    out->ext_mie[1] = 0.004400f * mie_scale; /* mie extinction (scattering + absorption) */
     out->ext_mie[2] = 0.0f;
     out->ext_mie[3] = 0.0f;
 
-    out->abs_ozone[0] = 0.000650f;
-    out->abs_ozone[1] = 0.001881f;
-    out->abs_ozone[2] = 0.000085f;
+    float ozone_scale = s->ozone_scale >= 0.0f ? s->ozone_scale : 1.0f;
+    out->abs_ozone[0] = 0.000650f * ozone_scale;
+    out->abs_ozone[1] = 0.001881f * ozone_scale;
+    out->abs_ozone[2] = 0.000085f * ozone_scale;
     out->abs_ozone[3] = 0.0f;
 
     out->ground_albedo[0] = flecsEngine_colorChannelToFloat(s->ground_albedo.r);
@@ -1937,6 +1941,8 @@ void flecsEngine_atmosphere_register(ecs_world_t *world)
             { .name = "rayleigh_scale_height_km", .type = ecs_id(ecs_f32_t) },
             { .name = "mie_scale_height_km", .type = ecs_id(ecs_f32_t) },
             { .name = "mie_anisotropy", .type = ecs_id(ecs_f32_t) },
+            { .name = "mie_scattering_scale", .type = ecs_id(ecs_f32_t) },
+            { .name = "ozone_scale", .type = ecs_id(ecs_f32_t) },
             { .name = "ground_albedo", .type = ecs_id(flecs_rgba_t) }
         }
     });

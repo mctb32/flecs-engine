@@ -14,6 +14,7 @@
 #include "../texture/texture.h"
 #include "../material/material.h"
 #include "../gltf/gltf.h"
+#include "../time_of_day/time_of_day.h"
 
 ECS_COMPONENT_DECLARE(flecs_vec2_t);
 ECS_COMPONENT_DECLARE(flecs_vec3_t);
@@ -283,4 +284,5 @@ void FlecsEngineImport(
     ECS_IMPORT(world, FlecsEngineInput);
     ECS_IMPORT(world, FlecsEngineCamera);
     ECS_IMPORT(world, FlecsEngineGltf);
+    ECS_IMPORT(world, FlecsEngineTime_of_day);
 }

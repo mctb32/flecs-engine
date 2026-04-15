@@ -75,6 +75,19 @@ ECS_STRUCT(FlecsAtmosphere, {
     float mie_scale_height_km;        /* Earth: 1.2 */
     float mie_anisotropy;             /* Henyey-Greenstein g; Earth: 0.8 */
 
+    /* Aerosol density multiplier on Mie scattering + extinction.
+     * 1 = clean dry continental air. Raise for humid/coastal (~2), urban
+     * smog or wildfire smoke (~5-10), dust or volcanic haze. This is the
+     * primary per-scene/weather knob and desaturates red sunsets toward
+     * pink/orange as it grows. */
+    float mie_scattering_scale;
+
+    /* Ozone column multiplier. 1 = Earth mid-latitude average; varies ~2x
+     * by latitude and season on Earth. Higher values push dusk/dawn toward
+     * purple/blue twilight (the "Belt of Venus" and post-volcanic skies)
+     * by absorbing more yellow/green from the low-sun sky. */
+    float ozone_scale;
+
     flecs_rgba_t ground_albedo;       /* for multi-scattering */
 });
 

@@ -8,6 +8,19 @@ camera {
     LookAt: {-6.91, 7.447, 36.836}
 }
 
+time_of_day {
+    TimeOfDay: {
+        light: light,
+        atmosphere: view.atmosphere,
+        hour: 8.5,
+        day_of_year: 172,
+        latitude: 52.37,
+        north_offset: 0,
+        time_scale: 0.1,
+        sun_intensity: 3.0
+    }
+}
+
 prefabs {
   prefab crossroad {
     Gltf: {"etc/assets/kenney/city-kit-roads/Models/GLB format/road-crossroad-path.glb"}

@@ -18,6 +18,23 @@ You should probably not use this, unless:
 - you're OK with the limitations of the engine
 
 ## Features
+
+### Geometry
+- Primitive shapes:
+  - Quad
+  - Box
+  - Triangle
+  - TrianglePrism
+  - RightTriangle
+  - RightTrianglePrism
+- Primitive meshes (parameterized mesh cache):
+  - Cone
+  - Cylinder
+  - Sphere
+  - IcoSphere
+  - HemiSphere
+  - NGon
+
 - Primitive shapes
 - Meshes
 - GLTF loader
@@ -35,6 +52,9 @@ You should probably not use this, unless:
 - Skybox
 - Bloom
 - Height based fog
+- Dynamic atmosphere skybox
+- Dynamic atmosphere IBL
+- Sun shafts effect
 - Tony McMapFace tone mapping
 - MSAA
 - Infinite grid

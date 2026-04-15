@@ -226,7 +226,7 @@ void initEngine(
       flecsEngine_createEffect_heightFog(world, view_entity,
         "heightFog", 1, &fog_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = true, .effect =
+    (flecs_render_view_effect_t){ .enabled = false, .effect =
       flecsEngine_createEffect_sunShafts(world, view_entity,
         "sunShafts", 2, NULL) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
