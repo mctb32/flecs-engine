@@ -5,6 +5,8 @@ build-release
 build-wasm
 build-tracy
 .vscode
+!.vscode/cmake-kits.json
+!.vscode/setup-msvc-x64.bat
 .claude
 _deps
 test/out

@@ -1,7 +1,7 @@
 {
   "cmake.generator": "Ninja",
   "cmake.platform": "",
-  "cmake.useVsDeveloperEnvironment": "auto",
+  "cmake.useVsDeveloperEnvironment": "never",
   "cmake.buildDirectory": "${workspaceFolder}/build/${variant:buildType}",
   "cmake.debugConfig": {
     "cwd": "${workspaceFolder}"

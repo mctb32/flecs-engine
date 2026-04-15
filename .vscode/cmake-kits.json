@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Ninja + MSVC x64 (project)",
+    "description": "Uses the repo-local VS discovery wrapper to initialize an x64 MSVC environment and configures with Ninja.",
+    "preferredGenerator": {
+      "name": "Ninja"
+    },
+    "environmentSetupScript": "\"${workspaceFolder}\\.vscode\\setup-msvc-x64.bat\""
+  }
+]
