@@ -142,7 +142,7 @@ void initEngine(
       .max_range = 200,
       .bias = 0.0001
     },
-    .ambient_intensity = 0.4f,
+    .ambient_intensity = 0.2f,
     .screen_size_threshold = 5.0
   };
 
@@ -170,8 +170,8 @@ void initEngine(
   // Camera
   view.camera = ecs_entity(world, { .name = "camera" });
   ecs_set(world, view.camera, FlecsCamera, {
-      .fov = glm_rad(70.0f),
-      .near_ = 1.0f,
+      .fov = glm_rad(60.0f),
+      .near_ = 0.5f,
       .far_ = 1000.0f,
       .aspect_ratio = options.width / (float)options.height
   });
@@ -214,6 +214,7 @@ void initEngine(
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
   FlecsHeightFog fog_settings =
     flecsEngine_heightFogSettingsDefault();
+  fog_settings.density = 0;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =

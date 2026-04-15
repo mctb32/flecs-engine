@@ -2,8 +2,21 @@ using flecs.engine.*
 using flecs.script
 
 camera {
-    Position3: {-20.501, 1.846, 13.392}
-    LookAt: {-19.521, 1.815, 13.195}
+    Position3: {-61.3, 7.8, 50}
+    LookAt: {-60.388, 7.801, 49.59}
+}
+
+time_of_day {
+    TimeOfDay: {
+        light: light,
+        atmosphere: view.atmosphere,
+        hour: 13.7,
+        day_of_year: 80,
+        latitude: 25.2,
+        north_offset: 0,
+        time_scale: 0.0,
+        sun_intensity: 5.0
+    }
 }
 
 bistro {
@@ -11,5 +24,5 @@ bistro {
 
     Position3: {y: 0, z: 0}
     Rotation3: {}
-    Scale3: {1, 1, 1}
+    Scale3: {3, 3, 3}
 }

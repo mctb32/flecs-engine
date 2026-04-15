@@ -4,8 +4,8 @@ using flecs.engine.*
 const rng = math.Rng: {}
 
 camera {
-    Position3: {-6.931, 7.672, 37.811}
-    LookAt: {-6.91, 7.447, 36.836}
+    Position3: {-33.233, 10, 55.8}
+    LookAt: {-33.233, 9.768, 54.839}
 }
 
 view.atmosphere {
@@ -14,7 +14,7 @@ view.atmosphere {
         sun_disk_intensity: 20,
         sun_disk_angular_radius: 0.015,
         aerial_perspective_distance_km: 6,
-        aerial_perspective_intensity: 1.6,
+        aerial_perspective_intensity: 40,
         sea_level_y: 0,
         world_units_per_km: 1000,
         ground_altitude_km: 0.01,
@@ -37,31 +37,24 @@ time_of_day {
     TimeOfDay: {
         light: light,
         atmosphere: view.atmosphere,
-        hour: 17.5,
+        hour: 17.4,
         day_of_year: 80,
         latitude: 25.2,
-        north_offset: 0,
+        north_offset: 30,
         time_scale: 0.0,
-        sun_intensity: 5.0
+        sun_intensity: 6.0
     }
 }
 
 view.heightFog {
     HeightFog: {
-        density: 0.013,
+        density: 0.002,
         falloff: 0.1,
         base_height: 0,
         max_opacity: 1,
         atmosphere: view.atmosphere
         horizon_offset: 0.07
     }
-}
-
-ground {
-  Quad: {10000, 10000}
-  Position3: {}
-  Rotation3: {x: -math.PI / 2}
-  Rgba: {20, 20, 20}
 }
 
 prefabs {
@@ -1122,7 +1115,7 @@ template KenneyCity {
   }
 }
 
-KenneyCity city(10) {
+KenneyCity city(20) {
   Position3: {y: 1}
-  Scale3: {2, 2, 2}
+  Scale3: {4, 4, 4}
 }
