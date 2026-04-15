@@ -524,7 +524,7 @@ void flecsEngine_material_buildTextureArrays(
 
     if (!any_material) {
         /* No textured materials. Still build a bind group using the
-         * fallback views so that pbr_colored batches (which always
+         * fallback views so that pbr batches (which always
          * declare the texture array bindings) can draw. */
         flecsEngine_textureArray_createBindGroup(impl);
         return;

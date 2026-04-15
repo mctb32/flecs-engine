@@ -21,14 +21,14 @@ typedef struct {
 extern ECS_COMPONENT_DECLARE(FlecsHdriImpl);
 
 typedef struct {
-    WGPUBuffer vertex_buffer;    /* vec<FlecsLitVertex> */
+    WGPUBuffer vertex_buffer;    /* vec<FlecsVertex> — position only, used
+                                  * by the shadow depth pass */
     WGPUBuffer vertex_uv_buffer; /* vec<FlecsLitVertexUv>, always built
                                   * (zero UVs/tangents if the source had none) */
     WGPUBuffer index_buffer;     /* vec<uint32_t> */
     int32_t vertex_count;
     int32_t index_count;
-    float aabb_min[3];           /* local-space AABB minimum */
-    float aabb_max[3];           /* local-space AABB maximum */
+    FlecsAABB aabb;
 } FlecsMesh3Impl;
 
 extern ECS_COMPONENT_DECLARE(FlecsMesh3Impl);

@@ -283,7 +283,7 @@ int main(
   ECS_IMPORT(world, FlecsEngine);
 
   if (!options.frame_output_mode) {
-    ecs_log_set_level(1);
+    ecs_log_set_level(0);
   }
 
   initEngine(world, options);
@@ -298,6 +298,7 @@ int main(
     // : "etc/assets/scenes/damaged_helmet.flecs";
     // : "etc/assets/scenes/city.flecs";
     // : "etc/assets/scenes/museum.flecs";
+    // : "etc/assets/scenes/zero_day.flecs";
     : "etc/assets/scenes/cube.flecs";
     // : "etc/assets/scenes/empty.flecs";
 

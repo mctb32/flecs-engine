@@ -282,6 +282,7 @@ void FlecsEngineTransform3Import(
     ECS_COMPONENT_DEFINE(world, FlecsScale3);
     ECS_COMPONENT_DEFINE(world, FlecsLookAt);
     ECS_META_COMPONENT(world, FlecsWorldTransform3);
+    ECS_META_COMPONENT(world, FlecsAABB);
     ECS_TAG_DEFINE(world, FlecsDynamicTransform);
 
     flecsEngine_registerVec3Type(world, ecs_id(FlecsPosition3));
@@ -293,6 +294,7 @@ void FlecsEngineTransform3Import(
     ecs_add_pair(world, ecs_id(FlecsRotation3), EcsWith, ecs_id(FlecsWorldTransform3));
     ecs_add_pair(world, ecs_id(FlecsScale3),    EcsWith, ecs_id(FlecsWorldTransform3));
     ecs_add_pair(world, ecs_id(FlecsLookAt),    EcsWith, ecs_id(FlecsRotation3));
+    ecs_add_pair(world, ecs_id(FlecsWorldTransform3), EcsWith, ecs_id(FlecsAABB));
 
     ecs_query_desc_t q_childof = {
         .entity = ecs_entity(world, { .name = "Transform3ChildOf" }),

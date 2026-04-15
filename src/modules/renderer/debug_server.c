@@ -486,10 +486,10 @@ static void page_views_batch(
                 uint64_t group_id = ecs_map_key(&git);
                 if (!group_id) continue;
                 group_count++;
-                flecsEngine_batch_t *ctx =
+                flecsEngine_batch_group_t *ctx =
                     ecs_query_get_group_ctx(batch->query, group_id);
                 if (ctx) {
-                    total_instances += ctx->count;
+                    total_instances += ctx->view.count;
                 }
             }
         }
@@ -526,7 +526,7 @@ static void page_views_batch(
             uint64_t group_id = ecs_map_key(&git);
             if (!group_id) continue;
 
-            flecsEngine_batch_t *ctx =
+            flecsEngine_batch_group_t *ctx =
                 ecs_query_get_group_ctx(batch->query, group_id);
             if (!ctx) continue;
 
@@ -538,7 +538,7 @@ static void page_views_batch(
                 "<td class='num'>%d</td>"
                 "<td class='num'>%d</td>"
                 "<td>%s</td></tr>",
-                ctx->count,
+                ctx->view.count,
                 ctx->mesh.vertex_count,
                 ctx->mesh.index_count,
                 mesh_label ? mesh_label : "(unnamed)");
@@ -598,9 +598,9 @@ static void page_views_batchSet(
                 while (ecs_map_next(&gi)) {
                     uint64_t gid = ecs_map_key(&gi);
                     if (!gid) continue;
-                    flecsEngine_batch_t *c =
+                    flecsEngine_batch_group_t *c =
                         ecs_query_get_group_ctx(rb->query, gid);
-                    if (c && c->count > 0) { set_empty = false; break; }
+                    if (c && c->view.count > 0) { set_empty = false; break; }
                 }
             }
 

@@ -22,4 +22,9 @@ ECS_STRUCT(FlecsWorldTransform3, {
     mat4 m;
 });
 
+ECS_STRUCT(FlecsAABB, {
+    float min[3];
+    float max[3];
+});
+
 #endif

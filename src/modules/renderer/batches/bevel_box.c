@@ -11,11 +11,10 @@
 
 /* [segments][smooth] where smooth index: 0=flat, 1=smooth */
 typedef struct {
-    flecsEngine_batch_t quad_batch;
-    flecsEngine_batch_t bevel_batches[FLECS_BEVEL_BOX_MAX_SEGMENTS + 1][2];
-    flecsEngine_batch_t corner_batches[FLECS_BEVEL_BOX_MAX_SEGMENTS + 1][2];
-    flecsEngine_batch_buffers_t buffers;
-    bool owns_material_data;
+    flecsEngine_batch_group_t quad_batch;
+    flecsEngine_batch_group_t bevel_batches[FLECS_BEVEL_BOX_MAX_SEGMENTS + 1][2];
+    flecsEngine_batch_group_t corner_batches[FLECS_BEVEL_BOX_MAX_SEGMENTS + 1][2];
+    flecsEngine_batch_t buffers;
 } flecsEngine_bevel_box_batch_t;
 
 static void flecsEngine_bevel_box_setInstance(
@@ -133,7 +132,7 @@ static void flecsEngine_bevel_box_generateCorners(
 }
 
 static void flecsEngine_bevel_box_fillGpuMaterial(
-    flecsEngine_batch_buffers_t *buf,
+    flecsEngine_batch_t *buf,
     int32_t base,
     int32_t count,
     const FlecsEngineImpl *engine,
@@ -141,23 +140,23 @@ static void flecsEngine_bevel_box_fillGpuMaterial(
     const FlecsPbrMaterial *pbr,
     const FlecsEmissive *emissive)
 {
-    FlecsGpuMaterial gm = flecsEngine_batch_packGpuMaterial(
-        engine, color, pbr, emissive);
+    FlecsGpuMaterial gm = flecsEngine_material_pack(
+        engine, color, pbr, emissive, NULL, NULL);
 
     for (int32_t i = 0; i < count; i ++) {
-        buf->cpu_gpu_materials[base + i] = gm;
+        buf->buffers.cpu_materials[base + i] = gm;
     }
 }
 
 static void flecsEngine_bevel_box_fillMaterialId(
-    flecsEngine_batch_buffers_t *buf,
+    flecsEngine_batch_t *buf,
     int32_t base,
     int32_t count,
     const FlecsMaterialId *material_id)
 {
     FlecsMaterialId mat = material_id[0];
     for (int32_t i = 0; i < count; i ++) {
-        buf->cpu_material_ids[base + i] = mat;
+        buf->buffers.cpu_material_ids[base + i] = mat;
     }
 }
 
@@ -177,26 +176,15 @@ static void flecsEngine_bevel_box_extract(
     const FlecsRenderBatch *batch)
 {
     flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
-    flecsEngine_batch_buffers_t *buf = &ctx->buffers;
-    bool owns_material_data = ctx->owns_material_data;
+    flecsEngine_batch_t *buf = &ctx->buffers;
+    bool owns_material_data = (buf->flags & FLECS_BATCH_OWNS_MATERIAL) != 0;
 
-    /* Reset each sub-batch to the non-UV vertex buffer (shadow needs it).
-     * Main render overrides to vertex_uv_buffer for LitVertexUv batches. */
-    ctx->quad_batch.count = 0;
-    ctx->quad_batch.vertex_buffer = ctx->quad_batch.mesh.vertex_buffer;
+    ctx->quad_batch.view.count = 0;
     for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
-        ctx->bevel_batches[s][0].count = 0;
-        ctx->bevel_batches[s][0].vertex_buffer =
-            ctx->bevel_batches[s][0].mesh.vertex_buffer;
-        ctx->bevel_batches[s][1].count = 0;
-        ctx->bevel_batches[s][1].vertex_buffer =
-            ctx->bevel_batches[s][1].mesh.vertex_buffer;
-        ctx->corner_batches[s][0].count = 0;
-        ctx->corner_batches[s][0].vertex_buffer =
-            ctx->corner_batches[s][0].mesh.vertex_buffer;
-        ctx->corner_batches[s][1].count = 0;
-        ctx->corner_batches[s][1].vertex_buffer =
-            ctx->corner_batches[s][1].mesh.vertex_buffer;
+        ctx->bevel_batches[s][0].view.count = 0;
+        ctx->bevel_batches[s][1].view.count = 0;
+        ctx->corner_batches[s][0].view.count = 0;
+        ctx->corner_batches[s][1].view.count = 0;
     }
 
     ecs_iter_t it = ecs_query_iter(world, batch->query);
@@ -206,33 +194,33 @@ static void flecsEngine_bevel_box_extract(
             int32_t seg = flecsEngine_bevel_box_clampSegments(
                 bevel[i].segments);
             int32_t sm = bevel[i].smooth ? 1 : 0;
-            ctx->quad_batch.count += FLECS_BEVEL_BOX_QUADS;
-            ctx->bevel_batches[seg][sm].count += FLECS_BEVEL_BOX_BEVELS;
-            ctx->corner_batches[seg][sm].count += FLECS_BEVEL_BOX_CORNERS;
+            ctx->quad_batch.view.count += FLECS_BEVEL_BOX_QUADS;
+            ctx->bevel_batches[seg][sm].view.count += FLECS_BEVEL_BOX_BEVELS;
+            ctx->corner_batches[seg][sm].view.count += FLECS_BEVEL_BOX_CORNERS;
         }
     }
 
     /* Compute total and assign offsets into shared buffer */
-    int32_t total = ctx->quad_batch.count;
+    int32_t total = ctx->quad_batch.view.count;
     for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
         for (int32_t sm = 0; sm < 2; sm ++) {
-            total += ctx->bevel_batches[s][sm].count;
-            total += ctx->corner_batches[s][sm].count;
+            total += ctx->bevel_batches[s][sm].view.count;
+            total += ctx->corner_batches[s][sm].view.count;
         }
     }
 
-    flecsEngine_batch_buffers_ensureCapacity(engine, buf, total);
+    flecsEngine_batch_ensureCapacity(engine, buf, total);
 
     {
         int32_t offset = 0;
-        ctx->quad_batch.offset = offset;
-        offset += ctx->quad_batch.count;
+        ctx->quad_batch.view.offset = offset;
+        offset += ctx->quad_batch.view.count;
         for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
             for (int32_t sm = 0; sm < 2; sm ++) {
-                ctx->bevel_batches[s][sm].offset = offset;
-                offset += ctx->bevel_batches[s][sm].count;
-                ctx->corner_batches[s][sm].offset = offset;
-                offset += ctx->corner_batches[s][sm].count;
+                ctx->bevel_batches[s][sm].view.offset = offset;
+                offset += ctx->bevel_batches[s][sm].view.count;
+                ctx->corner_batches[s][sm].view.offset = offset;
+                offset += ctx->corner_batches[s][sm].view.count;
             }
         }
     }
@@ -258,18 +246,18 @@ static void flecsEngine_bevel_box_extract(
                 bevel[i].segments);
             int32_t sm = bevel[i].smooth ? 1 : 0;
 
-            int32_t qi = ctx->quad_batch.offset + quad_fill;
-            int32_t bi = ctx->bevel_batches[seg][sm].offset +
+            int32_t qi = ctx->quad_batch.view.offset + quad_fill;
+            int32_t bi = ctx->bevel_batches[seg][sm].view.offset +
                 bevel_fill[seg][sm];
-            int32_t ci = ctx->corner_batches[seg][sm].offset +
+            int32_t ci = ctx->corner_batches[seg][sm].view.offset +
                 corner_fill[seg][sm];
 
             flecsEngine_bevel_box_generateQuads(
-                buf->cpu_transforms, qi, &wt[i], w, h, d, r);
+                buf->buffers.cpu_transforms, qi, &wt[i], w, h, d, r);
             flecsEngine_bevel_box_generateBevels(
-                buf->cpu_transforms, bi, &wt[i], w, h, d, r);
+                buf->buffers.cpu_transforms, bi, &wt[i], w, h, d, r);
             flecsEngine_bevel_box_generateCorners(
-                buf->cpu_transforms, ci, &wt[i], w, h, d, r);
+                buf->buffers.cpu_transforms, ci, &wt[i], w, h, d, r);
 
             if (owns_material_data) {
                 const FlecsRgba *colors =
@@ -308,7 +296,7 @@ static void flecsEngine_bevel_box_extract(
         }
     }
 
-    buf->count = total;
+    buf->buffers.count = total;
 }
 
 static void flecsEngine_bevel_box_upload(
@@ -318,7 +306,7 @@ static void flecsEngine_bevel_box_upload(
 {
     (void)world;
     flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
-    flecsEngine_batch_buffers_upload(engine, &ctx->buffers);
+    flecsEngine_batch_upload(engine, &ctx->buffers);
 }
 
 static void flecsEngine_bevel_box_render(
@@ -333,72 +321,50 @@ static void flecsEngine_bevel_box_render(
     flecsEngine_batch_bindMaterialGroup(
         (FlecsEngineImpl*)engine, pass, &ctx->buffers);
 
-    bool needs_uvs = batch->vertex_type == ecs_id(FlecsLitVertexUv);
-    if (needs_uvs) {
-        ctx->quad_batch.vertex_buffer = ctx->quad_batch.mesh.vertex_uv_buffer;
-        for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
-            ctx->bevel_batches[s][0].vertex_buffer =
-                ctx->bevel_batches[s][0].mesh.vertex_uv_buffer;
-            ctx->bevel_batches[s][1].vertex_buffer =
-                ctx->bevel_batches[s][1].mesh.vertex_uv_buffer;
-            ctx->corner_batches[s][0].vertex_buffer =
-                ctx->corner_batches[s][0].mesh.vertex_uv_buffer;
-            ctx->corner_batches[s][1].vertex_buffer =
-                ctx->corner_batches[s][1].mesh.vertex_uv_buffer;
-        }
-    }
-
-    flecsEngine_batch_draw(engine, pass, &ctx->quad_batch);
+    flecsEngine_batch_group_draw(engine, pass, &ctx->quad_batch);
     for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
-        flecsEngine_batch_draw(engine, pass, &ctx->bevel_batches[s][0]);
-        flecsEngine_batch_draw(engine, pass, &ctx->bevel_batches[s][1]);
-        flecsEngine_batch_draw(engine, pass, &ctx->corner_batches[s][0]);
-        flecsEngine_batch_draw(engine, pass, &ctx->corner_batches[s][1]);
+        flecsEngine_batch_group_draw(engine, pass, &ctx->bevel_batches[s][0]);
+        flecsEngine_batch_group_draw(engine, pass, &ctx->bevel_batches[s][1]);
+        flecsEngine_batch_group_draw(engine, pass, &ctx->corner_batches[s][0]);
+        flecsEngine_batch_group_draw(engine, pass, &ctx->corner_batches[s][1]);
     }
 }
 
 static void flecsEngine_bevel_box_free(void *ptr)
 {
     flecsEngine_bevel_box_batch_t *ctx = ptr;
-    flecsEngine_batch_buffers_fini(&ctx->buffers);
+    flecsEngine_batch_fini(&ctx->buffers);
     ecs_os_free(ctx);
 }
 
 static flecsEngine_bevel_box_batch_t* flecsEngine_bevel_box_createCtx(
     ecs_world_t *world,
-    bool owns_material_data)
+    flecsEngine_batch_flags_t flags)
 {
     flecsEngine_bevel_box_batch_t *ctx =
         ecs_os_calloc_t(flecsEngine_bevel_box_batch_t);
-    ctx->owns_material_data = owns_material_data;
-    flecsEngine_batch_buffers_init(&ctx->buffers,
-        FLECS_BATCH_BUFFERS_STORAGE |
-        (owns_material_data ? FLECS_BATCH_BUFFERS_OWNS_MATERIAL : 0));
+    flecsEngine_batch_init(&ctx->buffers, flags);
 
-    flecsEngine_batch_init(&ctx->quad_batch, world,
-        flecsEngine_quad_getAsset(world), 0, 0, NULL);
-    ctx->quad_batch.buffers = &ctx->buffers;
+    flecsEngine_batch_group_init(&ctx->quad_batch,
+        flecsEngine_quad_getAsset(world), 0);
+    ctx->quad_batch.batch = &ctx->buffers;
 
     for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
-        flecsEngine_batch_init(&ctx->bevel_batches[s][0], world,
-            flecsEngine_bevel_getAssetImpl(world, s, false),
-            0, 0, NULL);
-        ctx->bevel_batches[s][0].buffers = &ctx->buffers;
+        flecsEngine_batch_group_init(&ctx->bevel_batches[s][0],
+            flecsEngine_bevel_getAssetImpl(world, s, false), 0);
+        ctx->bevel_batches[s][0].batch = &ctx->buffers;
 
-        flecsEngine_batch_init(&ctx->bevel_batches[s][1], world,
-            flecsEngine_bevel_getAssetImpl(world, s, true),
-            0, 0, NULL);
-        ctx->bevel_batches[s][1].buffers = &ctx->buffers;
+        flecsEngine_batch_group_init(&ctx->bevel_batches[s][1],
+            flecsEngine_bevel_getAssetImpl(world, s, true), 0);
+        ctx->bevel_batches[s][1].batch = &ctx->buffers;
 
-        flecsEngine_batch_init(&ctx->corner_batches[s][0], world,
-            flecsEngine_bevelCorner_getAssetImpl(world, s, false),
-            0, 0, NULL);
-        ctx->corner_batches[s][0].buffers = &ctx->buffers;
+        flecsEngine_batch_group_init(&ctx->corner_batches[s][0],
+            flecsEngine_bevelCorner_getAssetImpl(world, s, false), 0);
+        ctx->corner_batches[s][0].batch = &ctx->buffers;
 
-        flecsEngine_batch_init(&ctx->corner_batches[s][1], world,
-            flecsEngine_bevelCorner_getAssetImpl(world, s, true),
-            0, 0, NULL);
-        ctx->corner_batches[s][1].buffers = &ctx->buffers;
+        flecsEngine_batch_group_init(&ctx->corner_batches[s][1],
+            flecsEngine_bevelCorner_getAssetImpl(world, s, true), 0);
+        ctx->corner_batches[s][1].batch = &ctx->buffers;
     }
 
     return ctx;
@@ -410,7 +376,7 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngine_shader_pbrColored(world);
+    ecs_entity_t shader = flecsEngine_shader_pbr(world);
 
     ecs_query_t *q = ecs_query(world, {
         .entity = batch,
@@ -441,7 +407,7 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes(
         .extract_callback = flecsEngine_bevel_box_extract,
         .upload_callback = flecsEngine_bevel_box_upload,
         .callback = flecsEngine_bevel_box_render,
-        .ctx = flecsEngine_bevel_box_createCtx(world, true),
+        .ctx = flecsEngine_bevel_box_createCtx(world, FLECS_BATCH_OWNS_MATERIAL),
         .free_ctx = flecsEngine_bevel_box_free
     });
 
@@ -454,7 +420,7 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
     const char *name)
 {
     ecs_entity_t batch = ecs_entity(world, { .parent = parent, .name = name });
-    ecs_entity_t shader = flecsEngine_shader_pbrColored(world);
+    ecs_entity_t shader = flecsEngine_shader_pbr(world);
 
     ecs_query_t *q = ecs_query(world, {
         .entity = batch,
@@ -479,7 +445,7 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
         .extract_callback = flecsEngine_bevel_box_extract,
         .upload_callback = flecsEngine_bevel_box_upload,
         .callback = flecsEngine_bevel_box_render,
-        .ctx = flecsEngine_bevel_box_createCtx(world, false),
+        .ctx = flecsEngine_bevel_box_createCtx(world, FLECS_BATCH_DEFAULT),
         .free_ctx = flecsEngine_bevel_box_free
     });
 

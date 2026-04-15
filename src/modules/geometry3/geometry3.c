@@ -268,23 +268,28 @@ static void FlecsMesh3_on_set(
             continue;
         }
 
-        int32_t vert_size = vert_count * (int32_t)sizeof(FlecsLitVertex);
-        WGPUBufferDescriptor vert_desc = {
-            .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
-            .size = (uint64_t)vert_size
-        };
-
-        FlecsLitVertex *verts = ecs_os_malloc_n(FlecsLitVertex, vert_count);
         flecs_vec3_t *mesh_vertices = ecs_vec_first_t(&mesh[i].vertices, flecs_vec3_t);
         flecs_vec3_t *mesh_normals = ecs_vec_first_t(&mesh[i].normals, flecs_vec3_t);
-        for (int v = 0; v < vert_count; v ++) {
-            verts[v].p = mesh_vertices[v];
-            verts[v].n = mesh_normals[v];
-        }
 
-        mesh_impl->vertex_buffer = wgpuDeviceCreateBuffer(impl->device, &vert_desc);
-        wgpuQueueWriteBuffer(impl->queue, mesh_impl->vertex_buffer, 0, verts, vert_size);
-        ecs_os_free(verts);
+        /* Position-only buffer for the shadow depth pass. */
+        {
+            int32_t vert_size = vert_count * (int32_t)sizeof(FlecsVertex);
+            WGPUBufferDescriptor vert_desc = {
+                .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+                .size = (uint64_t)vert_size
+            };
+
+            FlecsVertex *verts = ecs_os_malloc_n(FlecsVertex, vert_count);
+            for (int v = 0; v < vert_count; v ++) {
+                verts[v].p = mesh_vertices[v];
+            }
+
+            mesh_impl->vertex_buffer = wgpuDeviceCreateBuffer(
+                impl->device, &vert_desc);
+            wgpuQueueWriteBuffer(impl->queue,
+                mesh_impl->vertex_buffer, 0, verts, vert_size);
+            ecs_os_free(verts);
+        }
 
         /* Always build vertex_uv_buffer. When the source has no UVs the PBR
          * shader's layer-index branches skip texture sampling, so the zero
@@ -359,8 +364,8 @@ static void FlecsMesh3_on_set(
         mesh_impl->index_count = ind_count;
 
         /* Compute local-space AABB from vertex positions */
-        float *bb_min = mesh_impl->aabb_min;
-        float *bb_max = mesh_impl->aabb_max;
+        float *bb_min = mesh_impl->aabb.min;
+        float *bb_max = mesh_impl->aabb.max;
         bb_min[0] = bb_min[1] = bb_min[2] =  1e18f;
         bb_max[0] = bb_max[1] = bb_max[2] = -1e18f;
         for (int v = 0; v < vert_count; v ++) {

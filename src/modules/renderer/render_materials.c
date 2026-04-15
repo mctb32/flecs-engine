@@ -90,6 +90,53 @@ void flecsEngine_material_releaseBuffer(
     flecsEngine_textureBlit_release(impl);
 }
 
+FlecsGpuMaterial flecsEngine_material_pack(
+    const FlecsEngineImpl *engine,
+    const FlecsRgba *color,
+    const FlecsPbrMaterial *pbr,
+    const FlecsEmissive *emissive,
+    const FlecsTransmission *transmission,
+    const FlecsTextureTransform *tex_transform)
+{
+    FlecsRgba c = color ? *color :
+        *flecsEngine_defaultAttrCache_getColor(engine, 1);
+    FlecsPbrMaterial p = pbr ? *pbr :
+        *flecsEngine_defaultAttrCache_getMaterial(engine, 1);
+    FlecsEmissive e = emissive ? *emissive :
+        *flecsEngine_defaultAttrCache_getEmissive(engine, 1);
+
+    FlecsGpuMaterial gm = {
+        .color = c,
+        .metallic = p.metallic,
+        .roughness = p.roughness,
+        .emissive_strength = e.strength,
+        .emissive_color = e.color,
+        .texture_bucket = 1,
+        .uv_scale_x = 1.0f,
+        .uv_scale_y = 1.0f
+    };
+
+    if (transmission) {
+        gm.transmission_factor = transmission->transmission_factor;
+        gm.ior = transmission->ior;
+        gm.thickness_factor = transmission->thickness_factor;
+        gm.attenuation_distance = transmission->attenuation_distance;
+        flecs_rgba_t ac = transmission->attenuation_color;
+        gm.attenuation_color =
+            (uint32_t)ac.r | ((uint32_t)ac.g << 8) |
+            ((uint32_t)ac.b << 16) | ((uint32_t)ac.a << 24);
+    }
+
+    if (tex_transform) {
+        gm.uv_scale_x = tex_transform->scale_x;
+        gm.uv_scale_y = tex_transform->scale_y;
+        gm.uv_offset_x = tex_transform->offset_x;
+        gm.uv_offset_y = tex_transform->offset_y;
+    }
+
+    return gm;
+}
+
 void flecsEngine_material_uploadBuffer(
     const ecs_world_t *world,
     FlecsEngineImpl *impl)
@@ -157,50 +204,15 @@ redo: {
                 int32_t mi = materials_self ? i : 0;
                 int32_t ei = emissives_self ? i : 0;
                 int32_t ti = transmissions_self ? i : 0;
+                int32_t tti = tex_transforms_self ? i : 0;
 
-                FlecsEmissive emissive = {0};
-                if (emissives) {
-                    emissive = emissives[ei];
-                }
-
-                flecs_rgba_t em_color = emissive.color;
-                if (em_color.r == 0 && em_color.g == 0 &&
-                    em_color.b == 0 && emissive.strength > 0.0f)
-                {
-                    em_color = (flecs_rgba_t){255, 255, 255, 255};
-                }
-
-                FlecsGpuMaterial *gm = &impl->materials.cpu_materials[index];
-                *gm = (FlecsGpuMaterial){
-                    .color = colors[ci],
-                    .metallic = materials[mi].metallic,
-                    .roughness = materials[mi].roughness,
-                    .emissive_strength = emissive.strength,
-                    .emissive_color = em_color,
-                    .texture_bucket = 1,
-                    .uv_scale_x = 1.0f,
-                    .uv_scale_y = 1.0f
-                };
-
-                if (transmissions) {
-                    const FlecsTransmission *tx = &transmissions[ti];
-                    gm->transmission_factor = tx->transmission_factor;
-                    gm->ior = tx->ior;
-                    gm->thickness_factor = tx->thickness_factor;
-                    gm->attenuation_distance = tx->attenuation_distance;
-                    flecs_rgba_t ac = tx->attenuation_color;
-                    gm->attenuation_color =
-                        (uint32_t)ac.r | ((uint32_t)ac.g << 8) |
-                        ((uint32_t)ac.b << 16) | ((uint32_t)ac.a << 24);
-                }
-
-                if (tex_transforms) {
-                    int32_t tti = tex_transforms_self ? i : 0;
-                    gm->uv_scale_x = tex_transforms[tti].scale_x;
-                    gm->uv_scale_y = tex_transforms[tti].scale_y;
-                    gm->uv_offset_x = tex_transforms[tti].offset_x;
-                    gm->uv_offset_y = tex_transforms[tti].offset_y;
-                }
+                impl->materials.cpu_materials[index] = flecsEngine_material_pack(
+                    impl,
+                    &colors[ci],
+                    &materials[mi],
+                    emissives ? &emissives[ei] : NULL,
+                    transmissions ? &transmissions[ti] : NULL,
+                    tex_transforms ? &tex_transforms[tti] : NULL);
             }
         }
 

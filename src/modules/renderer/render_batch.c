@@ -330,37 +330,30 @@ static void flecsEngine_renderBatch_setupShadowPipeline(
         return;
     }
 
-    if (impl->uses_textures &&
-        rb->vertex_type == ecs_id(FlecsLitVertexUv))
-    {
-        WGPUVertexAttribute shadow_vert_attrs[16];
-        WGPUVertexAttribute shadow_inst_attrs[256] = {0};
-        WGPUVertexBufferLayout shadow_vbufs[1 + FLECS_ENGINE_INSTANCE_TYPES_MAX] = {0};
+    WGPUVertexAttribute shadow_vert_attrs[16];
+    WGPUVertexAttribute shadow_inst_attrs[256] = {0};
+    WGPUVertexBufferLayout shadow_vbufs[1 + FLECS_ENGINE_INSTANCE_TYPES_MAX] = {0};
 
-        int32_t sv_count = flecsEngine_vertexAttrFromType(
-            world, ecs_id(FlecsLitVertex), shadow_vert_attrs, 16, 0);
+    int32_t sv_count = flecsEngine_vertexAttrFromType(
+        world, ecs_id(FlecsVertex), shadow_vert_attrs, 16, 0);
 
-        shadow_vbufs[0] = (WGPUVertexBufferLayout){
-            .arrayStride = flecsEngine_type_sizeof(world, ecs_id(FlecsLitVertex)),
-            .stepMode = WGPUVertexStepMode_Vertex,
-            .attributeCount = sv_count,
-            .attributes = shadow_vert_attrs
-        };
+    shadow_vbufs[0] = (WGPUVertexBufferLayout){
+        .arrayStride = flecsEngine_type_sizeof(world, ecs_id(FlecsVertex)),
+        .stepMode = WGPUVertexStepMode_Vertex,
+        .attributeCount = sv_count,
+        .attributes = shadow_vert_attrs
+    };
 
-        int32_t shadow_vbuf_count = flecsEngine_renderBatch_setupInstanceBindings(
-            world, rb, sv_count,
-            shadow_vbufs, 1, shadow_inst_attrs);
+    int32_t shadow_vbuf_count = flecsEngine_renderBatch_setupInstanceBindings(
+        world, rb, sv_count,
+        shadow_vbufs, 1, shadow_inst_attrs);
 
-        impl->pipeline_shadow = flecsEngine_renderBatch_createShadowPipeline(
-            engine,
-            shadow_vbufs,
-            (uint32_t)shadow_vbuf_count);
-    } else {
-        impl->pipeline_shadow = flecsEngine_renderBatch_createShadowPipeline(
-            engine,
-            vertex_buffers,
-            (uint32_t)vertex_buffer_count);
-    }
+    impl->pipeline_shadow = flecsEngine_renderBatch_createShadowPipeline(
+        engine,
+        shadow_vbufs,
+        (uint32_t)shadow_vbuf_count);
+    (void)vertex_buffers;
+    (void)vertex_buffer_count;
 }
 
 static void FlecsRenderBatch_on_set(
@@ -411,7 +404,6 @@ static void FlecsRenderBatch_on_set(
         };
         vertex_buffer_count ++;
 
-        // Setup instance data bindings
         vertex_buffer_count = flecsEngine_renderBatch_setupInstanceBindings(world, &rb[i],
             vertex_attr_count, vertex_buffers, vertex_buffer_count,
             instance_attrs);
@@ -428,7 +420,6 @@ static void FlecsRenderBatch_on_set(
             cull_mode = WGPUCullMode_Back;
         }
 
-        /* Default depth settings when not explicitly configured */
         WGPUCompareFunction depth_test = rb[i].depth_test;
         bool depth_write = rb[i].depth_write;
         if (!depth_test) {
@@ -436,8 +427,6 @@ static void FlecsRenderBatch_on_set(
             depth_write = true;
         }
 
-        /* Every batch uses the scene-globals bind layout for @group(0) —
-         * that's where the frame uniform buffer lives. */
         if (!flecsEngine_globals_ensureBindLayout(engine)) {
             flecsEngine_renderBatch_logErr(world, e,
                 "failed to create render batch '%s': "
@@ -522,9 +511,6 @@ void flecsEngine_renderBatch_render(
     }
 
     {
-        /* IBL source precedence: atmosphere (dynamic, time-of-day) takes
-         * priority over an explicit HDRI. When neither is set, fall back to
-         * the engine default. */
         ecs_entity_t hdri = view->atmosphere
             ? view->atmosphere
             : (view->hdri ? view->hdri : engine->sky_background_hdri);
@@ -536,8 +522,6 @@ void flecsEngine_renderBatch_render(
             flecsEngine_globals_createBindGroup(engine, ibl);
         }
 
-        /* Scene globals (frame uniform + IBL + shadow + cluster + materials)
-         * live at @group(0). */
         wgpuRenderPassEncoderSetBindGroup(
             pass, 0, ibl->ibl_shadow_bind_group, 0, NULL);
     }

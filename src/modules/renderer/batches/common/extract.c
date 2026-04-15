@@ -1,165 +1,197 @@
 #include "common.h"
 
-FlecsGpuMaterial flecsEngine_batch_packGpuMaterial(
-    const FlecsEngineImpl *engine,
-    const FlecsRgba *color,
-    const FlecsPbrMaterial *pbr,
-    const FlecsEmissive *emissive)
-{
-    FlecsRgba c = color ? *color :
-        *flecsEngine_defaultAttrCache_getColor(engine, 1);
-    FlecsPbrMaterial p = pbr ? *pbr :
-        *flecsEngine_defaultAttrCache_getMaterial(engine, 1);
-    FlecsEmissive e = emissive ? *emissive :
-        *flecsEngine_defaultAttrCache_getEmissive(engine, 1);
-
-    /* Leave em.color at (0,0,0) when unset — the shader's has_em_color
-     * check falls back to base color. */
-    return (FlecsGpuMaterial){
-        .color = c,
-        .metallic = p.metallic,
-        .roughness = p.roughness,
-        .emissive_strength = e.strength,
-        .emissive_color = e.color,
-        .texture_bucket = 1,
-        .uv_scale_x = 1.0f,
-        .uv_scale_y = 1.0f
-    };
-}
-
-void flecsEngine_batch_extractInstances(
+void flecsEngine_batch_group_extractTable(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch,
-    flecsEngine_batch_t *ctx)
+    flecsEngine_batch_group_t *ctx,
+    flecsEngine_primitive_scale_t scale,
+    flecsEngine_primitive_scale_aabb_t scale_aabb,
+    ecs_size_t scale_size,
+    ecs_iter_t *it)
 {
-    FLECS_TRACY_ZONE_BEGIN("ExtractInstances");
-    flecsEngine_batch_buffers_t *buf = ctx->buffers;
-    ecs_assert(buf != NULL, ECS_INTERNAL_ERROR, NULL);
-
-    int32_t base = ctx->offset;
-    ctx->count = 0;
-
-    ecs_assert(engine->frustum_valid, ECS_INTERNAL_ERROR, NULL);
+    flecsEngine_batch_t *buf = ctx->batch;
+    int32_t base = ctx->view.offset + ctx->view.count;
+    int32_t dst = base;
 
     bool do_screen_cull = engine->screen_cull_valid;
-    const float *aabb_min = ctx->mesh.aabb_min;
-    const float *aabb_max = ctx->mesh.aabb_max;
+    FlecsAABB mesh_aabb = ctx->mesh.aabb;
+
+    /* If not enough capacity, count for resize */
+    if ((dst + it->count) > buf->buffers.capacity) {
+        ctx->view.count += it->count;
+        return;
+    }
+
+    const void *scale_data = scale ? ecs_field_w_size(it, scale_size, 0) : NULL;
+    const FlecsWorldTransform3 *wt = ecs_field(it, FlecsWorldTransform3, 1);
+    FlecsAABB *aabb = ecs_field(it, FlecsAABB, 2);
+
+    /* Compute per-instance AABB */
+    for (int32_t i = 0; i < it->count; i ++) {
+        aabb[i] = mesh_aabb;
+    }
+
+    if (scale_aabb) {
+        scale_aabb(aabb, scale_data, it->count);
+    }
+
+    flecsEngine_computeWorldAABB(wt, aabb, it->count);
+
+    /* Extract ECS data */
+    if (!(buf->flags & FLECS_BATCH_OWNS_MATERIAL)) {
+        const FlecsMaterialId *material_id = ecs_field(it, FlecsMaterialId, 3);
+
+        for (int32_t i = 0; i < it->count; i ++) {
+            if (!flecsEngine_testAABBFrustum(
+                engine->frustum_planes, aabb[i].min, aabb[i].max) ||
+                (do_screen_cull && !flecsEngine_testScreenSize(
+                    engine->camera_pos,
+                    aabb[i].min, aabb[i].max,
+                    engine->screen_cull_factor,
+                    engine->screen_cull_threshold)))
+            {
+                continue;
+            }
+
+            vec3 s = {1, 1, 1};
+            if (scale_data) {
+                scale(ECS_ELEM(scale_data, scale_size, i), s);
+            }
+
+            flecsEngine_batch_transformInstance(
+                &buf->buffers.cpu_transforms[dst], &wt[i], s[0], s[1], s[2]);
+
+            buf->buffers.cpu_material_ids[dst] = material_id[0];
+
+            dst ++;
+        }
+    } else {
+        const FlecsRgba *colors = ecs_field(it, FlecsRgba, 3);;
+        const FlecsPbrMaterial *materials = ecs_field(it, FlecsPbrMaterial, 4);
+        const FlecsEmissive *emissives = ecs_field(it, FlecsEmissive, 5);
+        const FlecsTransmission *transmissions = NULL;
+        if ((buf->flags & FLECS_BATCH_OWNS_TRANSMISSION)) {
+            transmissions = ecs_field(it, FlecsTransmission, 6);
+        }
+
+        for (int32_t i = 0; i < it->count; i ++) {
+            if (!flecsEngine_testAABBFrustum(
+                engine->frustum_planes, aabb[i].min, aabb[i].max))
+            {
+                continue;
+            }
+
+            vec3 s = {1, 1, 1};
+            if (scale_data) {
+                scale(ECS_ELEM(scale_data, scale_size, i), s);
+            }
+
+            flecsEngine_batch_transformInstance(
+                &buf->buffers.cpu_transforms[dst], &wt[i], s[0], s[1], s[2]);
+
+            buf->buffers.cpu_materials[dst] = flecsEngine_material_pack(
+                engine,
+                colors ? &colors[i] : NULL,
+                materials ? &materials[i] : NULL,
+                emissives ? &emissives[i] : NULL,
+                transmissions ? &transmissions[i] : NULL,
+                NULL);
+
+            dst ++;
+        }
+    }
+
+    ctx->view.count += (dst - base);
+}
+
+void flecsEngine_batch_group_extract(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch,
+    flecsEngine_batch_group_t *ctx,
+    flecsEngine_primitive_scale_t scale,
+    flecsEngine_primitive_scale_aabb_t scale_aabb,
+    ecs_size_t scale_size)
+{
+    FLECS_TRACY_ZONE_BEGIN("ExtractGroup");
+    
+    int32_t base = ctx->view.offset;
+    ctx->view.count = 0;
+
+    ecs_assert(engine->frustum_valid, ECS_INTERNAL_ERROR, NULL);
 
     ecs_iter_t it = ecs_query_iter(world, batch->query);
     ecs_iter_set_group(&it, ctx->group_id);
     while (ecs_query_next(&it)) {
-        int32_t dst = base + ctx->count;
-
-        /* If not enough capacity, count conservatively for resize */
-        if ((dst + it.count) > buf->capacity) {
-            ctx->count += it.count;
-            continue;
-        }
-
-        const FlecsWorldTransform3 *wt = ecs_field(
-            &it, FlecsWorldTransform3, 1);
-
-        /* Fetch material data pointers up front */
-        const FlecsRgba *colors = NULL;
-        const FlecsPbrMaterial *materials = NULL;
-        const FlecsEmissive *emissives = NULL;
-        const FlecsTransmission *transmissions = NULL;
-        const FlecsMaterialId *material_id = NULL;
-
-        if (!buf->owns_material_data) {
-            material_id = ecs_field(&it, FlecsMaterialId, 2);
-        } else {
-            colors = ecs_field(&it, FlecsRgba, 2);
-            materials = ecs_field(&it, FlecsPbrMaterial, 3);
-            emissives = ecs_field(&it, FlecsEmissive, 4);
-            if (buf->owns_transmission_data) {
-                transmissions = ecs_field(&it, FlecsTransmission, 5);
-            }
-        }
-
-        int32_t added = 0;
-
-        const void *scale_data = ctx->scale_callback
-            ? ecs_field_w_size(&it, ctx->component_size, 0) : NULL;
-
-        for (int32_t i = 0; i < it.count; i ++) {
-            float sx, sy, sz;
-            if (scale_data) {
-                vec3 scale;
-                ctx->scale_callback(
-                    ECS_ELEM(scale_data, ctx->component_size, i), scale);
-                sx = scale[0]; sy = scale[1]; sz = scale[2];
-            } else {
-                sx = sy = sz = 1.0f;
-            }
-
-            float wmin[3], wmax[3];
-            flecsEngine_computeWorldAABB(
-                &wt[i], aabb_min, aabb_max, sx, sy, sz, wmin, wmax);
-
-            if (!flecsEngine_testAABBFrustum(
-                    engine->frustum_planes, wmin, wmax))
-            {
-                continue;
-            }
-
-            if (do_screen_cull && !flecsEngine_testScreenSize(
-                    engine->camera_pos, wmin, wmax,
-                    engine->screen_cull_factor,
-                    engine->screen_cull_threshold))
-            {
-                continue;
-            }
-
-            int32_t out = dst + added;
-            flecsEngine_batch_transformInstance(
-                &buf->cpu_transforms[out], &wt[i], sx, sy, sz);
-
-            if (!buf->owns_material_data) {
-                buf->cpu_material_ids[out] = material_id[0];
-            } else if (buf->use_material_storage) {
-                buf->cpu_gpu_materials[out] = flecsEngine_batch_packGpuMaterial(
-                    engine,
-                    colors ? &colors[i] : NULL,
-                    materials ? &materials[i] : NULL,
-                    emissives ? &emissives[i] : NULL);
-            } else {
-                buf->cpu_colors[out] = colors
-                    ? colors[i]
-                    : flecsEngine_defaultAttrCache_getColor(engine, 1)[0];
-                buf->cpu_pbr_materials[out] = materials
-                    ? materials[i]
-                    : flecsEngine_defaultAttrCache_getMaterial(engine, 1)[0];
-                buf->cpu_emissives[out] = emissives
-                    ? emissives[i]
-                    : flecsEngine_defaultAttrCache_getEmissive(engine, 1)[0];
-                if (buf->owns_transmission_data) {
-                    buf->cpu_transmissions[out] = transmissions[i];
-                }
-            }
-
-            added ++;
-        }
-
-        ctx->count += added;
+        flecsEngine_batch_group_extractTable(
+            world, engine, batch, ctx, scale, scale_aabb, scale_size, &it);
     }
 
     FLECS_TRACY_ZONE_END;
 }
 
-void flecsEngine_batch_extractShadowInstances(
+void flecsEngine_batch_group_extractShadowTable(
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_group_t *ctx,
+    flecsEngine_primitive_scale_t scale,
+    ecs_size_t scale_size,
+    ecs_iter_t *it)
+{
+    flecsEngine_batch_t *buf = ctx->batch;
+
+    const void *scale_data = scale
+        ? ecs_field_w_size(it, scale_size, 0) : NULL;
+    const FlecsWorldTransform3 *wt = ecs_field(it, FlecsWorldTransform3, 1);
+    const FlecsAABB *aabb = ecs_field(it, FlecsAABB, 2);
+
+    for (int32_t i = 0; i < it->count; i ++) {
+        FlecsInstanceTransform t;
+        bool transformed = false;
+
+        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+            int32_t sdst = ctx->view.shadow_offset[c] + ctx->view.shadow_count[c];
+            if (sdst >= buf->buffers.shadow_capacity) {
+                ctx->view.shadow_count[c]++;
+                continue;
+            }
+
+            if (!flecsEngine_testAABBFrustum(
+                    engine->cascade_frustum_planes[c],
+                    aabb[i].min, aabb[i].max))
+            {
+                continue;
+            }
+
+            if (!transformed) {
+                vec3 s = {1, 1, 1};
+                if (scale_data) {
+                    scale(ECS_ELEM(scale_data, scale_size, i), s);
+                }
+                flecsEngine_batch_transformInstance(&t, &wt[i], s[0], s[1], s[2]);
+                transformed = true;
+            }
+
+            buf->buffers.cpu_shadow_transforms[c][sdst] = t;
+            ctx->view.shadow_count[c]++;
+        }
+    }
+}
+
+void flecsEngine_batch_group_extractShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch,
-    flecsEngine_batch_t *ctx)
+    flecsEngine_batch_group_t *ctx,
+    flecsEngine_primitive_scale_t scale,
+    ecs_size_t scale_size)
 {
-    FLECS_TRACY_ZONE_BEGIN("ExtractShadowInstances");
-    flecsEngine_batch_buffers_t *buf = ctx->buffers;
+    FLECS_TRACY_ZONE_BEGIN("ExtractGroupShadow");
+    flecsEngine_batch_t *buf = ctx->batch;
     ecs_assert(buf != NULL, ECS_INTERNAL_ERROR, NULL);
 
     for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
-        ctx->shadow_count[c] = 0;
+        ctx->view.shadow_count[c] = 0;
     }
 
     if (!engine->cascade_frustum_valid) {
@@ -167,53 +199,13 @@ void flecsEngine_batch_extractShadowInstances(
         return;
     }
 
-    const float *aabb_min = ctx->mesh.aabb_min;
-    const float *aabb_max = ctx->mesh.aabb_max;
-
     ecs_iter_t it = ecs_query_iter(world, batch->query);
     if (ctx->group_id) {
         ecs_iter_set_group(&it, ctx->group_id);
     }
     while (ecs_query_next(&it)) {
-        const FlecsWorldTransform3 *wt = ecs_field(
-            &it, FlecsWorldTransform3, 1);
-
-        const void *scale_data = ctx->scale_callback
-            ? ecs_field_w_size(&it, ctx->component_size, 0) : NULL;
-
-        for (int32_t i = 0; i < it.count; i ++) {
-            float sx, sy, sz;
-            if (scale_data) {
-                vec3 scale;
-                ctx->scale_callback(
-                    ECS_ELEM(scale_data, ctx->component_size, i), scale);
-                sx = scale[0]; sy = scale[1]; sz = scale[2];
-            } else {
-                sx = sy = sz = 1.0f;
-            }
-
-            float wmin[3], wmax[3];
-            flecsEngine_computeWorldAABB(
-                &wt[i], aabb_min, aabb_max, sx, sy, sz, wmin, wmax);
-
-            FlecsInstanceTransform t;
-            flecsEngine_batch_transformInstance(&t, &wt[i], sx, sy, sz);
-
-            for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
-                int32_t sdst = ctx->shadow_offset[c] + ctx->shadow_count[c];
-                if (sdst >= buf->shadow_capacity) {
-                    ctx->shadow_count[c]++;
-                    continue;
-                }
-                if (!flecsEngine_testAABBFrustum(
-                        engine->cascade_frustum_planes[c], wmin, wmax))
-                {
-                    continue;
-                }
-                buf->cpu_shadow_transforms[c][sdst] = t;
-                ctx->shadow_count[c]++;
-            }
-        }
+        flecsEngine_batch_group_extractShadowTable(
+            engine, ctx, scale, scale_size, &it);
     }
 
     FLECS_TRACY_ZONE_END;

@@ -34,6 +34,14 @@ void flecsEngine_materialBind_releaseScene(
 void flecsEngine_material_ensureBuffer(
     FlecsEngineImpl *impl);
 
+FlecsGpuMaterial flecsEngine_material_pack(
+    const FlecsEngineImpl *engine,
+    const FlecsRgba *color,
+    const FlecsPbrMaterial *pbr,
+    const FlecsEmissive *emissive,
+    const FlecsTransmission *transmission,
+    const FlecsTextureTransform *tex_transform);
+
 FlecsDefaultAttrCache* flecsEngine_defaultAttrCache_create(void);
 
 WGPUBuffer flecsEngine_defaultAttrCache_getMaterialIdIdentityBuffer(

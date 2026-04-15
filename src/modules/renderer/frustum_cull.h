@@ -8,17 +8,12 @@ void flecsEngine_frustum_extractPlanes(
     const float m[4][4],
     float planes[6][4]);
 
-/* Compute world-space AABB from local AABB + world transform + scale
- * using the Arvo method (18 multiplies). */
+/* Compute world-space AABBs from local AABBs + world transforms
+ * using the Arvo method (18 multiplies per instance). */
 void flecsEngine_computeWorldAABB(
     const FlecsWorldTransform3 *wt,
-    const float local_min[3],
-    const float local_max[3],
-    float sx,
-    float sy,
-    float sz,
-    float world_min[3],
-    float world_max[3]);
+    FlecsAABB *aabb,
+    int32_t count);
 
 /* Test a world-space AABB against 6 frustum planes (P-vertex approach).
  * Returns true if the AABB is inside or intersects the frustum. */

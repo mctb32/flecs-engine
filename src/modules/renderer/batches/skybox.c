@@ -5,65 +5,57 @@
 #include "flecs_engine.h"
 
 typedef struct {
-    flecsEngine_batch_t batch;
-    flecsEngine_batch_buffers_t buffers;
-    FlecsWorldTransform3 transform;
-    FlecsRgba color;
+    FlecsMesh3Impl mesh;
+    WGPUBuffer instance_transform;
+    bool initialized;
 } flecs_engine_skybox_ctx_t;
 
-static flecs_engine_skybox_ctx_t* flecsEngine_skybox_createCtx(
-    ecs_world_t *world)
+static flecs_engine_skybox_ctx_t* flecsEngine_skybox_createCtx(void)
 {
-    flecs_engine_skybox_ctx_t *result =
-        ecs_os_calloc_t(flecs_engine_skybox_ctx_t);
-    flecsEngine_batch_buffers_init(&result->buffers,
-        FLECS_BATCH_BUFFERS_OWNS_MATERIAL);
-    flecsEngine_batch_init(
-        &result->batch, world, flecsEngine_quad_getAsset(world), 0, 0, NULL);
-    result->batch.buffers = &result->buffers;
-    glm_mat4_identity(result->transform.m);
-    result->color = (FlecsRgba){255, 255, 255, 255};
-    return result;
+    return ecs_os_calloc_t(flecs_engine_skybox_ctx_t);
+}
+
+static void flecsEngine_skybox_ensureInitialized(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    flecs_engine_skybox_ctx_t *ctx)
+{
+    if (ctx->initialized) {
+        return;
+    }
+
+    const FlecsMesh3Impl *mesh =
+        flecsEngine_quad_getAsset((ecs_world_t*)world);
+    if (mesh) {
+        ctx->mesh = *mesh;
+    }
+
+    /* Scale-2 identity: positions the [-0.5, 0.5] quad at [-1, 1] NDC xy. */
+    FlecsInstanceTransform t = {
+        .c0 = { 2.0f, 0.0f, 0.0f },
+        .c1 = { 0.0f, 2.0f, 0.0f },
+        .c2 = { 0.0f, 0.0f, 1.0f },
+        .c3 = { 0.0f, 0.0f, 0.0f }
+    };
+    ctx->instance_transform = wgpuDeviceCreateBuffer(engine->device,
+        &(WGPUBufferDescriptor){
+            .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
+            .size = sizeof(FlecsInstanceTransform)
+        });
+    wgpuQueueWriteBuffer(engine->queue, ctx->instance_transform, 0,
+        &t, sizeof(FlecsInstanceTransform));
+
+    ctx->initialized = true;
 }
 
 static void flecsEngine_skybox_deleteCtx(
     void *arg)
 {
     flecs_engine_skybox_ctx_t *ctx = arg;
-    flecsEngine_batch_fini(&ctx->batch);
-    flecsEngine_batch_buffers_fini(&ctx->buffers);
+    if (ctx->instance_transform) {
+        wgpuBufferRelease(ctx->instance_transform);
+    }
     ecs_os_free(ctx);
-}
-
-static void flecsEngine_skybox_extract(
-    const FlecsEngineImpl *engine,
-    flecs_engine_skybox_ctx_t *ctx)
-{
-    flecsEngine_batch_extractSingleInstance(
-        engine, &ctx->batch, &ctx->transform, &ctx->color,
-        2.0f, 2.0f, 1.0f);
-}
-
-static void flecsEngine_skybox_extractCallback(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderBatch *batch)
-{
-    (void)world;
-
-    flecs_engine_skybox_ctx_t *ctx = batch->ctx;
-    flecsEngine_skybox_extract(engine, ctx);
-}
-
-static void flecsEngine_skybox_uploadCallback(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderBatch *batch)
-{
-    (void)world;
-
-    flecs_engine_skybox_ctx_t *ctx = batch->ctx;
-    flecsEngine_batch_buffers_upload(engine, &ctx->buffers);
 }
 
 static void flecsEngine_skybox_renderCallback(
@@ -72,10 +64,23 @@ static void flecsEngine_skybox_renderCallback(
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
-    (void)world;
-
     flecs_engine_skybox_ctx_t *ctx = batch->ctx;
-    flecsEngine_batch_draw(engine, pass, &ctx->batch);
+    flecsEngine_skybox_ensureInitialized(world, engine, ctx);
+
+    if (!ctx->mesh.vertex_uv_buffer || !ctx->mesh.index_buffer ||
+        !ctx->mesh.index_count)
+    {
+        return;
+    }
+
+    wgpuRenderPassEncoderSetVertexBuffer(
+        pass, 0, ctx->mesh.vertex_uv_buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+        pass, 1, ctx->instance_transform, 0, sizeof(FlecsInstanceTransform));
+    wgpuRenderPassEncoderSetIndexBuffer(
+        pass, ctx->mesh.index_buffer, WGPUIndexFormat_Uint32, 0,
+        WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexed(pass, ctx->mesh.index_count, 1, 0, 0, 0);
 }
 
 void FlecsOnAddSkyBoxBatch(
@@ -87,18 +92,15 @@ void FlecsOnAddSkyBoxBatch(
 
         ecs_set(it->world, batch, FlecsRenderBatch, {
             .shader = shader,
-            .vertex_type = ecs_id(FlecsLitVertex),
+            .vertex_type = ecs_id(FlecsLitVertexUv),
             .instance_types = {
-                ecs_id(FlecsInstanceTransform),
-                ecs_id(FlecsRgba)
+                ecs_id(FlecsInstanceTransform)
             },
             .depth_test = WGPUCompareFunction_LessEqual,
             .cull_mode = WGPUCullMode_None,
             .depth_write = false,
-            .extract_callback = flecsEngine_skybox_extractCallback,
-            .upload_callback = flecsEngine_skybox_uploadCallback,
             .callback = flecsEngine_skybox_renderCallback,
-            .ctx = flecsEngine_skybox_createCtx((ecs_world_t*)it->world),
+            .ctx = flecsEngine_skybox_createCtx(),
             .free_ctx = flecsEngine_skybox_deleteCtx
         });
     }

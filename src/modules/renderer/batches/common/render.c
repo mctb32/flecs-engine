@@ -3,153 +3,116 @@
 void flecsEngine_batch_bindMaterialGroup(
     FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_buffers_t *buf)
+    const flecsEngine_batch_t *buf)
 {
-    if (!buf->use_material_storage) {
-        return;
-    }
-
-    WGPUBindGroup group;
-    if (buf->owns_material_data) {
-        group = buf->material_bind_group;
-    } else {
-        group = flecsEngine_materialBind_ensureScene(engine);
-    }
+    WGPUBindGroup group = (buf->flags & FLECS_BATCH_OWNS_MATERIAL)
+        ? buf->buffers.gpu_material_bind_group
+        : flecsEngine_materialBind_ensureScene(engine);
 
     if (group) {
         wgpuRenderPassEncoderSetBindGroup(pass, 2, group, 0, NULL);
     }
 }
 
-void flecsEngine_batch_draw(
+void flecsEngine_batch_group_draw(
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_t *ctx)
+    const flecsEngine_batch_group_t *ctx)
 {
     (void)engine;
 
-    if (!ctx->count) {
+    if (!ctx->view.count) {
         return;
     }
 
-    const flecsEngine_batch_buffers_t *buf = ctx->buffers;
+    const flecsEngine_batch_t *buf = ctx->batch;
     if (!buf) {
         return;
     }
 
-    WGPUBuffer vertex_buffer = ctx->vertex_buffer;
-    if (!vertex_buffer || !ctx->mesh.index_buffer ||
+    if (!ctx->mesh.vertex_uv_buffer || !ctx->mesh.index_buffer ||
         !ctx->mesh.index_count)
     {
         return;
     }
 
     uint64_t transform_offset =
-        (uint64_t)ctx->offset * sizeof(FlecsInstanceTransform);
+        (uint64_t)ctx->view.offset * sizeof(FlecsInstanceTransform);
     uint64_t transform_size =
-        (uint64_t)ctx->count * sizeof(FlecsInstanceTransform);
+        (uint64_t)ctx->view.count * sizeof(FlecsInstanceTransform);
 
     wgpuRenderPassEncoderSetVertexBuffer(
-        pass, 0, vertex_buffer, 0, WGPU_WHOLE_SIZE);
+        pass, 0, ctx->mesh.vertex_uv_buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetVertexBuffer(
-        pass, 1, buf->instance_transform, transform_offset, transform_size);
+        pass, 1, buf->buffers.gpu_transforms, transform_offset, transform_size);
 
-    if (buf->owns_material_data && buf->use_material_storage) {
+    if ((buf->flags & FLECS_BATCH_OWNS_MATERIAL)) {
+        /* Identity buffer provides per-instance material_id = global buffer
+         * index, so each group's instances index into their own slice of
+         * the shared cpu_materials array. */
+        int32_t identity_end = ctx->view.offset + ctx->view.count;
         WGPUBuffer identity =
             flecsEngine_defaultAttrCache_getMaterialIdIdentityBuffer(
-                (FlecsEngineImpl*)engine, ctx->count);
-        wgpuRenderPassEncoderSetVertexBuffer(pass, 2, identity, 0,
-            (uint64_t)ctx->count * sizeof(FlecsMaterialId));
-    } else if (!buf->owns_material_data) {
-        wgpuRenderPassEncoderSetVertexBuffer(pass, 2,
-            buf->instance_material_id,
-            (uint64_t)ctx->offset * sizeof(FlecsMaterialId),
-            (uint64_t)ctx->count * sizeof(FlecsMaterialId));
+                (FlecsEngineImpl*)engine, identity_end);
+        wgpuRenderPassEncoderSetVertexBuffer(pass, 2, identity,
+            (uint64_t)ctx->view.offset * sizeof(FlecsMaterialId),
+            (uint64_t)ctx->view.count * sizeof(FlecsMaterialId));
     } else {
         wgpuRenderPassEncoderSetVertexBuffer(pass, 2,
-            buf->instance_color,
-            (uint64_t)ctx->offset * sizeof(FlecsRgba),
-            (uint64_t)ctx->count * sizeof(FlecsRgba));
-        wgpuRenderPassEncoderSetVertexBuffer(pass, 3,
-            buf->instance_pbr,
-            (uint64_t)ctx->offset * sizeof(FlecsPbrMaterial),
-            (uint64_t)ctx->count * sizeof(FlecsPbrMaterial));
-        wgpuRenderPassEncoderSetVertexBuffer(pass, 4,
-            buf->instance_emissive,
-            (uint64_t)ctx->offset * sizeof(FlecsEmissive),
-            (uint64_t)ctx->count * sizeof(FlecsEmissive));
-
-        if (buf->owns_transmission_data && buf->instance_transmission) {
-            wgpuRenderPassEncoderSetVertexBuffer(pass, 5,
-                buf->instance_transmission,
-                (uint64_t)ctx->offset * sizeof(FlecsTransmission),
-                (uint64_t)ctx->count * sizeof(FlecsTransmission));
-        }
+            buf->buffers.gpu_material_ids,
+            (uint64_t)ctx->view.offset * sizeof(FlecsMaterialId),
+            (uint64_t)ctx->view.count * sizeof(FlecsMaterialId));
     }
 
     wgpuRenderPassEncoderSetIndexBuffer(
         pass, ctx->mesh.index_buffer, WGPUIndexFormat_Uint32, 0,
         WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderDrawIndexed(
-        pass, ctx->mesh.index_count, ctx->count, 0, 0, 0);
+        pass, ctx->mesh.index_count, ctx->view.count, 0, 0, 0);
 }
 
-void flecsEngine_batch_drawShadow(
+void flecsEngine_batch_group_drawShadow(
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_t *ctx)
+    const flecsEngine_batch_group_t *ctx)
 {
     int cascade = engine->shadow.current_cascade;
-    int32_t count = ctx->shadow_count[cascade];
+    int32_t count = ctx->view.shadow_count[cascade];
     if (!count) {
         return;
     }
 
-    const flecsEngine_batch_buffers_t *buf = ctx->buffers;
-    if (!buf || !buf->shadow_transforms[cascade]) {
+    const flecsEngine_batch_t *buf = ctx->batch;
+    if (!buf || !buf->buffers.gpu_shadow_transforms[cascade]) {
         return;
     }
 
-    WGPUBuffer vertex_buffer = ctx->vertex_buffer;
-    if (!vertex_buffer || !ctx->mesh.index_buffer ||
+    if (!ctx->mesh.vertex_buffer || !ctx->mesh.index_buffer ||
         !ctx->mesh.index_count)
     {
         return;
     }
 
     uint64_t transform_offset =
-        (uint64_t)ctx->shadow_offset[cascade] * sizeof(FlecsInstanceTransform);
+        (uint64_t)ctx->view.shadow_offset[cascade] * sizeof(FlecsInstanceTransform);
     uint64_t transform_size =
         (uint64_t)count * sizeof(FlecsInstanceTransform);
 
     wgpuRenderPassEncoderSetVertexBuffer(
-        pass, 0, vertex_buffer, 0, WGPU_WHOLE_SIZE);
+        pass, 0, ctx->mesh.vertex_buffer, 0, WGPU_WHOLE_SIZE);
     wgpuRenderPassEncoderSetVertexBuffer(
-        pass, 1, buf->shadow_transforms[cascade],
+        pass, 1, buf->buffers.gpu_shadow_transforms[cascade],
         transform_offset, transform_size);
 
-    if (buf->owns_material_data && buf->use_material_storage) {
+    if ((buf->flags & FLECS_BATCH_OWNS_MATERIAL)) {
         WGPUBuffer identity =
             flecsEngine_defaultAttrCache_getMaterialIdIdentityBuffer(
                 (FlecsEngineImpl*)engine, count);
         wgpuRenderPassEncoderSetVertexBuffer(pass, 2, identity, 0,
             (uint64_t)count * sizeof(FlecsMaterialId));
-    } else if (!buf->owns_material_data && buf->instance_material_id) {
+    } else if (buf->buffers.gpu_material_ids) {
         wgpuRenderPassEncoderSetVertexBuffer(pass, 2,
-            buf->instance_material_id, 0, WGPU_WHOLE_SIZE);
-    } else {
-        if (buf->instance_color) {
-            wgpuRenderPassEncoderSetVertexBuffer(pass, 2,
-                buf->instance_color, 0, WGPU_WHOLE_SIZE);
-        }
-        if (buf->instance_pbr) {
-            wgpuRenderPassEncoderSetVertexBuffer(pass, 3,
-                buf->instance_pbr, 0, WGPU_WHOLE_SIZE);
-        }
-        if (buf->instance_emissive) {
-            wgpuRenderPassEncoderSetVertexBuffer(pass, 4,
-                buf->instance_emissive, 0, WGPU_WHOLE_SIZE);
-        }
+            buf->buffers.gpu_material_ids, 0, WGPU_WHOLE_SIZE);
     }
 
     wgpuRenderPassEncoderSetIndexBuffer(

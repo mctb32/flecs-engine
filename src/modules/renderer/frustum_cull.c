@@ -62,28 +62,25 @@ void flecsEngine_frustum_extractPlanes(
 
 void flecsEngine_computeWorldAABB(
     const FlecsWorldTransform3 *wt,
-    const float local_min[3],
-    const float local_max[3],
-    float sx,
-    float sy,
-    float sz,
-    float world_min[3],
-    float world_max[3])
+    FlecsAABB *aabb,
+    int32_t count)
 {
-    float smin[3] = { local_min[0] * sx, local_min[1] * sy, local_min[2] * sz };
-    float smax[3] = { local_max[0] * sx, local_max[1] * sy, local_max[2] * sz };
+    for (int32_t n = 0; n < count; n ++) {
+        float smin[3] = { aabb[n].min[0], aabb[n].min[1], aabb[n].min[2] };
+        float smax[3] = { aabb[n].max[0], aabb[n].max[1], aabb[n].max[2] };
 
-    for (int i = 0; i < 3; i ++) {
-        world_min[i] = world_max[i] = wt->m[3][i];
-        for (int j = 0; j < 3; j ++) {
-            float e = wt->m[j][i] * smin[j];
-            float f = wt->m[j][i] * smax[j];
-            if (e < f) {
-                world_min[i] += e;
-                world_max[i] += f;
-            } else {
-                world_min[i] += f;
-                world_max[i] += e;
+        for (int i = 0; i < 3; i ++) {
+            aabb[n].min[i] = aabb[n].max[i] = wt[n].m[3][i];
+            for (int j = 0; j < 3; j ++) {
+                float e = wt[n].m[j][i] * smin[j];
+                float f = wt[n].m[j][i] * smax[j];
+                if (e < f) {
+                    aabb[n].min[i] += e;
+                    aabb[n].max[i] += f;
+                } else {
+                    aabb[n].min[i] += f;
+                    aabb[n].max[i] += e;
+                }
             }
         }
     }

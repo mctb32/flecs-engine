@@ -9,7 +9,6 @@
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderEffect);
 ECS_COMPONENT_DECLARE(FlecsVertex);
-ECS_COMPONENT_DECLARE(FlecsLitVertex);
 ECS_COMPONENT_DECLARE(FlecsLitVertexUv);
 ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
 ECS_COMPONENT_DECLARE(FlecsTextureImpl);
@@ -652,7 +651,6 @@ void FlecsEngineRendererImport(
     ecs_set_name_prefix(world, "Flecs");
 
     ECS_COMPONENT_DEFINE(world, FlecsVertex);
-    ECS_COMPONENT_DEFINE(world, FlecsLitVertex);
     ECS_COMPONENT_DEFINE(world, FlecsLitVertexUv);
     ECS_COMPONENT_DEFINE(world, FlecsInstanceTransform);
     ECS_COMPONENT_DEFINE(world, FlecsUniform);
@@ -661,14 +659,6 @@ void FlecsEngineRendererImport(
         .entity = ecs_id(FlecsVertex),
         .members = {
             { .name = "p", .type = ecs_id(flecs_vec3_t) },
-        }
-    });
-
-    ecs_struct(world, {
-        .entity = ecs_id(FlecsLitVertex),
-        .members = {
-            { .name = "p", .type = ecs_id(flecs_vec3_t) },
-            { .name = "n", .type = ecs_id(flecs_vec3_t) }
         }
     });
 
@@ -762,6 +752,11 @@ void FlecsEngineRendererImport(
 
     ECS_SYSTEM(world, FlecsEngineRender, EcsOnStore,
         flecs.engine.EngineImpl);
+
+    ecs_system(world, {
+        .entity = ecs_id(FlecsEngineRender),
+        .immediate = true
+    });
 
 #ifndef __EMSCRIPTEN__
     flecsEngine_debugServer_init(world);

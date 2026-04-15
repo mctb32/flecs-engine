@@ -12,7 +12,7 @@ bool flecsEngine_shader_usesShadow(
 bool flecsEngine_shader_usesCluster(
     const FlecsShader *shader);
 
-ecs_entity_t flecsEngine_shader_pbrColored(
+ecs_entity_t flecsEngine_shader_pbr(
     ecs_world_t *world);
 
 bool flecsEngine_shader_usesMaterialBuffer(
@@ -25,9 +25,6 @@ bool flecsEngine_shader_usesTextures(
     const FlecsShader *shader);
 
 ecs_entity_t flecsEngine_shader_pbrTransmission(
-    ecs_world_t *world);
-
-ecs_entity_t flecsEngine_shader_pbrTransmissionColored(
     ecs_world_t *world);
 
 #endif

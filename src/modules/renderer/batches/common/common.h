@@ -11,142 +11,149 @@
 
 /* -- Storing data from ECS into CPU & GPU buffers -- */
 
+typedef enum {
+    FLECS_BATCH_DEFAULT = 0,
+    FLECS_BATCH_OWNS_MATERIAL = 1 << 0,
+    FLECS_BATCH_OWNS_TRANSMISSION = 1 << 1,
+} flecsEngine_batch_flags_t;
+
 typedef void (*flecsEngine_primitive_scale_t)(
     const void *value,
     float *out);
 
+typedef void (*flecsEngine_primitive_scale_aabb_t)(
+    FlecsAABB *aabb,
+    const void *scale_data,
+    int32_t count);
+
+/* Set of CPU/GPU buffers that store extracted data from the ECS for a batch. */
 typedef struct {
     FlecsInstanceTransform *cpu_transforms;
-    FlecsRgba *cpu_colors;
-    FlecsPbrMaterial *cpu_pbr_materials;
-    FlecsEmissive *cpu_emissives;
-    FlecsTransmission *cpu_transmissions;
     FlecsMaterialId *cpu_material_ids;
-    FlecsGpuMaterial *cpu_gpu_materials;
+    FlecsGpuMaterial *cpu_materials;
+    FlecsInstanceTransform *cpu_shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+
+    WGPUBuffer gpu_transforms;
+    WGPUBuffer gpu_material_ids;
+    WGPUBuffer gpu_materials;
+    WGPUBindGroup gpu_material_bind_group;
+    WGPUBuffer gpu_shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    
     int32_t count;
     int32_t capacity;
 
-    WGPUBuffer instance_transform;
-    WGPUBuffer instance_color;
-    WGPUBuffer instance_pbr;
-    WGPUBuffer instance_emissive;
-    WGPUBuffer instance_transmission;
-    WGPUBuffer instance_material_id;
-    WGPUBuffer material_storage;
-    WGPUBindGroup material_bind_group;
-
-    WGPUBuffer shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    FlecsInstanceTransform *cpu_shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     int32_t shadow_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     int32_t shadow_capacity;
-
-    bool owns_material_data;
-    bool owns_transmission_data;
-    bool use_material_storage;
 } flecsEngine_batch_buffers_t;
 
+/* Batch: render data for all entities matching the batch query. */
 typedef struct {
-    flecsEngine_batch_buffers_t *buffers;
+    flecsEngine_batch_buffers_t buffers;
+    ecs_flags32_t flags;
+} flecsEngine_batch_t;
+
+/* View on batch buffers */
+typedef struct {
     int32_t count;
     int32_t offset;
-    FlecsMesh3Impl mesh;
-    WGPUBuffer vertex_buffer;
-
-    ecs_entity_t component;
-    ecs_size_t component_size;
-    flecsEngine_primitive_scale_t scale_callback;
-
-    uint64_t group_id;
 
     int32_t shadow_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     int32_t shadow_offset[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-} flecsEngine_batch_t;
+} flecsEngine_batch_view_t;
 
-typedef enum {
-    FLECS_BATCH_BUFFERS_DEFAULT = 0,
-    FLECS_BATCH_BUFFERS_OWNS_MATERIAL = 1 << 0,
-    FLECS_BATCH_BUFFERS_OWNS_TRANSMISSION = 1 << 1,
-    FLECS_BATCH_BUFFERS_STORAGE = 1 << 2
-} flecsEngine_batch_buffers_flags_t;
+/* Batch group: each batch can have multiple batch groups, where a group is
+ * associated with a single mesh. */
+typedef struct {
+    flecsEngine_batch_t *batch;
+    flecsEngine_batch_view_t view;
 
-void flecsEngine_batch_buffers_init(
-    flecsEngine_batch_buffers_t *buf,
-    flecsEngine_batch_buffers_flags_t flags);
+    uint64_t group_id;
+    FlecsMesh3Impl mesh;
+} flecsEngine_batch_group_t;
 
-void flecsEngine_batch_buffers_fini(
-    flecsEngine_batch_buffers_t *buf);
+/* Primitive batch group: like a batch group for buitin primitive meshes. This
+ * type has additional functionality for applying the scale from a primitive
+ * component. For example, if an entity has "FlecsBox: {10, 10, 10}", the 
+ * scale_callback() function will apply a {10, 10, 10} scale to the builtin
+ * Box mesh. This scale is applied on top of an optional FlecsScale component. */
+typedef struct {
+    flecsEngine_batch_group_t group;
+    ecs_size_t component_size;
+    flecsEngine_primitive_scale_t scale_callback;
+    flecsEngine_primitive_scale_aabb_t scale_aabb;
+} flecsEngine_primitive_batch_group_t;
 
-void flecsEngine_batch_buffers_ensureCapacity(
+void flecsEngine_batch_init(
+    flecsEngine_batch_t *buf,
+    flecsEngine_batch_flags_t flags);
+
+void flecsEngine_batch_fini(
+    flecsEngine_batch_t *buf);
+
+void flecsEngine_batch_ensureCapacity(
     const FlecsEngineImpl *engine,
-    flecsEngine_batch_buffers_t *buf,
+    flecsEngine_batch_t *buf,
     int32_t count);
 
-void flecsEngine_batch_buffers_ensureShadowCapacity(
+void flecsEngine_batch_ensureShadowCapacity(
     const FlecsEngineImpl *engine,
-    flecsEngine_batch_buffers_t *buf,
+    flecsEngine_batch_t *buf,
     int32_t count);
 
-void flecsEngine_batch_extractInstances(
+void flecsEngine_batch_group_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch,
-    flecsEngine_batch_t *ctx);
+    flecsEngine_batch_group_t *ctx,
+    flecsEngine_primitive_scale_t scale_callback,
+    flecsEngine_primitive_scale_aabb_t scale_aabb,
+    ecs_size_t component_size);
 
-void flecsEngine_batch_extractShadowInstances(
+void flecsEngine_batch_group_extractShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch,
-    flecsEngine_batch_t *ctx);
+    flecsEngine_batch_group_t *ctx,
+    flecsEngine_primitive_scale_t scale,
+    ecs_size_t scale_size);
 
-void flecsEngine_batch_draw(
+void flecsEngine_batch_group_draw(
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_t *ctx);
+    const flecsEngine_batch_group_t *ctx);
 
-void flecsEngine_batch_drawShadow(
+void flecsEngine_batch_group_drawShadow(
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_t *ctx);
-
-FlecsGpuMaterial flecsEngine_batch_packGpuMaterial(
-    const FlecsEngineImpl *engine,
-    const FlecsRgba *color,
-    const FlecsPbrMaterial *pbr,
-    const FlecsEmissive *emissive);
+    const flecsEngine_batch_group_t *ctx);
 
 void flecsEngine_batch_bindMaterialGroup(
     FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_buffers_t *buf);
+    const flecsEngine_batch_t *buf);
 
-void flecsEngine_batch_init(
-    flecsEngine_batch_t* batch,
-    ecs_world_t *world,
+void flecsEngine_batch_group_init(
+    flecsEngine_batch_group_t* batch,
     const FlecsMesh3Impl *mesh,
-    uint64_t group_id,
-    ecs_entity_t component,
-    flecsEngine_primitive_scale_t scale_callback);
+    uint64_t group_id);
 
-flecsEngine_batch_t* flecsEngine_batch_create(
-    ecs_world_t *world,
+flecsEngine_batch_group_t* flecsEngine_batch_group_create(
     const FlecsMesh3Impl *mesh,
-    uint64_t group_id,
-    ecs_entity_t component,
-    flecsEngine_primitive_scale_t scale_callback);
+    uint64_t group_id);
 
-void flecsEngine_batch_fini(
-    flecsEngine_batch_t *ptr);
+void flecsEngine_batch_group_fini(
+    flecsEngine_batch_group_t *ptr);
 
-void flecsEngine_batch_delete(
+void flecsEngine_batch_group_delete(
     void *ptr);
 
-void flecsEngine_batch_buffers_upload(
+void flecsEngine_batch_upload(
     const FlecsEngineImpl *engine,
-    const flecsEngine_batch_buffers_t *buf);
+    const flecsEngine_batch_t *buf);
 
-void flecsEngine_batch_buffers_uploadShadow(
+void flecsEngine_batch_uploadShadow(
     const FlecsEngineImpl *engine,
-    const flecsEngine_batch_buffers_t *buf);
+    const flecsEngine_batch_t *buf);
 
 void flecsEngine_batch_transformInstance(
     FlecsInstanceTransform *out,
@@ -155,20 +162,10 @@ void flecsEngine_batch_transformInstance(
     float scale_y,
     float scale_z);
 
-void flecsEngine_batch_extractSingleInstance(
-    const FlecsEngineImpl *engine,
-    flecsEngine_batch_t *batch,
-    const FlecsWorldTransform3 *transform,
-    const FlecsRgba *color,
-    float scale_x,
-    float scale_y,
-    float scale_z);
-
-
 /* -- Meshes -- */
 
-flecsEngine_batch_buffers_t* flecsEngine_mesh_createCtx(
-    flecsEngine_batch_buffers_flags_t flags);
+flecsEngine_batch_t* flecsEngine_mesh_createCtx(
+    flecsEngine_batch_flags_t flags);
 
 void flecsEngine_mesh_deleteCtx(void *ptr);
 
