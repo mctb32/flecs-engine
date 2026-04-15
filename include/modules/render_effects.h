@@ -38,6 +38,21 @@ ECS_STRUCT(FlecsSSAO, {
 
 extern ECS_COMPONENT_DECLARE(FlecsSSAO);
 
+/* Screen-space sun shafts (crepuscular rays).
+ * Radial-blur accumulation of sky pixels from the sun's projected screen
+ * position. Requires the same directional light that lights the scene on the
+ * enclosing FlecsRenderView. */
+ECS_STRUCT(FlecsSunShafts, {
+    float intensity;    /* overall multiplier; 0 disables the effect */
+    float density;      /* radial march length in UV space (~0.5-1.0) */
+    float weight;       /* per-sample contribution */
+    float decay;        /* geometric per-sample falloff (~0.95) */
+    float exposure;     /* final scalar applied to the accumulated shafts */
+    flecs_rgba_t color; /* shaft tint */
+});
+
+extern ECS_COMPONENT_DECLARE(FlecsSunShafts);
+
 /* Physically-based sky & aerial-perspective effect (Hillaire 2020).
  * Builds 4 LUTs per frame (transmittance / multi-scattering / sky-view /
  * aerial perspective) and composites them with the scene in a final pass. */
@@ -103,6 +118,15 @@ ecs_entity_t flecsEngine_createEffect_ssao(
     const char *name,
     int32_t input,
     const FlecsSSAO *settings);
+
+FlecsSunShafts flecsEngine_sunShaftsSettingsDefault(void);
+
+ecs_entity_t flecsEngine_createEffect_sunShafts(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name,
+    int32_t input,
+    const FlecsSunShafts *settings);
 
 ecs_entity_t flecsEngine_createEffect_gammaCorrect(
     ecs_world_t *world,

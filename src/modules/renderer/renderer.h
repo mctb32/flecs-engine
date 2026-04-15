@@ -182,6 +182,9 @@ void flecsEngine_heightFog_register(
 void flecsEngine_ssao_register(
     ecs_world_t *world);
 
+void flecsEngine_sunShafts_register(
+    ecs_world_t *world);
+
 void flecsEngine_atmosphere_register(
     ecs_world_t *world);
 

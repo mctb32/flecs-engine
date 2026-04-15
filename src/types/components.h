@@ -98,6 +98,12 @@ extern ECS_COMPONENT_DECLARE(FlecsHeightFogImpl);
 
 typedef struct {
     WGPUBuffer uniform_buffer;
+} FlecsSunShaftsImpl;
+
+extern ECS_COMPONENT_DECLARE(FlecsSunShaftsImpl);
+
+typedef struct {
+    WGPUBuffer uniform_buffer;
     WGPUTexture blur_intermediate_texture;
     WGPUTextureView blur_intermediate_view;
     uint32_t blur_texture_width;
