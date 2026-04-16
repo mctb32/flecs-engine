@@ -78,6 +78,11 @@ static void FlecsOnAddGeometryBatch(
         ecs_entity_t batch_set_entity = it->entities[i];
         FlecsRenderBatchSet batch_set = {0};
 
+        bool was_deferred = ecs_is_deferred(it->world);
+        if (was_deferred) {
+            ecs_defer_suspend(it->world);
+        }
+
         ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
             flecsEngine_createBatchSet_geometry_materialData(
                 it->world, batch_set_entity, "ColoredGeometry");
@@ -101,6 +106,10 @@ static void FlecsOnAddGeometryBatch(
         ecs_vec_append_t(NULL, &batch_set.batches, ecs_entity_t)[0] =
             flecsEngine_createBatch_mesh_transparent(
                 it->world, batch_set_entity, "TransparentMeshes");
+
+        if (was_deferred) {
+            ecs_defer_resume(it->world);
+        }
 
         ecs_set_ptr(it->world, batch_set_entity, FlecsRenderBatchSet,
             &batch_set);
