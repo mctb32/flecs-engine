@@ -10,12 +10,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-RUN="./run.sh"
+BUILD_DIR="build-release"
+ENGINE="./$BUILD_DIR/flecs_engine"
 SCENES_DIR="etc/assets/scenes"
 OUT_DIR="test/scenes"
 
-if [[ ! -x "$RUN" ]]; then
-  echo "error: $RUN not found or not executable" >&2
+echo "==> Building engine (Release)"
+if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+  cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
+fi
+cmake --build "$BUILD_DIR" --parallel 8
+
+if [[ ! -x "$ENGINE" ]]; then
+  echo "error: $ENGINE not found or not executable after build." >&2
   exit 1
 fi
 
@@ -36,7 +43,7 @@ for scene in "${scenes[@]}"; do
   name="$(basename "$scene" .flecs)"
   out="$OUT_DIR/$name.ppm"
   echo "==> Rendering $name -> $out"
-  if "$RUN" --scene "$scene" --frame-out "$out"; then
+  if "$ENGINE" --scene "$scene" --frame-out "$out"; then
     echo "    ok"
   else
     echo "    FAILED" >&2

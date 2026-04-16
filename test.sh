@@ -12,13 +12,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-ENGINE="./build/flecs_engine"
+BUILD_DIR="build-release"
+ENGINE="./$BUILD_DIR/flecs_engine"
 SCENES_DIR="etc/assets/scenes"
 BASELINE_DIR="test/scenes"
 OUT_DIR="test/out"
 
-echo "==> Building engine"
-cmake --build build
+echo "==> Building engine (Release)"
+if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+  cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
+fi
+cmake --build "$BUILD_DIR" --parallel 8
 
 if [[ ! -x "$ENGINE" ]]; then
   echo "error: $ENGINE not found or not executable after build." >&2
