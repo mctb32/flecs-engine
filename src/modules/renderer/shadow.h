@@ -3,17 +3,29 @@
 
 #define FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT 4096
 
-int flecsEngine_shadow_init(
+/* Initialize scene-shared shadow resources (shader, pass bind layout,
+ * sampler). Shadow textures and cascade VP buffers are owned per-view. */
+int flecsEngine_shadow_initShared(
     ecs_world_t *world,
-    FlecsEngineImpl *impl,
-    uint32_t shadow_map_size);
-
-void flecsEngine_shadow_cleanup(
     FlecsEngineImpl *impl);
 
-int flecsEngine_shadow_ensureSize(
-    ecs_world_t *world,
-    FlecsEngineImpl *impl,
+void flecsEngine_shadow_cleanupShared(
+    FlecsEngineImpl *impl);
+
+/* Initialize per-view shadow resources (texture, layer views, VP buffers,
+ * pass bind groups). Requires scene-shared shadow resources to already
+ * exist on the engine. */
+int flecsEngine_shadow_initView(
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
+    uint32_t shadow_map_size);
+
+void flecsEngine_shadow_cleanupView(
+    FlecsRenderViewImpl *view_impl);
+
+int flecsEngine_shadow_ensureViewSize(
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     uint32_t shadow_map_size);
 
 void flecsEngine_shadow_computeCascades(

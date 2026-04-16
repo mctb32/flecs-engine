@@ -228,9 +228,11 @@ static void flecsEngine_transparent_mesh_render(
     flecsEngine_sorted_instance_t *sorted =
         ecs_os_malloc_n(flecsEngine_sorted_instance_t, total_instances);
 
-    float cam_x = engine->camera_pos[0];
-    float cam_y = engine->camera_pos[1];
-    float cam_z = engine->camera_pos[2];
+    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
+    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
+    float cam_x = view_impl->camera_pos[0];
+    float cam_y = view_impl->camera_pos[1];
+    float cam_z = view_impl->camera_pos[2];
 
     int32_t si = 0;
     git = ecs_map_iter(groups);

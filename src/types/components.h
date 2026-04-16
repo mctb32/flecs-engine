@@ -13,8 +13,6 @@ typedef struct {
     WGPUTexture ibl_irradiance_cubemap;
     WGPUTextureView ibl_irradiance_cubemap_view;
     WGPUSampler ibl_sampler;
-    WGPUBindGroup ibl_shadow_bind_group;
-    uint32_t scene_bind_version;
     uint32_t ibl_prefilter_mip_count;
 } FlecsHdriImpl;
 
@@ -51,7 +49,38 @@ typedef struct {
 
 extern ECS_COMPONENT_DECLARE(FlecsShaderImpl);
 
+/* Per-view shadow state. The shared shader_module/pass_bind_layout/sampler
+ * live on FlecsEngineImpl::shadow. */
 typedef struct {
+    WGPUTexture texture;
+    WGPUTextureView texture_view;
+    WGPUTextureView layer_views[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    uint32_t map_size;
+    WGPUBuffer vp_buffers[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    WGPUBindGroup pass_bind_groups[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    int current_cascade;
+    mat4 current_light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    float cascade_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+} flecs_view_shadow_t;
+
+typedef struct {
+    uint32_t *cpu_cluster_indices;
+    int32_t cluster_index_capacity;
+    WGPUBuffer cluster_info_buffer;
+    WGPUBuffer cluster_grid_buffer;
+    WGPUBuffer cluster_index_buffer;
+} flecs_view_cluster_t;
+
+typedef struct {
+    WGPUTexture texture;
+    WGPUTextureView view;
+    WGPUTextureView *mip_views;
+    uint32_t mip_count;
+    uint32_t width;
+    uint32_t height;
+} flecs_view_opaque_snapshot_t;
+
+struct FlecsRenderViewImpl {
     WGPUTexture *effect_target_textures;
     WGPUTextureView *effect_target_views;
     int32_t effect_target_count;
@@ -65,7 +94,42 @@ typedef struct {
     WGPUTexture scene_target_texture;
     WGPUTextureView scene_target_view;
     WGPUBindGroup passthrough_bind_group;
-} FlecsRenderViewImpl;
+
+    /* Per-view frame uniform buffer (contains camera MVP, light VP,
+     * cascade splits, camera position, etc.). */
+    WGPUBuffer frame_uniform_buffer;
+
+    /* Pipeline-state tracker reset at the start of each pass. */
+    WGPURenderPipeline last_pipeline;
+
+    /* World-space camera position, latched from the uniform write each frame
+     * so extract/render code can use it without re-reading the camera. */
+    float camera_pos[3];
+
+    /* Frustum culling state, recomputed per frame during extract. */
+    float frustum_planes[6][4];
+    float shadow_frustum_planes[6][4];
+    bool frustum_valid;
+    bool shadow_frustum_valid;
+    float cascade_frustum_planes[FLECS_ENGINE_SHADOW_CASCADE_COUNT][6][4];
+    bool cascade_frustum_valid;
+
+    /* Screen-size culling state. */
+    float screen_cull_factor;
+    float screen_cull_threshold;
+    bool screen_cull_valid;
+
+    flecs_view_shadow_t shadow;
+    flecs_view_cluster_t cluster;
+    flecs_view_opaque_snapshot_t opaque_snapshot;
+
+    /* Group 0 (scene globals) bind group, rebuilt when any of its inputs
+     * change. Keyed by HDRI so switching HDRIs rebuilds it. */
+    WGPUBindGroup scene_bind_group;
+    ecs_entity_t scene_bind_hdri;
+    uint32_t scene_bind_version;
+};
+typedef struct FlecsRenderViewImpl FlecsRenderViewImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderViewImpl);
 

@@ -14,7 +14,9 @@ void flecsEngine_batch_group_extractTable(
     int32_t base = ctx->view.offset + ctx->view.count;
     int32_t dst = base;
 
-    bool do_screen_cull = engine->screen_cull_valid;
+    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
+    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
+    bool do_screen_cull = view_impl->screen_cull_valid;
     FlecsAABB mesh_aabb = ctx->mesh.aabb;
 
     /* If not enough capacity, count for resize */
@@ -44,12 +46,12 @@ void flecsEngine_batch_group_extractTable(
 
         for (int32_t i = 0; i < it->count; i ++) {
             if (!flecsEngine_testAABBFrustum(
-                engine->frustum_planes, aabb[i].min, aabb[i].max) ||
+                view_impl->frustum_planes, aabb[i].min, aabb[i].max) ||
                 (do_screen_cull && !flecsEngine_testScreenSize(
-                    engine->camera_pos,
+                    view_impl->camera_pos,
                     aabb[i].min, aabb[i].max,
-                    engine->screen_cull_factor,
-                    engine->screen_cull_threshold)))
+                    view_impl->screen_cull_factor,
+                    view_impl->screen_cull_threshold)))
             {
                 continue;
             }
@@ -77,7 +79,7 @@ void flecsEngine_batch_group_extractTable(
 
         for (int32_t i = 0; i < it->count; i ++) {
             if (!flecsEngine_testAABBFrustum(
-                engine->frustum_planes, aabb[i].min, aabb[i].max))
+                view_impl->frustum_planes, aabb[i].min, aabb[i].max))
             {
                 continue;
             }
@@ -119,7 +121,10 @@ void flecsEngine_batch_group_extract(
     int32_t base = ctx->view.offset;
     ctx->view.count = 0;
 
-    ecs_assert(engine->frustum_valid, ECS_INTERNAL_ERROR, NULL);
+    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
+    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
+    ecs_assert(view_impl->frustum_valid, ECS_INTERNAL_ERROR, NULL);
+    (void)view_impl;
 
     ecs_iter_t it = ecs_query_iter(world, batch->query);
     ecs_iter_set_group(&it, ctx->group_id);
@@ -140,6 +145,9 @@ void flecsEngine_batch_group_extractShadowTable(
 {
     flecsEngine_batch_t *buf = ctx->batch;
 
+    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
+    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
+
     const void *scale_data = scale
         ? ecs_field_w_size(it, scale_size, 0) : NULL;
     const FlecsWorldTransform3 *wt = ecs_field(it, FlecsWorldTransform3, 1);
@@ -157,7 +165,7 @@ void flecsEngine_batch_group_extractShadowTable(
             }
 
             if (!flecsEngine_testAABBFrustum(
-                    engine->cascade_frustum_planes[c],
+                    view_impl->cascade_frustum_planes[c],
                     aabb[i].min, aabb[i].max))
             {
                 continue;
@@ -194,7 +202,8 @@ void flecsEngine_batch_group_extractShadow(
         ctx->view.shadow_count[c] = 0;
     }
 
-    if (!engine->cascade_frustum_valid) {
+    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
+    if (!view_impl || !view_impl->cascade_frustum_valid) {
         FLECS_TRACY_ZONE_END;
         return;
     }

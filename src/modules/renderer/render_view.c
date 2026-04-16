@@ -95,6 +95,25 @@ static void flecsEngine_renderView_releaseTargets(
     impl->effect_target_format = WGPUTextureFormat_Undefined;
 }
 
+static void flecsEngine_renderView_releaseImpl(
+    FlecsRenderViewImpl *impl)
+{
+    flecsEngine_renderView_releaseTargets(impl);
+    flecsEngine_shadow_cleanupView(impl);
+    flecsEngine_cluster_cleanupView(impl);
+    flecsEngine_transmission_releaseView(impl);
+
+    if (impl->scene_bind_group) {
+        wgpuBindGroupRelease(impl->scene_bind_group);
+        impl->scene_bind_group = NULL;
+    }
+
+    if (impl->frame_uniform_buffer) {
+        wgpuBufferRelease(impl->frame_uniform_buffer);
+        impl->frame_uniform_buffer = NULL;
+    }
+}
+
 static bool flecsEngine_renderView_ensureSceneTarget(
     FlecsEngineImpl *engine,
     FlecsRenderViewImpl *impl)
@@ -146,11 +165,11 @@ static void flecsEngine_renderView_releaseSceneTarget(
 }
 
 ECS_DTOR(FlecsRenderViewImpl, ptr, {
-    flecsEngine_renderView_releaseTargets(ptr);
+    flecsEngine_renderView_releaseImpl(ptr);
 })
 
 ECS_MOVE(FlecsRenderViewImpl, dst, src, {
-    flecsEngine_renderView_releaseTargets(dst);
+    flecsEngine_renderView_releaseImpl(dst);
     *dst = *src;
     ecs_os_zeromem(src);
 })
@@ -251,10 +270,11 @@ static void flecsEngine_renderView_writeLight(
 static void flecsEngine_renderView_writeFrameUniforms(
     const ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderView *view)
 {
     FLECS_TRACY_ZONE_BEGIN("WriteFrameUniforms");
-    if (!engine->frame_uniform_buffer) {
+    if (!view_impl->frame_uniform_buffer) {
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -271,11 +291,11 @@ static void flecsEngine_renderView_writeFrameUniforms(
     }
 
     for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-        glm_mat4_copy((vec4*)engine->shadow.current_light_vp[i],
+        glm_mat4_copy((vec4*)view_impl->shadow.current_light_vp[i],
             uniforms.light_vp[i]);
     }
 
-    memcpy(uniforms.cascade_splits, engine->shadow.cascade_splits,
+    memcpy(uniforms.cascade_splits, view_impl->shadow.cascade_splits,
         sizeof(float) * FLECS_ENGINE_SHADOW_CASCADE_COUNT);
 
     float bias = view->shadow.bias;
@@ -284,17 +304,33 @@ static void flecsEngine_renderView_writeFrameUniforms(
 
     uniforms.ambient_light[3] = view->ambient_intensity;
 
-    engine->camera_pos[0] = uniforms.camera_pos[0];
-    engine->camera_pos[1] = uniforms.camera_pos[1];
-    engine->camera_pos[2] = uniforms.camera_pos[2];
+    view_impl->camera_pos[0] = uniforms.camera_pos[0];
+    view_impl->camera_pos[1] = uniforms.camera_pos[1];
+    view_impl->camera_pos[2] = uniforms.camera_pos[2];
 
     wgpuQueueWriteBuffer(
         engine->queue,
-        engine->frame_uniform_buffer,
+        view_impl->frame_uniform_buffer,
         0,
         &uniforms,
         sizeof(FlecsUniform));
     FLECS_TRACY_ZONE_END;
+}
+
+static bool flecsEngine_renderView_ensureFrameUniformBuffer(
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl)
+{
+    if (view_impl->frame_uniform_buffer) {
+        return true;
+    }
+    view_impl->frame_uniform_buffer = wgpuDeviceCreateBuffer(
+        engine->device,
+        &(WGPUBufferDescriptor){
+            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+            .size = sizeof(FlecsUniform)
+        });
+    return view_impl->frame_uniform_buffer != NULL;
 }
 
 static bool flecsEngine_renderView_createTargets(
@@ -475,7 +511,7 @@ static void flecsEngine_renderView_renderBatches(
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
     const FlecsRenderView *view,
-    const FlecsRenderViewImpl *viewImpl,
+    FlecsRenderViewImpl *viewImpl,
     WGPUCommandEncoder encoder)
 {
     FLECS_TRACY_ZONE_BEGIN("RenderBatches");
@@ -499,7 +535,7 @@ static void flecsEngine_renderView_renderBatches(
             WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
                 engine, view, encoder, batch_target,
                 WGPULoadOp_Clear, WGPULoadOp_Clear);
-            engine->last_pipeline = NULL;
+            viewImpl->last_pipeline = NULL;
 
             flecsEngine_renderBatchSet_render(
                 world, engine, batch_set, pass, view, 1);
@@ -513,7 +549,7 @@ static void flecsEngine_renderView_renderBatches(
             WGPUTexture src_tex = batch_target_tex;
             if (src_tex) {
                 flecsEngine_transmission_updateSnapshot(
-                    engine, encoder, src_tex,
+                    engine, viewImpl, encoder, src_tex,
                     viewImpl->effect_target_width,
                     viewImpl->effect_target_height);
             }
@@ -525,7 +561,7 @@ static void flecsEngine_renderView_renderBatches(
             WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
                 engine, view, encoder, batch_target,
                 WGPULoadOp_Load, WGPULoadOp_Load);
-            engine->last_pipeline = NULL;
+            viewImpl->last_pipeline = NULL;
 
             flecsEngine_renderBatchSet_render(
                 world, engine, batch_set, pass, view, 2);
@@ -538,7 +574,7 @@ static void flecsEngine_renderView_renderBatches(
         WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
             engine, view, encoder, batch_target,
             WGPULoadOp_Clear, WGPULoadOp_Clear);
-        engine->last_pipeline = NULL;
+        viewImpl->last_pipeline = NULL;
 
         flecsEngine_renderBatchSet_render(
             world, engine, batch_set, pass, view, 0);
@@ -560,7 +596,8 @@ static void flecsEngine_renderView_render(
     WGPUTextureView view_texture)
 {
     FLECS_TRACY_ZONE_BEGIN("RenderView");
-    engine->last_pipeline = NULL;
+    engine->current_view_impl = impl;
+    impl->last_pipeline = NULL;
 
     int32_t effect_count = ecs_vec_count(&view->effects);
     int32_t target_count = effect_count > 0 ? effect_count : 1;
@@ -572,6 +609,14 @@ static void flecsEngine_renderView_render(
     FLECS_TRACY_ZONE_END_N(ensure_targets_zone);
     if (ensure_err) {
         ecs_err("failed to allocate effect render targets");
+        engine->current_view_impl = NULL;
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
+    if (!flecsEngine_renderView_ensureFrameUniformBuffer(engine, impl)) {
+        ecs_err("failed to create frame uniform buffer");
+        engine->current_view_impl = NULL;
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -585,11 +630,13 @@ static void flecsEngine_renderView_render(
         FLECS_TRACY_ZONE_END_N(atm_ensure_zone);
         if (!scene_ok) {
             ecs_err("failed to allocate scene pre-atmosphere target");
+            engine->current_view_impl = NULL;
             FLECS_TRACY_ZONE_END;
             return;
         }
         if (!impl_ok) {
             ecs_err("failed to initialize atmosphere resources");
+            engine->current_view_impl = NULL;
             FLECS_TRACY_ZONE_END;
             return;
         }
@@ -598,24 +645,32 @@ static void flecsEngine_renderView_render(
     }
 
     if (view->shadow.enabled) {
-        if (flecsEngine_shadow_ensureSize(
-            world, engine, (uint32_t)view->shadow.map_size))
+        if (flecsEngine_shadow_ensureViewSize(
+            engine, impl, (uint32_t)view->shadow.map_size))
         {
             ecs_err("failed to resize shadow maps");
         }
 
         flecsEngine_renderView_renderShadow(
-            world, view_entity, engine, view, encoder);
+            world, view_entity, engine, view, impl, encoder);
     } else {
         for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-            memset(engine->shadow.current_light_vp[i], 0, sizeof(mat4));
-            engine->shadow.cascade_splits[i] = 0.0f;
+            memset(impl->shadow.current_light_vp[i], 0, sizeof(mat4));
+            impl->shadow.cascade_splits[i] = 0.0f;
         }
     }
 
+    /* Ensure per-view cluster buffers exist before building. */
+    if (flecsEngine_cluster_initView(engine, impl)) {
+        ecs_err("failed to initialize view cluster buffers");
+        engine->current_view_impl = NULL;
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
     flecsEngine_setupLights(world, engine);
-    flecsEngine_cluster_build(world, engine, view);
-    flecsEngine_renderView_writeFrameUniforms(world, engine, view);
+    flecsEngine_cluster_build(world, engine, impl, view);
+    flecsEngine_renderView_writeFrameUniforms(world, engine, impl, view);
 
     if (have_atmosphere) {
         if (!flecsEngine_atmosphere_renderLuts(
@@ -651,6 +706,8 @@ static void flecsEngine_renderView_render(
 
     flecsEngine_renderView_renderEffects(
         world, view_entity, engine, view, impl, view_texture, encoder);
+
+    engine->current_view_impl = NULL;
     FLECS_TRACY_ZONE_END;
 }
 
@@ -662,10 +719,11 @@ static void flecsEngine_renderView_extract(
     FlecsRenderViewImpl *impl)
 {
     FLECS_TRACY_ZONE_BEGIN("ExtractView");
-    (void)impl;
 
-    engine->frustum_valid = false;
-    engine->shadow_frustum_valid = false;
+    engine->current_view_impl = impl;
+
+    impl->frustum_valid = false;
+    impl->shadow_frustum_valid = false;
 
     if (view->camera) {
         const FlecsCameraImpl *camera = ecs_get(
@@ -673,8 +731,8 @@ static void flecsEngine_renderView_extract(
         if (camera) {
             flecsEngine_frustum_extractPlanes(
                 camera->mvp,
-                engine->frustum_planes);
-            engine->frustum_valid = true;
+                impl->frustum_planes);
+            impl->frustum_valid = true;
 
             if (view->shadow.enabled && view->shadow.max_range > 0.0f) {
                 const FlecsCamera *cam = ecs_get(
@@ -693,14 +751,14 @@ static void flecsEngine_renderView_extract(
 
                     flecsEngine_frustum_extractPlanes(
                         shadow_vp,
-                        engine->shadow_frustum_planes);
-                    engine->shadow_frustum_valid = true;
+                        impl->shadow_frustum_planes);
+                    impl->shadow_frustum_valid = true;
                 }
             }
         }
     }
 
-    engine->screen_cull_valid = false;
+    impl->screen_cull_valid = false;
     if (view->screen_size_threshold > 0.0f && view->camera) {
         const FlecsCamera *cam = ecs_get(
             world, view->camera, FlecsCamera);
@@ -709,14 +767,16 @@ static void flecsEngine_renderView_extract(
             if (half_tan > 1e-6f) {
                 float vh = (float)engine->actual_height;
                 float f = vh / half_tan;
-                engine->screen_cull_factor = f * f;
-                engine->screen_cull_threshold = view->screen_size_threshold;
-                engine->screen_cull_valid = true;
+                impl->screen_cull_factor = f * f;
+                impl->screen_cull_threshold = view->screen_size_threshold;
+                impl->screen_cull_valid = true;
             }
         }
     }
 
     flecsEngine_renderView_extractBatches(world, view_entity, engine, view);
+
+    engine->current_view_impl = NULL;
     FLECS_TRACY_ZONE_END;
 }
 
@@ -746,11 +806,14 @@ void flecsEngine_renderView_uploadAll(
     ecs_iter_t it = ecs_query_iter(world, engine->view_query);
     while (ecs_query_next(&it)) {
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
+        FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
         for (int32_t i = 0; i < it.count; i ++) {
+            engine->current_view_impl = &viewImpls[i];
             flecsEngine_renderView_uploadBatches(
                 world, it.entities[i], engine, &views[i]);
         }
     }
+    engine->current_view_impl = NULL;
 }
 
 void flecsEngine_renderView_renderAll(
@@ -764,7 +827,7 @@ void flecsEngine_renderView_renderAll(
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
         FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
         for (int32_t i = 0; i < it.count; i ++) {
-            flecsEngine_renderView_render(world, engine, it.entities[i], 
+            flecsEngine_renderView_render(world, engine, it.entities[i],
                 &views[i], &viewImpls[i],
                 encoder, view_texture);
         }

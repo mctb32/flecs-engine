@@ -1286,7 +1286,9 @@ bool flecsEngine_atmosphere_ensureImpl(
                 });
         }
 
-        flecsEngine_globals_createBindGroup(engine, hdri);
+        /* Bump the scene bind version so every view rebuilds its group 0
+         * with the new atmosphere IBL cubemap on next render. */
+        ((FlecsEngineImpl*)engine)->scene_bind_version ++;
         ecs_modified(world, atmosphere_entity, FlecsHdriImpl);
     }
 

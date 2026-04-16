@@ -946,9 +946,9 @@ bool flecsEngine_ibl_initResources(
         wgpuCommandBufferRelease(cb);
     }
 
-    if (!flecsEngine_globals_createBindGroup(engine, ibl)) {
-        goto done;
-    }
+    /* Bump the scene bind version so every view rebuilds its group 0
+     * with the new IBL cubemap on next render. */
+    engine->scene_bind_version ++;
 
     ok = true;
 

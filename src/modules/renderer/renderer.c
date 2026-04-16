@@ -328,11 +328,11 @@ int flecsEngine_initRenderer(
         .cache_kind = EcsQueryCacheAuto
     });
 
-    if (flecsEngine_shadow_init(world, impl, FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT)) {
+    if (flecsEngine_shadow_initShared(world, impl)) {
         goto error;
     }
 
-    if (flecsEngine_cluster_init(impl)) {
+    if (flecsEngine_cluster_initLights(impl)) {
         goto error;
     }
 

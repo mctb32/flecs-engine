@@ -14,7 +14,9 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
     FlecsEngineImpl *impl);
 
 bool flecsEngine_globals_createBindGroup(
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
+    ecs_entity_t hdri_entity,
     FlecsHdriImpl *ibl);
 
 WGPUBindGroupLayout flecsEngine_materialBind_ensureLayout(

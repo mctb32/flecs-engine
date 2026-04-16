@@ -36,10 +36,14 @@ static void flecsEngine_cleanup(
     impl->sky_background_hdri = 0;
     impl->black_hdri = 0;
 
+    /* Delete views first so that per-view shadow/cluster/snapshot/bind
+     * groups are released before engine-side shared resources. */
+    ecs_delete_with(world, ecs_id(FlecsRenderView));
+
     flecsEngine_renderer_cleanup(impl);
-    flecsEngine_shadow_cleanup(impl);
+    flecsEngine_shadow_cleanupShared(impl);
     flecsEngine_material_releaseBuffer(impl);
-    flecsEngine_transmission_release(impl);
+    flecsEngine_transmission_releaseShared(impl);
 
     flecsEngine_surfaceInterface_cleanup(
         impl->surface_impl, impl, terminate_runtime);

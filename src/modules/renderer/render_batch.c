@@ -486,12 +486,15 @@ void flecsEngine_renderBatch_render(
         return;
     }
 
+    FlecsRenderViewImpl *view_impl = engine->current_view_impl;
+    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
+
     WGPURenderPipeline pipeline = impl->pipeline_hdr;
     ecs_assert(pipeline != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    if (pipeline != engine->last_pipeline) {
+    if (pipeline != view_impl->last_pipeline) {
         wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-        engine->last_pipeline = pipeline;
+        view_impl->last_pipeline = pipeline;
     }
 
     if (impl->uses_textures) {
@@ -518,12 +521,17 @@ void flecsEngine_renderBatch_render(
         FlecsHdriImpl *ibl = ecs_get_mut(world, hdri, FlecsHdriImpl);
         ecs_assert(ibl != NULL, ECS_INTERNAL_ERROR, NULL);
 
-        if (ibl->scene_bind_version != engine->scene_bind_version) {
-            flecsEngine_globals_createBindGroup(engine, ibl);
+        /* Rebuild the view's scene bind group if the HDRI changed, the
+         * version stamp is stale, or it hasn't been built yet. */
+        if (!view_impl->scene_bind_group ||
+            view_impl->scene_bind_hdri != hdri ||
+            view_impl->scene_bind_version != engine->scene_bind_version)
+        {
+            flecsEngine_globals_createBindGroup(engine, view_impl, hdri, ibl);
         }
 
         wgpuRenderPassEncoderSetBindGroup(
-            pass, 0, ibl->ibl_shadow_bind_group, 0, NULL);
+            pass, 0, view_impl->scene_bind_group, 0, NULL);
     }
 
     batch->callback(world, engine, pass, batch);
@@ -614,15 +622,19 @@ void flecsEngine_renderBatch_renderShadow(
         return;
     }
 
+    FlecsRenderViewImpl *view_impl = engine->current_view_impl;
+    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
+
     WGPURenderPipeline pipeline = impl->pipeline_shadow;
 
-    if (pipeline != engine->last_pipeline) {
+    if (pipeline != view_impl->last_pipeline) {
         wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-        engine->last_pipeline = pipeline;
+        view_impl->last_pipeline = pipeline;
     }
 
     wgpuRenderPassEncoderSetBindGroup(
-        pass, 0, engine->shadow.pass_bind_groups[engine->shadow.current_cascade],
+        pass, 0,
+        view_impl->shadow.pass_bind_groups[view_impl->shadow.current_cascade],
         0, NULL);
 
     if (batch->shadow_callback) {

@@ -31,6 +31,7 @@ void flecsEngine_renderView_renderShadow(
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
     const FlecsRenderView *view,
+    FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder);
 
 #endif

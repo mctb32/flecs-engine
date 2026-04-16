@@ -33,21 +33,22 @@ static const char *kDownsampleShaderSource =
     "}\n";
 
 static void flecsEngine_transmission_releaseTexture(
-    FlecsEngineImpl *engine)
+    FlecsRenderViewImpl *view_impl)
 {
+    flecs_view_opaque_snapshot_t *s = &view_impl->opaque_snapshot;
     flecsEngine_mipPyramid_release(
-        &engine->opaque_snapshot,
-        &engine->opaque_snapshot_mip_views,
-        engine->opaque_snapshot_mip_count);
+        &s->texture,
+        &s->mip_views,
+        s->mip_count);
 
-    if (engine->opaque_snapshot_view) {
-        wgpuTextureViewRelease(engine->opaque_snapshot_view);
-        engine->opaque_snapshot_view = NULL;
+    if (s->view) {
+        wgpuTextureViewRelease(s->view);
+        s->view = NULL;
     }
 
-    engine->opaque_snapshot_width = 0;
-    engine->opaque_snapshot_height = 0;
-    engine->opaque_snapshot_mip_count = 0;
+    s->width = 0;
+    s->height = 0;
+    s->mip_count = 0;
 }
 
 static bool flecsEngine_transmission_ensureDownsamplePipeline(
@@ -145,9 +146,11 @@ static bool flecsEngine_transmission_ensureDownsamplePipeline(
 
 static bool flecsEngine_transmission_createTexture(
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     uint32_t width,
     uint32_t height)
 {
+    flecs_view_opaque_snapshot_t *s = &view_impl->opaque_snapshot;
     uint32_t mip_count = flecsEngine_mipPyramid_maxMips(width, height);
     if (mip_count > 1u) {
         mip_count --;
@@ -159,14 +162,14 @@ static bool flecsEngine_transmission_createTexture(
         WGPUTextureUsage_TextureBinding
             | WGPUTextureUsage_CopyDst
             | WGPUTextureUsage_RenderAttachment,
-        &engine->opaque_snapshot,
-        &engine->opaque_snapshot_mip_views))
+        &s->texture,
+        &s->mip_views))
     {
         return false;
     }
 
-    engine->opaque_snapshot_view = wgpuTextureCreateView(
-        engine->opaque_snapshot, &(WGPUTextureViewDescriptor){
+    s->view = wgpuTextureCreateView(
+        s->texture, &(WGPUTextureViewDescriptor){
             .format = engine->hdr_color_format,
             .dimension = WGPUTextureViewDimension_2D,
             .baseMipLevel = 0,
@@ -174,13 +177,13 @@ static bool flecsEngine_transmission_createTexture(
             .baseArrayLayer = 0,
             .arrayLayerCount = 1
         });
-    if (!engine->opaque_snapshot_view) {
+    if (!s->view) {
         return false;
     }
 
-    engine->opaque_snapshot_width = width;
-    engine->opaque_snapshot_height = height;
-    engine->opaque_snapshot_mip_count = mip_count;
+    s->width = width;
+    s->height = height;
+    s->mip_count = mip_count;
     return true;
 }
 
@@ -188,13 +191,15 @@ static bool flecsEngine_transmission_createTexture(
  * Builds the gaussian blur pyramid used by the transmission shader. */
 static void flecsEngine_transmission_downsampleMip(
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder,
     uint32_t dst_mip)
 {
+    const flecs_view_opaque_snapshot_t *s = &view_impl->opaque_snapshot;
     WGPUBindGroupEntry bind_entries[2] = {
         {
             .binding = 0,
-            .textureView = engine->opaque_snapshot_mip_views[dst_mip - 1]
+            .textureView = s->mip_views[dst_mip - 1]
         },
         {
             .binding = 1,
@@ -212,7 +217,7 @@ static void flecsEngine_transmission_downsampleMip(
     }
 
     WGPURenderPassColorAttachment color_attachment = {
-        .view = engine->opaque_snapshot_mip_views[dst_mip],
+        .view = s->mip_views[dst_mip],
         WGPU_DEPTH_SLICE
         .loadOp = WGPULoadOp_Clear,
         .storeOp = WGPUStoreOp_Store,
@@ -239,6 +244,7 @@ static void flecsEngine_transmission_downsampleMip(
 
 void flecsEngine_transmission_updateSnapshot(
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder,
     WGPUTexture src_texture,
     uint32_t width,
@@ -255,21 +261,23 @@ void flecsEngine_transmission_updateSnapshot(
         return;
     }
 
+    flecs_view_opaque_snapshot_t *s = &view_impl->opaque_snapshot;
+
     /* (Re)create snapshot texture if dimensions changed. */
-    if (engine->opaque_snapshot_width != width ||
-        engine->opaque_snapshot_height != height)
-    {
-        flecsEngine_transmission_releaseTexture(engine);
-        if (!flecsEngine_transmission_createTexture(engine, width, height)) {
-            flecsEngine_transmission_releaseTexture(engine);
+    if (s->width != width || s->height != height) {
+        flecsEngine_transmission_releaseTexture(view_impl);
+        if (!flecsEngine_transmission_createTexture(
+            engine, view_impl, width, height))
+        {
+            flecsEngine_transmission_releaseTexture(view_impl);
             FLECS_TRACY_ZONE_END;
             return;
         }
-        /* Rebuild the globals bind group so it picks up the new view */
-        engine->scene_bind_version++;
+        /* Rebuild the view's group 0 so it picks up the new snapshot view */
+        view_impl->scene_bind_version = 0;
     }
 
-    uint32_t mip_count = engine->opaque_snapshot_mip_count;
+    uint32_t mip_count = s->mip_count;
 
     /* 1. Copy the resolved color target to mip 0. */
     wgpuCommandEncoderCopyTextureToTexture(
@@ -280,7 +288,7 @@ void flecsEngine_transmission_updateSnapshot(
             .origin = { 0, 0, 0 }
         },
         &(WGPUTexelCopyTextureInfo){
-            .texture = engine->opaque_snapshot,
+            .texture = s->texture,
             .mipLevel = 0,
             .origin = { 0, 0, 0 }
         },
@@ -288,16 +296,20 @@ void flecsEngine_transmission_updateSnapshot(
 
     /* 2. Build the gaussian blur pyramid via Jimenez downsample. */
     for (uint32_t i = 1; i < mip_count; i ++) {
-        flecsEngine_transmission_downsampleMip(engine, encoder, i);
+        flecsEngine_transmission_downsampleMip(engine, view_impl, encoder, i);
     }
     FLECS_TRACY_ZONE_END;
 }
 
-void flecsEngine_transmission_release(
+void flecsEngine_transmission_releaseView(
+    FlecsRenderViewImpl *view_impl)
+{
+    flecsEngine_transmission_releaseTexture(view_impl);
+}
+
+void flecsEngine_transmission_releaseShared(
     FlecsEngineImpl *engine)
 {
-    flecsEngine_transmission_releaseTexture(engine);
-
     if (engine->opaque_snapshot_downsample_pipeline) {
         wgpuRenderPipelineRelease(engine->opaque_snapshot_downsample_pipeline);
         engine->opaque_snapshot_downsample_pipeline = NULL;

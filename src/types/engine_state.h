@@ -8,21 +8,14 @@
 #define FLECS_ENGINE_INSTANCE_TYPES_MAX (8)
 
 struct FlecsEngineSurfaceInterface;
+typedef struct FlecsRenderViewImpl FlecsRenderViewImpl;
 
+/* Scene-shared shadow resources. Per-view shadow state lives on
+ * FlecsRenderViewImpl (shadow texture, cascade VPs, pass bind groups). */
 typedef struct {
-    WGPUTexture texture;
-    WGPUTextureView texture_view;
-    WGPUTextureView layer_views[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    uint32_t map_size;
     WGPUShaderModule shader_module;
-    WGPUBuffer vp_buffers[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
     WGPUBindGroupLayout pass_bind_layout;
-    WGPUBindGroup pass_bind_groups[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    int current_cascade;
     WGPUSampler sampler;
-    mat4 current_light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    float cascade_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    bool in_pass;
 } flecs_engine_shadow_t;
 
 typedef struct {
@@ -30,13 +23,6 @@ typedef struct {
     int32_t light_count;
     int32_t light_capacity;
     WGPUBuffer light_buffer;
-
-    uint32_t *cpu_cluster_indices;
-    int32_t cluster_index_capacity;
-    WGPUBuffer cluster_info_buffer;
-    WGPUBuffer cluster_grid_buffer;
-    WGPUBuffer cluster_index_buffer;
-    bool cluster_bind_group_dirty;
 
     ecs_query_t *point_light_query;
     ecs_query_t *spot_light_query;
@@ -151,45 +137,26 @@ typedef struct {
     uint32_t scene_material_bind_version;
     uint32_t scene_bind_version;
 
-    WGPUBuffer frame_uniform_buffer;
-
     ecs_query_t *view_query;
-    WGPURenderPipeline last_pipeline;
-    float camera_pos[3];
 
-    WGPUTexture opaque_snapshot;
-    WGPUTextureView opaque_snapshot_view;
-    WGPUTextureView *opaque_snapshot_mip_views; /* per-mip render attachments */
-    uint32_t opaque_snapshot_mip_count;
-    uint32_t opaque_snapshot_width;
-    uint32_t opaque_snapshot_height;
-
-    /* Downsample (Jimenez) — builds the gaussian blur pyramid. */
+    /* Shared pipeline/layout/sampler for the gaussian blur pyramid used to
+     * produce the opaque snapshot. The snapshot texture itself is per-view
+     * (FlecsRenderViewImpl::opaque_snapshot). */
     WGPURenderPipeline opaque_snapshot_downsample_pipeline;
     WGPUBindGroupLayout opaque_snapshot_downsample_layout;
     WGPUSampler opaque_snapshot_sampler;
 
-    flecs_engine_shadow_t shadow;
-    flecs_engine_lighting_t lighting;
+    flecs_engine_shadow_t shadow;     /* scene-shared shadow resources */
+    flecs_engine_lighting_t lighting; /* scene-wide lights (cluster is per-view) */
     flecs_engine_materials_t materials;
     flecs_engine_depth_t depth;
 
     FlecsDefaultAttrCache *default_attr_cache;
 
-    /* Frustum culling state (computed once per frame during extract) */
-    float frustum_planes[6][4];
-    float shadow_frustum_planes[6][4];
-    bool frustum_valid;
-    bool shadow_frustum_valid;
-
-    /* Per-cascade light frustum planes (computed during extract from
-     * cascade light VP matrices for per-cascade shadow culling) */
-    float cascade_frustum_planes[FLECS_ENGINE_SHADOW_CASCADE_COUNT][6][4];
-    bool cascade_frustum_valid;
-
-    float screen_cull_factor;
-    float screen_cull_threshold;
-    bool screen_cull_valid;
+    /* Currently active view (set during extract/render of each view). Provides
+     * batch callbacks with access to per-view state without changing their
+     * signatures. */
+    FlecsRenderViewImpl *current_view_impl;
 } FlecsEngineImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);

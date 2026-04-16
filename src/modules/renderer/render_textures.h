@@ -52,12 +52,16 @@ const char* flecsEngine_texture_formatName(
 
 void flecsEngine_transmission_updateSnapshot(
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder,
     WGPUTexture src_texture,
     uint32_t width,
     uint32_t height);
 
-void flecsEngine_transmission_release(
+void flecsEngine_transmission_releaseView(
+    FlecsRenderViewImpl *view_impl);
+
+void flecsEngine_transmission_releaseShared(
     FlecsEngineImpl *engine);
 
 #endif

@@ -54,11 +54,6 @@ void flecsEngine_ibl_releaseRuntimeResources(
         return;
     }
 
-    if (ibl->ibl_shadow_bind_group) {
-        wgpuBindGroupRelease(ibl->ibl_shadow_bind_group);
-        ibl->ibl_shadow_bind_group = NULL;
-    }
-
     if (ibl->ibl_sampler) {
         wgpuSamplerRelease(ibl->ibl_sampler);
         ibl->ibl_sampler = NULL;

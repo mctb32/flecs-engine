@@ -28,16 +28,12 @@ static const char *kShadowDepthShaderSource =
     "  return shadow_uniforms.light_vp * world_pos;\n"
     "}\n";
 
-int flecsEngine_shadow_init(
+int flecsEngine_shadow_initShared(
     ecs_world_t *world,
-    FlecsEngineImpl *impl,
-    uint32_t shadow_map_size)
+    FlecsEngineImpl *impl)
 {
     (void)world;
-    impl->shadow.map_size = shadow_map_size;
 
-    /* Compile shadow depth shader directly (bypasses ECS shader system
-     * to avoid deferred context issues during batch setup) */
     impl->shadow.shader_module = flecsEngine_createShaderModule(
         impl->device, kShadowDepthShaderSource);
     if (!impl->shadow.shader_module) {
@@ -45,65 +41,6 @@ int flecsEngine_shadow_init(
         return -1;
     }
 
-    /* Create shadow depth texture array (one layer per cascade) */
-    WGPUTextureDescriptor tex_desc = {
-        .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
-        .dimension = WGPUTextureDimension_2D,
-        .size = (WGPUExtent3D){
-            .width = impl->shadow.map_size,
-            .height = impl->shadow.map_size,
-            .depthOrArrayLayers = FLECS_ENGINE_SHADOW_CASCADE_COUNT
-        },
-        .format = FLECS_ENGINE_SHADOW_MAP_FORMAT,
-        .mipLevelCount = 1,
-        .sampleCount = 1
-    };
-
-    impl->shadow.texture = wgpuDeviceCreateTexture(impl->device, &tex_desc);
-    if (!impl->shadow.texture) {
-        ecs_err("failed to create shadow map texture");
-        return -1;
-    }
-
-    /* Create 2D array view for fragment shader sampling */
-    WGPUTextureViewDescriptor array_view_desc = {
-        .format = FLECS_ENGINE_SHADOW_MAP_FORMAT,
-        .dimension = WGPUTextureViewDimension_2DArray,
-        .baseMipLevel = 0,
-        .mipLevelCount = 1,
-        .baseArrayLayer = 0,
-        .arrayLayerCount = FLECS_ENGINE_SHADOW_CASCADE_COUNT,
-        .aspect = WGPUTextureAspect_DepthOnly,
-    };
-
-    impl->shadow.texture_view = wgpuTextureCreateView(
-        impl->shadow.texture, &array_view_desc);
-    if (!impl->shadow.texture_view) {
-        ecs_err("failed to create shadow map array view");
-        return -1;
-    }
-
-    /* Create per-layer 2D views for rendering into each cascade */
-    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-        WGPUTextureViewDescriptor layer_desc = {
-            .format = FLECS_ENGINE_SHADOW_MAP_FORMAT,
-            .dimension = WGPUTextureViewDimension_2D,
-            .baseMipLevel = 0,
-            .mipLevelCount = 1,
-            .baseArrayLayer = (uint32_t)i,
-            .arrayLayerCount = 1,
-            .aspect = WGPUTextureAspect_DepthOnly,
-        };
-
-        impl->shadow.layer_views[i] = wgpuTextureCreateView(
-            impl->shadow.texture, &layer_desc);
-        if (!impl->shadow.layer_views[i]) {
-            ecs_err("failed to create shadow map layer view %d", i);
-            return -1;
-        }
-    }
-
-    /* Create comparison sampler for shadow sampling */
     WGPUSamplerDescriptor sampler_desc = {
         .addressModeU = WGPUAddressMode_ClampToEdge,
         .addressModeV = WGPUAddressMode_ClampToEdge,
@@ -121,7 +58,6 @@ int flecsEngine_shadow_init(
         return -1;
     }
 
-    /* Shadow pass bind group layout: binding 0 = light VP uniform */
     WGPUBindGroupLayoutEntry pass_layout_entries[1] = {{
         .binding = 0,
         .visibility = WGPUShaderStage_Vertex,
@@ -143,59 +79,12 @@ int flecsEngine_shadow_init(
         return -1;
     }
 
-    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-        WGPUBufferDescriptor buf_desc = {
-            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-            .size = sizeof(mat4)
-        };
-
-        impl->shadow.vp_buffers[i] = wgpuDeviceCreateBuffer(
-            impl->device, &buf_desc);
-        if (!impl->shadow.vp_buffers[i]) {
-            ecs_err("failed to create shadow VP buffer %d", i);
-            return -1;
-        }
-
-        WGPUBindGroupEntry pass_entries[1] = {{
-            .binding = 0,
-            .buffer = impl->shadow.vp_buffers[i],
-            .size = sizeof(mat4)
-        }};
-
-        WGPUBindGroupDescriptor pass_group_desc = {
-            .layout = impl->shadow.pass_bind_layout,
-            .entryCount = 1,
-            .entries = pass_entries
-        };
-
-        impl->shadow.pass_bind_groups[i] = wgpuDeviceCreateBindGroup(
-            impl->device, &pass_group_desc);
-        if (!impl->shadow.pass_bind_groups[i]) {
-            ecs_err("failed to create shadow pass bind group %d", i);
-            return -1;
-        }
-    }
-
-    /* Bump shadow version so that combined IBL+shadow bind groups are
-     * recreated with the new shadow resources. */
-    impl->scene_bind_version++;
-
     return 0;
 }
 
-void flecsEngine_shadow_cleanup(
+void flecsEngine_shadow_cleanupShared(
     FlecsEngineImpl *impl)
 {
-    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-        if (impl->shadow.pass_bind_groups[i]) {
-            wgpuBindGroupRelease(impl->shadow.pass_bind_groups[i]);
-            impl->shadow.pass_bind_groups[i] = NULL;
-        }
-        if (impl->shadow.vp_buffers[i]) {
-            wgpuBufferRelease(impl->shadow.vp_buffers[i]);
-            impl->shadow.vp_buffers[i] = NULL;
-        }
-    }
     if (impl->shadow.pass_bind_layout) {
         wgpuBindGroupLayoutRelease(impl->shadow.pass_bind_layout);
         impl->shadow.pass_bind_layout = NULL;
@@ -204,24 +93,144 @@ void flecsEngine_shadow_cleanup(
         wgpuSamplerRelease(impl->shadow.sampler);
         impl->shadow.sampler = NULL;
     }
-    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-        if (impl->shadow.layer_views[i]) {
-            wgpuTextureViewRelease(impl->shadow.layer_views[i]);
-            impl->shadow.layer_views[i] = NULL;
-        }
-    }
-    if (impl->shadow.texture_view) {
-        wgpuTextureViewRelease(impl->shadow.texture_view);
-        impl->shadow.texture_view = NULL;
-    }
-    if (impl->shadow.texture) {
-        wgpuTextureRelease(impl->shadow.texture);
-        impl->shadow.texture = NULL;
-    }
     if (impl->shadow.shader_module) {
         wgpuShaderModuleRelease(impl->shadow.shader_module);
         impl->shadow.shader_module = NULL;
     }
+}
+
+int flecsEngine_shadow_initView(
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
+    uint32_t shadow_map_size)
+{
+    flecs_view_shadow_t *s = &view_impl->shadow;
+    s->map_size = shadow_map_size;
+
+    if (!engine->shadow.pass_bind_layout) {
+        ecs_err("shadow shared resources not initialized");
+        return -1;
+    }
+
+    WGPUTextureDescriptor tex_desc = {
+        .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+        .dimension = WGPUTextureDimension_2D,
+        .size = (WGPUExtent3D){
+            .width = s->map_size,
+            .height = s->map_size,
+            .depthOrArrayLayers = FLECS_ENGINE_SHADOW_CASCADE_COUNT
+        },
+        .format = FLECS_ENGINE_SHADOW_MAP_FORMAT,
+        .mipLevelCount = 1,
+        .sampleCount = 1
+    };
+
+    s->texture = wgpuDeviceCreateTexture(engine->device, &tex_desc);
+    if (!s->texture) {
+        ecs_err("failed to create shadow map texture");
+        return -1;
+    }
+
+    WGPUTextureViewDescriptor array_view_desc = {
+        .format = FLECS_ENGINE_SHADOW_MAP_FORMAT,
+        .dimension = WGPUTextureViewDimension_2DArray,
+        .baseMipLevel = 0,
+        .mipLevelCount = 1,
+        .baseArrayLayer = 0,
+        .arrayLayerCount = FLECS_ENGINE_SHADOW_CASCADE_COUNT,
+        .aspect = WGPUTextureAspect_DepthOnly,
+    };
+
+    s->texture_view = wgpuTextureCreateView(s->texture, &array_view_desc);
+    if (!s->texture_view) {
+        ecs_err("failed to create shadow map array view");
+        return -1;
+    }
+
+    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
+        WGPUTextureViewDescriptor layer_desc = {
+            .format = FLECS_ENGINE_SHADOW_MAP_FORMAT,
+            .dimension = WGPUTextureViewDimension_2D,
+            .baseMipLevel = 0,
+            .mipLevelCount = 1,
+            .baseArrayLayer = (uint32_t)i,
+            .arrayLayerCount = 1,
+            .aspect = WGPUTextureAspect_DepthOnly,
+        };
+
+        s->layer_views[i] = wgpuTextureCreateView(s->texture, &layer_desc);
+        if (!s->layer_views[i]) {
+            ecs_err("failed to create shadow map layer view %d", i);
+            return -1;
+        }
+    }
+
+    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
+        WGPUBufferDescriptor buf_desc = {
+            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+            .size = sizeof(mat4)
+        };
+
+        s->vp_buffers[i] = wgpuDeviceCreateBuffer(engine->device, &buf_desc);
+        if (!s->vp_buffers[i]) {
+            ecs_err("failed to create shadow VP buffer %d", i);
+            return -1;
+        }
+
+        WGPUBindGroupEntry pass_entries[1] = {{
+            .binding = 0,
+            .buffer = s->vp_buffers[i],
+            .size = sizeof(mat4)
+        }};
+
+        WGPUBindGroupDescriptor pass_group_desc = {
+            .layout = engine->shadow.pass_bind_layout,
+            .entryCount = 1,
+            .entries = pass_entries
+        };
+
+        s->pass_bind_groups[i] = wgpuDeviceCreateBindGroup(
+            engine->device, &pass_group_desc);
+        if (!s->pass_bind_groups[i]) {
+            ecs_err("failed to create shadow pass bind group %d", i);
+            return -1;
+        }
+    }
+
+    /* Bump scene bind version so the view's group 0 is rebuilt with the
+     * new shadow texture view. */
+    view_impl->scene_bind_version = 0;
+
+    return 0;
+}
+
+void flecsEngine_shadow_cleanupView(
+    FlecsRenderViewImpl *view_impl)
+{
+    flecs_view_shadow_t *s = &view_impl->shadow;
+    for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
+        if (s->pass_bind_groups[i]) {
+            wgpuBindGroupRelease(s->pass_bind_groups[i]);
+            s->pass_bind_groups[i] = NULL;
+        }
+        if (s->vp_buffers[i]) {
+            wgpuBufferRelease(s->vp_buffers[i]);
+            s->vp_buffers[i] = NULL;
+        }
+        if (s->layer_views[i]) {
+            wgpuTextureViewRelease(s->layer_views[i]);
+            s->layer_views[i] = NULL;
+        }
+    }
+    if (s->texture_view) {
+        wgpuTextureViewRelease(s->texture_view);
+        s->texture_view = NULL;
+    }
+    if (s->texture) {
+        wgpuTextureRelease(s->texture);
+        s->texture = NULL;
+    }
+    s->map_size = 0;
 }
 
 static void flecsEngine_shadow_computeSingleCascade(
@@ -430,19 +439,21 @@ void flecsEngine_shadow_computeCascades(
     }
 }
 
-int flecsEngine_shadow_ensureSize(
-    ecs_world_t *world,
-    FlecsEngineImpl *impl,
+int flecsEngine_shadow_ensureViewSize(
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     uint32_t shadow_map_size)
 {
     if (shadow_map_size == 0) {
         shadow_map_size = FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT;
     }
 
-    if (impl->shadow.map_size == shadow_map_size) {
+    if (view_impl->shadow.map_size == shadow_map_size &&
+        view_impl->shadow.texture_view)
+    {
         return 0;
     }
 
-    flecsEngine_shadow_cleanup(impl);
-    return flecsEngine_shadow_init(world, impl, shadow_map_size);
+    flecsEngine_shadow_cleanupView(view_impl);
+    return flecsEngine_shadow_initView(engine, view_impl, shadow_map_size);
 }

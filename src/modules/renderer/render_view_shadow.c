@@ -39,29 +39,39 @@ static void flecsEngine_renderView_extractShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
     ecs_entity_t view_entity,
-    const FlecsRenderView *view)
+    const FlecsRenderView *view,
+    FlecsRenderViewImpl *view_impl)
 {
     FLECS_TRACY_ZONE_BEGIN("ExtractShadowView");
 
+    engine->current_view_impl = view_impl;
+
     /* Compute cascade light VP matrices and per-cascade frustum planes. */
-    engine->cascade_frustum_valid = false;
+    view_impl->cascade_frustum_valid = false;
+    uint32_t shadow_map_size = (uint32_t)view->shadow.map_size;
+    if (!shadow_map_size) {
+        shadow_map_size = FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT;
+    }
+
     if (view->shadow.enabled && view->light) {
         flecsEngine_shadow_computeCascades(
-            world, view, engine->shadow.map_size,
+            world, view, shadow_map_size,
             view->shadow.max_range,
-            engine->shadow.current_light_vp,
-            engine->shadow.cascade_splits);
+            view_impl->shadow.current_light_vp,
+            view_impl->shadow.cascade_splits);
 
         for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
             flecsEngine_frustum_extractPlanes(
-                engine->shadow.current_light_vp[c],
-                engine->cascade_frustum_planes[c]);
+                view_impl->shadow.current_light_vp[c],
+                view_impl->cascade_frustum_planes[c]);
         }
-        engine->cascade_frustum_valid = true;
+        view_impl->cascade_frustum_valid = true;
     }
 
     flecsEngine_renderView_extractShadowBatches(
         world, view_entity, engine, view);
+
+    engine->current_view_impl = NULL;
     FLECS_TRACY_ZONE_END;
 }
 
@@ -72,12 +82,14 @@ void flecsEngine_renderView_extractShadowsAll(
     ecs_iter_t it = ecs_query_iter(world, engine->view_query);
     while (ecs_query_next(&it)) {
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
+        FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
         for (int32_t i = 0; i < it.count; i ++) {
             flecsEngine_renderView_extractShadow(
                 world,
                 engine,
                 it.entities[i],
-                &views[i]);
+                &views[i],
+                &viewImpls[i]);
         }
     }
 }
@@ -89,11 +101,14 @@ void flecsEngine_renderView_uploadShadowsAll(
     ecs_iter_t it = ecs_query_iter(world, engine->view_query);
     while (ecs_query_next(&it)) {
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
+        FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
         for (int32_t i = 0; i < it.count; i ++) {
+            engine->current_view_impl = &viewImpls[i];
             flecsEngine_renderView_uploadShadowBatches(
                 world, it.entities[i], engine, &views[i]);
         }
     }
+    engine->current_view_impl = NULL;
 }
 
 void flecsEngine_renderView_renderShadow(
@@ -101,10 +116,11 @@ void flecsEngine_renderView_renderShadow(
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
     const FlecsRenderView *view,
+    FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder)
 {
     FLECS_TRACY_ZONE_BEGIN("ShadowPass");
-    if (!engine->shadow.texture_view || !view->light) {
+    if (!view_impl->shadow.texture_view || !view->light) {
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -118,25 +134,23 @@ void flecsEngine_renderView_renderShadow(
     for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
         wgpuQueueWriteBuffer(
             engine->queue,
-            engine->shadow.vp_buffers[c],
+            view_impl->shadow.vp_buffers[c],
             0,
-            engine->shadow.current_light_vp[c],
+            view_impl->shadow.current_light_vp[c],
             sizeof(mat4));
     }
 
-    engine->shadow.in_pass = true;
-
     /* Render each cascade into its own texture array layer */
     for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
-        if (!engine->shadow.layer_views[c]) {
+        if (!view_impl->shadow.layer_views[c]) {
             continue;
         }
 
-        engine->shadow.current_cascade = c;
+        view_impl->shadow.current_cascade = c;
 
         /* Begin shadow depth-only render pass for this cascade layer */
         WGPURenderPassDepthStencilAttachment depth_attachment = {
-            .view = engine->shadow.layer_views[c],
+            .view = view_impl->shadow.layer_views[c],
             .depthLoadOp = WGPULoadOp_Clear,
             .depthStoreOp = WGPUStoreOp_Store,
             .depthClearValue = 1.0f,
@@ -159,11 +173,11 @@ void flecsEngine_renderView_renderShadow(
         wgpuRenderPassEncoderSetViewport(
             shadow_pass,
             0.0f, 0.0f,
-            (float)engine->shadow.map_size,
-            (float)engine->shadow.map_size,
+            (float)view_impl->shadow.map_size,
+            (float)view_impl->shadow.map_size,
             0.0f, 1.0f);
 
-        engine->last_pipeline = NULL;
+        view_impl->last_pipeline = NULL;
 
         flecsEngine_renderBatchSet_renderShadow(
             world, engine, batch_set, shadow_pass);
@@ -172,6 +186,5 @@ void flecsEngine_renderView_renderShadow(
         wgpuRenderPassEncoderRelease(shadow_pass);
     }
 
-    engine->shadow.in_pass = false;
     FLECS_TRACY_ZONE_END;
 }

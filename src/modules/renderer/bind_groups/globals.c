@@ -10,18 +10,6 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
 
     flecsEngine_material_ensureBuffer(impl);
 
-    if (!impl->frame_uniform_buffer) {
-        impl->frame_uniform_buffer = wgpuDeviceCreateBuffer(
-            impl->device,
-            &(WGPUBufferDescriptor){
-                .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                .size = sizeof(FlecsUniform)
-            });
-        if (!impl->frame_uniform_buffer) {
-            return NULL;
-        }
-    }
-
     WGPUBindGroupLayoutEntry layout_entries[11] = {
         { /* 0: Frame uniform (FlecsUniform) */
             .binding = 0,
@@ -126,12 +114,14 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
 }
 
 bool flecsEngine_globals_createBindGroup(
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
+    ecs_entity_t hdri_entity,
     FlecsHdriImpl *ibl)
 {
-    if (ibl->ibl_shadow_bind_group) {
-        wgpuBindGroupRelease(ibl->ibl_shadow_bind_group);
-        ibl->ibl_shadow_bind_group = NULL;
+    if (view_impl->scene_bind_group) {
+        wgpuBindGroupRelease(view_impl->scene_bind_group);
+        view_impl->scene_bind_group = NULL;
     }
 
     WGPUBindGroupLayout bind_layout = engine->ibl_shadow_bind_layout;
@@ -140,23 +130,24 @@ bool flecsEngine_globals_createBindGroup(
     }
 
     /* Ensure fallback textures exist before we reference them */
-    flecsEngine_pbr_texture_ensureFallbacks((FlecsEngineImpl*)engine);
+    flecsEngine_pbr_texture_ensureFallbacks(engine);
 
-    if (!engine->shadow.texture_view || !engine->shadow.sampler) {
+    if (!view_impl->shadow.texture_view || !engine->shadow.sampler) {
         return false;
     }
 
-    if (!engine->lighting.cluster_info_buffer || !engine->lighting.cluster_grid_buffer ||
-        !engine->lighting.cluster_index_buffer || !engine->lighting.light_buffer)
+    flecs_view_cluster_t *cl = &view_impl->cluster;
+    if (!cl->cluster_info_buffer || !cl->cluster_grid_buffer ||
+        !cl->cluster_index_buffer || !engine->lighting.light_buffer)
     {
         return false;
     }
 
-    if (!engine->frame_uniform_buffer) {
+    if (!view_impl->frame_uniform_buffer) {
         return false;
     }
 
-    ibl->ibl_shadow_bind_group = wgpuDeviceCreateBindGroup(
+    view_impl->scene_bind_group = wgpuDeviceCreateBindGroup(
         engine->device,
         &(WGPUBindGroupDescriptor){
             .layout = bind_layout,
@@ -164,7 +155,7 @@ bool flecsEngine_globals_createBindGroup(
             .entries = (WGPUBindGroupEntry[11]){
                 {
                     .binding = 0,
-                    .buffer = engine->frame_uniform_buffer,
+                    .buffer = view_impl->frame_uniform_buffer,
                     .size = sizeof(FlecsUniform)
                 },
                 {
@@ -178,8 +169,8 @@ bool flecsEngine_globals_createBindGroup(
                 {   /* Opaque snapshot for transmission. Uses the snapshot
                      * view if available, otherwise the 2D white fallback. */
                     .binding = 3,
-                    .textureView = engine->opaque_snapshot_view
-                        ? engine->opaque_snapshot_view
+                    .textureView = view_impl->opaque_snapshot.view
+                        ? view_impl->opaque_snapshot.view
                         : engine->materials.fallback_white_2d_view
                 },
                 {
@@ -188,7 +179,7 @@ bool flecsEngine_globals_createBindGroup(
                 },
                 {
                     .binding = 5,
-                    .textureView = engine->shadow.texture_view
+                    .textureView = view_impl->shadow.texture_view
                 },
                 {
                     .binding = 6,
@@ -196,19 +187,19 @@ bool flecsEngine_globals_createBindGroup(
                 },
                 {
                     .binding = 7,
-                    .buffer = engine->lighting.cluster_info_buffer,
+                    .buffer = cl->cluster_info_buffer,
                     .size = sizeof(FlecsClusterInfo)
                 },
                 {
                     .binding = 8,
-                    .buffer = engine->lighting.cluster_grid_buffer,
+                    .buffer = cl->cluster_grid_buffer,
                     .size = (uint64_t)FLECS_ENGINE_CLUSTER_TOTAL *
                         sizeof(FlecsClusterEntry)
                 },
                 {
                     .binding = 9,
-                    .buffer = engine->lighting.cluster_index_buffer,
-                    .size = (uint64_t)engine->lighting.cluster_index_capacity *
+                    .buffer = cl->cluster_index_buffer,
+                    .size = (uint64_t)cl->cluster_index_capacity *
                         sizeof(uint32_t)
                 },
                 {
@@ -220,7 +211,8 @@ bool flecsEngine_globals_createBindGroup(
             }
         });
 
-    ibl->scene_bind_version = engine->scene_bind_version;
+    view_impl->scene_bind_hdri = hdri_entity;
+    view_impl->scene_bind_version = engine->scene_bind_version;
 
-    return ibl->ibl_shadow_bind_group != NULL;
+    return view_impl->scene_bind_group != NULL;
 }

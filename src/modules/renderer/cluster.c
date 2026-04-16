@@ -40,21 +40,15 @@ static bool flecsEngine_cluster_growBuffer(
     return true; /* buffer changed, bind group must be recreated */
 }
 
-int flecsEngine_cluster_init(
+int flecsEngine_cluster_initLights(
     FlecsEngineImpl *impl)
 {
     int32_t init_lights = FLECS_ENGINE_CLUSTER_INITIAL_LIGHTS;
-    int32_t init_indices = FLECS_ENGINE_CLUSTER_INITIAL_INDICES;
 
-    /* CPU-side arrays */
     impl->lighting.cpu_lights = ecs_os_calloc_n(
         FlecsGpuLight, init_lights);
     impl->lighting.light_capacity = init_lights;
 
-    impl->lighting.cpu_cluster_indices = ecs_os_calloc_n(uint32_t, init_indices);
-    impl->lighting.cluster_index_capacity = init_indices;
-
-    /* GPU light storage buffer */
     WGPUBufferDescriptor l_desc = {
         .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
         .size = (uint64_t)init_lights * sizeof(FlecsGpuLight)
@@ -62,34 +56,53 @@ int flecsEngine_cluster_init(
     impl->lighting.light_buffer = wgpuDeviceCreateBuffer(
         impl->device, &l_desc);
 
-    /* Cluster info uniform buffer (fixed size) */
+    if (!impl->lighting.light_buffer) {
+        ecs_err("failed to create light GPU buffer");
+        return -1;
+    }
+
+    return 0;
+}
+
+int flecsEngine_cluster_initView(
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl)
+{
+    flecs_view_cluster_t *cl = &view_impl->cluster;
+
+    if (cl->cluster_info_buffer) {
+        return 0; /* already initialized */
+    }
+
+    int32_t init_indices = FLECS_ENGINE_CLUSTER_INITIAL_INDICES;
+
+    cl->cpu_cluster_indices = ecs_os_calloc_n(uint32_t, init_indices);
+    cl->cluster_index_capacity = init_indices;
+
     WGPUBufferDescriptor info_desc = {
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
         .size = sizeof(FlecsClusterInfo)
     };
-    impl->lighting.cluster_info_buffer = wgpuDeviceCreateBuffer(
-        impl->device, &info_desc);
+    cl->cluster_info_buffer = wgpuDeviceCreateBuffer(
+        engine->device, &info_desc);
 
-    /* Cluster grid storage buffer (fixed size) */
     WGPUBufferDescriptor grid_desc = {
         .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
         .size = (uint64_t)FLECS_ENGINE_CLUSTER_TOTAL *
             sizeof(FlecsClusterEntry)
     };
-    impl->lighting.cluster_grid_buffer = wgpuDeviceCreateBuffer(
-        impl->device, &grid_desc);
+    cl->cluster_grid_buffer = wgpuDeviceCreateBuffer(
+        engine->device, &grid_desc);
 
-    /* Light index storage buffer */
     WGPUBufferDescriptor idx_desc = {
         .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
         .size = (uint64_t)init_indices * sizeof(uint32_t)
     };
-    impl->lighting.cluster_index_buffer = wgpuDeviceCreateBuffer(
-        impl->device, &idx_desc);
+    cl->cluster_index_buffer = wgpuDeviceCreateBuffer(
+        engine->device, &idx_desc);
 
-    if (!impl->lighting.light_buffer ||
-        !impl->lighting.cluster_info_buffer || !impl->lighting.cluster_grid_buffer ||
-        !impl->lighting.cluster_index_buffer)
+    if (!cl->cluster_info_buffer || !cl->cluster_grid_buffer ||
+        !cl->cluster_index_buffer)
     {
         ecs_err("failed to create cluster GPU buffers");
         return -1;
@@ -98,9 +111,32 @@ int flecsEngine_cluster_init(
     return 0;
 }
 
+void flecsEngine_cluster_cleanupView(
+    FlecsRenderViewImpl *view_impl)
+{
+    flecs_view_cluster_t *cl = &view_impl->cluster;
+    if (cl->cluster_index_buffer) {
+        wgpuBufferRelease(cl->cluster_index_buffer);
+        cl->cluster_index_buffer = NULL;
+    }
+    if (cl->cluster_grid_buffer) {
+        wgpuBufferRelease(cl->cluster_grid_buffer);
+        cl->cluster_grid_buffer = NULL;
+    }
+    if (cl->cluster_info_buffer) {
+        wgpuBufferRelease(cl->cluster_info_buffer);
+        cl->cluster_info_buffer = NULL;
+    }
+    if (cl->cpu_cluster_indices) {
+        ecs_os_free(cl->cpu_cluster_indices);
+        cl->cpu_cluster_indices = NULL;
+    }
+    cl->cluster_index_capacity = 0;
+}
 
 /* Ensure CPU + GPU light arrays can hold `needed` lights. Returns true
- * if a GPU buffer was reallocated (bind group must be recreated). */
+ * if a GPU buffer was reallocated. Bumps the scene bind version so every
+ * view rebuilds its group 0 (which binds the light buffer). */
 bool flecsEngine_cluster_ensureLights(
     FlecsEngineImpl *engine, int32_t needed)
 {
@@ -118,26 +154,28 @@ bool flecsEngine_cluster_ensureLights(
         &engine->lighting.light_buffer, &engine->lighting.light_capacity,
         new_cap, sizeof(FlecsGpuLight));
 
-    engine->lighting.cluster_bind_group_dirty = true;
+    engine->scene_bind_version ++;
     return true;
 }
 
 static bool flecsEngine_cluster_ensureIndices(
-    FlecsEngineImpl *engine, int32_t needed)
+    FlecsEngineImpl *engine, FlecsRenderViewImpl *view_impl,
+    int32_t needed)
 {
-    if (needed <= engine->lighting.cluster_index_capacity) {
+    flecs_view_cluster_t *cl = &view_impl->cluster;
+    if (needed <= cl->cluster_index_capacity) {
         return false;
     }
 
-    int32_t new_cap = engine->lighting.cluster_index_capacity
-        ? engine->lighting.cluster_index_capacity : 1;
+    int32_t new_cap = cl->cluster_index_capacity
+        ? cl->cluster_index_capacity : 1;
     while (new_cap < needed) new_cap *= 2;
 
-    engine->lighting.cpu_cluster_indices = ecs_os_realloc_n(
-        engine->lighting.cpu_cluster_indices, uint32_t, new_cap);
+    cl->cpu_cluster_indices = ecs_os_realloc_n(
+        cl->cpu_cluster_indices, uint32_t, new_cap);
 
     bool changed = flecsEngine_cluster_growBuffer(engine->device,
-        &engine->lighting.cluster_index_buffer, &engine->lighting.cluster_index_capacity,
+        &cl->cluster_index_buffer, &cl->cluster_index_capacity,
         new_cap, sizeof(uint32_t));
 
     return changed;
@@ -288,10 +326,12 @@ static void flecsEngine_cluster_fillLights(
 void flecsEngine_cluster_build(
     const ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderView *view)
 {
     FLECS_TRACY_ZONE_BEGIN("ClusterBuild");
-    if (!engine->lighting.cluster_info_buffer || !view->camera) {
+    flecs_view_cluster_t *cl = &view_impl->cluster;
+    if (!cl->cluster_info_buffer || !view->camera) {
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -325,7 +365,7 @@ void flecsEngine_cluster_build(
         .screen_info = { (float)engine->actual_width, (float)engine->actual_height,
             near, log_ratio }
     };
-    wgpuQueueWriteBuffer(engine->queue, engine->lighting.cluster_info_buffer,
+    wgpuQueueWriteBuffer(engine->queue, cl->cluster_info_buffer,
         0, &info, sizeof(info));
 
     /* --- Two-pass cluster assignment --- */
@@ -350,14 +390,12 @@ void flecsEngine_cluster_build(
     }
     uint32_t total_indices = offset;
 
-    /* Grow index buffer if needed. Also pick up the dirty flag set by
-     * the light setup functions if they resized GPU buffers. */
-    bool bg_dirty = engine->lighting.cluster_bind_group_dirty;
-    bg_dirty |= flecsEngine_cluster_ensureIndices(
-        engine, (int32_t)total_indices);
-    if (bg_dirty) {
-        engine->scene_bind_version++;
-        engine->lighting.cluster_bind_group_dirty = false;
+    /* Grow index buffer if needed — if it resized, invalidate this view's
+     * group 0 so it rebuilds with the new buffer. */
+    if (flecsEngine_cluster_ensureIndices(
+        engine, view_impl, (int32_t)total_indices))
+    {
+        view_impl->scene_bind_version = 0;
     }
 
     /* Pass 2: fill index list */
@@ -369,7 +407,7 @@ void flecsEngine_cluster_build(
     uint16_t fill_counts[FLECS_ENGINE_CLUSTER_TOTAL];
     memset(fill_counts, 0, sizeof(fill_counts));
 
-    uint32_t *indices = engine->lighting.cpu_cluster_indices;
+    uint32_t *indices = cl->cpu_cluster_indices;
 
     flecsEngine_cluster_fillLights(view_mat,
         engine->lighting.cpu_lights, light_count,
@@ -377,11 +415,11 @@ void flecsEngine_cluster_build(
         cell_offsets, fill_counts, indices);
 
     /* Upload everything to GPU */
-    wgpuQueueWriteBuffer(engine->queue, engine->lighting.cluster_grid_buffer,
+    wgpuQueueWriteBuffer(engine->queue, cl->cluster_grid_buffer,
         0, grid, sizeof(grid));
 
     if (total_indices > 0) {
-        wgpuQueueWriteBuffer(engine->queue, engine->lighting.cluster_index_buffer,
+        wgpuQueueWriteBuffer(engine->queue, cl->cluster_index_buffer,
             0, indices, (uint64_t)total_indices * sizeof(uint32_t));
     }
 
