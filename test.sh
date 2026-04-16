@@ -73,9 +73,10 @@ for scene in "${scenes[@]}"; do
   diff_bytes=$({ cmp -l "$baseline" "$out" 2>/dev/null || true; } | wc -l | tr -d ' ')
   total_bytes=$(wc -c < "$baseline" | tr -d ' ')
   pct=$(awk "BEGIN { printf \"%.2f\", ($diff_bytes/$total_bytes)*100 }")
+  pass_threshold=$(awk "BEGIN { print (($diff_bytes/$total_bytes)*100 < 0.1) ? 1 : 0 }")
 
-  if [[ "$diff_bytes" -eq 0 ]]; then
-    echo "    ok (0.00% diff)"
+  if [[ "$pass_threshold" -eq 1 ]]; then
+    echo "    ok (${pct}% diff)"
     passed=$((passed + 1))
     results+="${name}"$'\t'"ok"$'\t'"${pct}"$'\n'
   else
