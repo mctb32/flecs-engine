@@ -4,6 +4,7 @@
 
 ECS_COMPONENT_DECLARE(FlecsInput);
 extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);
+extern ECS_COMPONENT_DECLARE(FlecsSurfaceImpl);
 
 static int flecsEngine_input_keyCode(
     int glfw_key)
@@ -259,12 +260,19 @@ static void FlecsReadInputs(
 {
     FLECS_TRACY_ZONE_BEGIN("ReadInputs");
     const FlecsEngineImpl *engine = ecs_singleton_get(it->world, FlecsEngineImpl);
-    if (!engine || !engine->window) {
+    if (!engine || !engine->surface) {
         FLECS_TRACY_ZONE_END;
         return;
     }
 
-    flecsEngine_input_bindWindow(it->world, engine->window);
+    const FlecsSurfaceImpl *wnd = ecs_get(
+        it->world, engine->surface, FlecsSurfaceImpl);
+    if (!wnd || !wnd->window) {
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
+    flecsEngine_input_bindWindow(it->world, wnd->window);
 
     FlecsInput *input = ecs_singleton_ensure(it->world, FlecsInput);
 
@@ -278,7 +286,7 @@ static void FlecsReadInputs(
 
     double wnd_x = 0.0;
     double wnd_y = 0.0;
-    glfwGetCursorPos(engine->window, &wnd_x, &wnd_y);
+    glfwGetCursorPos(wnd->window, &wnd_x, &wnd_y);
 
     input->mouse.wnd.x = (float)wnd_x;
     input->mouse.wnd.y = (float)wnd_y;
@@ -287,7 +295,7 @@ static void FlecsReadInputs(
 
     int32_t wnd_w = 0;
     int32_t wnd_h = 0;
-    glfwGetWindowSize(engine->window, &wnd_w, &wnd_h);
+    glfwGetWindowSize(wnd->window, &wnd_w, &wnd_h);
 
     input->mouse.view.x = input->mouse.wnd.x - ((float)wnd_w * 0.5f);
     input->mouse.view.y = input->mouse.wnd.y - ((float)wnd_h * 0.5f);

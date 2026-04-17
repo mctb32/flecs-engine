@@ -375,35 +375,39 @@ WGPUSurface flecsEngine_createSurface(
 }
 
 int flecsEngine_configureSurface(
-    FlecsEngineImpl *impl)
+    ecs_world_t *world,
+    FlecsEngineImpl *impl,
+    FlecsSurfaceImpl *wnd)
 {
-    WGPUPresentMode present_mode = impl->vsync
+    const FlecsSurface *surface = ecs_get(world, impl->surface, FlecsSurface);
+
+    WGPUPresentMode present_mode = wnd->vsync
         ? WGPUPresentMode_Fifo
         : WGPUPresentMode_Immediate;
 
 #ifdef __EMSCRIPTEN__
     WGPUTextureFormat preferred =
-        wgpuSurfaceGetPreferredFormat(impl->surface, impl->adapter);
+        wgpuSurfaceGetPreferredFormat(wnd->wgpu_surface, impl->adapter);
 
-    impl->surface_config = (WGPUSurfaceConfiguration){
+    wnd->surface_config = (WGPUSurfaceConfiguration){
         .device = impl->device,
         .usage = WGPUTextureUsage_RenderAttachment,
         .format = preferred,
-        .width = (uint32_t)impl->width,
-        .height = (uint32_t)impl->height,
+        .width = (uint32_t)surface->width,
+        .height = (uint32_t)surface->height,
         .presentMode = present_mode,
     };
 
     WGPUSwapChainDescriptor sc_desc = {
         .usage = WGPUTextureUsage_RenderAttachment,
         .format = preferred,
-        .width = (uint32_t)impl->width,
-        .height = (uint32_t)impl->height,
+        .width = (uint32_t)surface->width,
+        .height = (uint32_t)surface->height,
         .presentMode = present_mode,
     };
 
     compat_swap_chain =
-        wgpuDeviceCreateSwapChain(impl->device, impl->surface, &sc_desc);
+        wgpuDeviceCreateSwapChain(impl->device, wnd->wgpu_surface, &sc_desc);
     if (!compat_swap_chain) {
         ecs_err("Failed to create swap chain\n");
         return -1;
@@ -411,7 +415,7 @@ int flecsEngine_configureSurface(
 #else
     WGPUSurfaceCapabilities surface_caps = {0};
     if (wgpuSurfaceGetCapabilities(
-        impl->surface,
+        wnd->wgpu_surface,
         impl->adapter,
         &surface_caps) != WGPUStatus_Success ||
         surface_caps.formatCount == 0)
@@ -421,17 +425,17 @@ int flecsEngine_configureSurface(
         return -1;
     }
 
-    impl->surface_config = (WGPUSurfaceConfiguration){
+    wnd->surface_config = (WGPUSurfaceConfiguration){
         .device = impl->device,
         .usage = WGPUTextureUsage_RenderAttachment,
         .format = surface_caps.formats[0],
-        .width = (uint32_t)impl->width,
-        .height = (uint32_t)impl->height,
+        .width = (uint32_t)surface->width,
+        .height = (uint32_t)surface->height,
         .presentMode = present_mode,
         .alphaMode = surface_caps.alphaModes[0]
     };
 
-    wgpuSurfaceConfigure(impl->surface, &impl->surface_config);
+    wgpuSurfaceConfigure(wnd->wgpu_surface, &wnd->surface_config);
     wgpuSurfaceCapabilitiesFreeMembers(surface_caps);
 #endif
 
@@ -439,7 +443,8 @@ int flecsEngine_configureSurface(
 }
 
 void flecsEngine_reconfigureSurface(
-    FlecsEngineImpl *impl)
+    FlecsEngineImpl *impl,
+    FlecsSurfaceImpl *wnd)
 {
 #ifdef __EMSCRIPTEN__
     if (compat_swap_chain) {
@@ -448,16 +453,17 @@ void flecsEngine_reconfigureSurface(
 
     WGPUSwapChainDescriptor sc_desc = {
         .usage = WGPUTextureUsage_RenderAttachment,
-        .format = impl->surface_config.format,
-        .width = impl->surface_config.width,
-        .height = impl->surface_config.height,
-        .presentMode = impl->surface_config.presentMode,
+        .format = wnd->surface_config.format,
+        .width = wnd->surface_config.width,
+        .height = wnd->surface_config.height,
+        .presentMode = wnd->surface_config.presentMode,
     };
 
     compat_swap_chain =
-        wgpuDeviceCreateSwapChain(impl->device, impl->surface, &sc_desc);
+        wgpuDeviceCreateSwapChain(impl->device, wnd->wgpu_surface, &sc_desc);
 #else
-    wgpuSurfaceConfigure(impl->surface, &impl->surface_config);
+    (void)impl;
+    wgpuSurfaceConfigure(wnd->wgpu_surface, &wnd->surface_config);
 #endif
 }
 
@@ -481,9 +487,12 @@ void flecsEngine_getFramebufferSize(
 
 int flecsEngine_acquireFrame(
     FlecsEngineImpl *impl,
+    FlecsSurfaceImpl *wnd,
     FlecsEngineSurface *target)
 {
+    (void)impl;
 #ifdef __EMSCRIPTEN__
+    (void)wnd;
     WGPUTextureView view =
         wgpuSwapChainGetCurrentTextureView(compat_swap_chain);
     if (!view) {
@@ -495,7 +504,7 @@ int flecsEngine_acquireFrame(
     target->owns_view_texture = true;
 #else
     WGPUSurfaceTexture surface_frame = {0};
-    wgpuSurfaceGetCurrentTexture(impl->surface, &surface_frame);
+    wgpuSurfaceGetCurrentTexture(wnd->wgpu_surface, &surface_frame);
 
     target->surface_status = surface_frame.status;
     if (surface_frame.status !=
@@ -507,7 +516,7 @@ int flecsEngine_acquireFrame(
             wgpuTextureRelease(surface_frame.texture);
         }
 
-        wgpuSurfaceConfigure(impl->surface, &impl->surface_config);
+        wgpuSurfaceConfigure(wnd->wgpu_surface, &wnd->surface_config);
         return 1;
     }
 

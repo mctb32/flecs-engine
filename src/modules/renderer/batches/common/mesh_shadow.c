@@ -3,6 +3,7 @@
 static void flecsEngine_mesh_extractShadowGroup(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch,
     uint64_t group_id,
     flecsEngine_batch_t *shared)
@@ -23,12 +24,13 @@ static void flecsEngine_mesh_extractShadowGroup(
     }
 
     ctx->batch = shared;
-    flecsEngine_batch_group_extractShadow(world, engine, batch, ctx, NULL, 0);
+    flecsEngine_batch_group_extractShadow(world, engine, view_impl, batch, ctx, NULL, 0);
 }
 
 void flecsEngine_mesh_extractShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch)
 {
     FLECS_TRACY_ZONE_BEGIN("MeshExtractShadow");
@@ -58,7 +60,7 @@ redo_shadow: {
                 ctx->view.shadow_offset[c] = shadow_totals[c];
             }
             flecsEngine_mesh_extractShadowGroup(
-                world, engine, batch, group_id, shared);
+                world, engine, view_impl, batch, group_id, shared);
             for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c++) {
                 shadow_totals[c] += ctx->view.shadow_count[c];
             }
@@ -87,15 +89,18 @@ redo_shadow: {
 void flecsEngine_mesh_uploadShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch)
 {
     (void)world;
+    (void)view_impl;
     flecsEngine_batch_uploadShadow(engine, batch->ctx);
 }
 
 void flecsEngine_mesh_renderShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
@@ -114,7 +119,7 @@ void flecsEngine_mesh_renderShadow(
         flecsEngine_batch_group_t *ctx =
             ecs_query_get_group_ctx(batch->query, group);
         ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
-        flecsEngine_batch_group_drawShadow(engine, pass, ctx);
+        flecsEngine_batch_group_drawShadow(engine, view_impl, pass, ctx);
     }
 
     FLECS_TRACY_ZONE_END;

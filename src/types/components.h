@@ -5,6 +5,22 @@
 #include "../vendor.h"
 #include "engine_state.h"
 
+struct FlecsSurfaceImpl {
+    const struct FlecsEngineSurfaceInterface *interface;
+
+    GLFWwindow *window;
+    WGPUSurface wgpu_surface;
+    WGPUSurfaceConfiguration surface_config;
+    bool vsync;
+
+    char *path;
+    WGPUTexture offscreen_texture;
+    WGPUTextureView offscreen_view;
+    bool done;
+};
+
+extern ECS_COMPONENT_DECLARE(FlecsSurfaceImpl);
+
 typedef struct {
     WGPUTexture ibl_equirect_texture;
     WGPUTextureView ibl_equirect_texture_view;

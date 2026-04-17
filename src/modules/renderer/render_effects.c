@@ -228,7 +228,8 @@ void flecsEngine_renderView_renderEffects(
         return;
     }
 
-    bool needs_upscale = engine->resolution_scale > 1;
+    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
+    bool needs_upscale = surface->resolution_scale > 1;
 
     for (int32_t i = 0; i < effect_count; i ++) {
         if (!effects[i].enabled) {

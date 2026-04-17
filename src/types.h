@@ -4,6 +4,6 @@
 #include "types/gpu_types.h"
 #include "types/engine_state.h"
 #include "types/components.h"
-#include "types/surface.h"
+#include "modules/renderer/surface.h"
 
 #endif

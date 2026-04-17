@@ -18,6 +18,7 @@
 #include "ibl.h"
 #include "cluster.h"
 #include "shader.h"
+#include "surface.h"
 
 int flecsEngine_initRenderer(
     ecs_world_t *world,

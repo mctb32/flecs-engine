@@ -1,9 +1,6 @@
 #define FLECS_ENGINE_ENGINE_IMPL
 #include "engine.h"
 
-#include "surfaces/frame_capture/frame_capture.h"
-#include "surfaces/window/window.h"
-
 #include "../renderer/renderer.h"
 #include "../geometry3/geometry3.h"
 #include "../transform3/transform3.h"
@@ -23,7 +20,6 @@ ECS_COMPONENT_DECLARE(flecs_mat4_t);
 ECS_COMPONENT_DECLARE(flecs_rgba_t);
 
 ECS_COMPONENT_DECLARE(FlecsEngineImpl);
-
 
 static void flecsEngine_cleanup(
     ecs_world_t *world,
@@ -45,10 +41,15 @@ static void flecsEngine_cleanup(
     flecsEngine_material_releaseBuffer(impl);
     flecsEngine_transmission_releaseShared(impl);
 
-    flecsEngine_surfaceInterface_cleanup(
-        impl->surface_impl, impl, terminate_runtime);
+    if (impl->surface && ecs_is_alive(world, impl->surface)) {
+        FlecsSurfaceImpl *surf = ecs_get_mut(world, impl->surface, FlecsSurfaceImpl);
+        if (surf) {
+            flecsEngine_surfaceInterface_cleanup(impl, surf, terminate_runtime);
+        }
+        ecs_delete(world, impl->surface);
+    }
+    impl->surface = 0;
 
-    ecs_delete_with(world, ecs_id(FlecsRenderView));
     ecs_delete_with(world, ecs_id(FlecsRenderBatch));
 
     if (impl->queue) {
@@ -71,9 +72,8 @@ static void flecsEngine_cleanup(
         impl->instance = NULL;
     }
 
-    if (impl->frame_output_path) {
-        ecs_os_free((char*)impl->frame_output_path);
-        impl->frame_output_path = NULL;
+    if (terminate_runtime) {
+        flecsEngine_terminateGlfw();
     }
 
     flecsEngine_defaultAttrCache_free(impl->default_attr_cache);
@@ -81,15 +81,17 @@ static void flecsEngine_cleanup(
 
 int flecsEngine_init(
     ecs_world_t *world,
-    const FlecsEngineOutputDesc *output)
+    ecs_entity_t surface_entity,
+    const FlecsSurface *config,
+    FlecsSurfaceImpl *impl)
 {
-    if (!output || !flecsEngine_surfaceInterface_isValid(output->ops)) {
+    if (!config || !impl || !impl->interface) {
         ecs_err("Invalid engine output backend\n");
         return -1;
     }
 
-    int32_t width = output->width;
-    int32_t height = output->height;
+    int32_t width = config->width;
+    int32_t height = config->height;
     if (width <= 0) {
         width = 1280;
     }
@@ -97,70 +99,65 @@ int flecsEngine_init(
         height = 800;
     }
 
+    flecsEngine_surface_set(
+        world,
+        surface_entity,
+        width,
+        height,
+        config->resolution_scale,
+        config->msaa ? 4 : 1);
+
     FlecsEngineImpl *ptr = ecs_singleton_ensure(world, FlecsEngineImpl);
 
-    int32_t resolution_scale = output->resolution_scale;
-    if (resolution_scale < 1) resolution_scale = 1;
-
-    int32_t sample_count = output->msaa ? 4 : 1;
-
-    FlecsEngineImpl impl = {
-        .width = width,
-        .height = height,
-        .actual_width = width / resolution_scale,
-        .actual_height = height / resolution_scale,
-        .resolution_scale = resolution_scale,
-        .sample_count = sample_count,
-        .vsync = output->vsync,
-        .surface_impl = output->ops,
-        .output_done = false,
+    FlecsEngineImpl engine = {
+        .surface = surface_entity,
         .default_attr_cache = flecsEngine_defaultAttrCache_create()
     };
 
     WGPUInstanceDescriptor instance_desc = {0};
-    impl.instance = wgpuCreateInstance(&instance_desc);
-    if (!impl.instance) {
+    engine.instance = wgpuCreateInstance(&instance_desc);
+    if (!engine.instance) {
         ecs_err("Failed to create wgpu instance\n");
         goto error;
     }
 
-
-    if (flecsEngine_surfaceInterface_initInstance(
-        impl.surface_impl, &impl, output->config))
-    {
+    if (flecsEngine_surfaceInterface_initInstance(&engine, config, impl)) {
         goto error;
     }
 
-    impl.adapter = flecsEngine_requestAdapter(impl.instance, impl.surface);
-    if (!impl.adapter) {
+    engine.adapter = flecsEngine_requestAdapter(
+        engine.instance, impl->wgpu_surface);
+    if (!engine.adapter) {
         goto error;
     }
 
-    impl.device = flecsEngine_requestDevice(impl.adapter, impl.instance);
-    if (!impl.device) {
+    engine.device = flecsEngine_requestDevice(engine.adapter, engine.instance);
+    if (!engine.device) {
         goto error;
     }
 
-    flecsEngine_setDeviceErrorCallback(impl.device);
+    flecsEngine_setDeviceErrorCallback(engine.device);
 
-    impl.queue = wgpuDeviceGetQueue(impl.device);
+    engine.queue = wgpuDeviceGetQueue(engine.device);
 
-    if (flecsEngine_surfaceInterface_configureTarget(
-        impl.surface_impl, &impl))
-    {
+    if (flecsEngine_surfaceInterface_configureTarget(world, &engine, impl)) {
         goto error;
     }
 
-    if (flecsEngine_initRenderer(world, &impl)) {
+    if (flecsEngine_initRenderer(world, &engine)) {
         goto error;
     }
 
-    *ptr = impl;
+    *ptr = engine;
 
     return 0;
 
 error:
-    flecsEngine_cleanup(world, &impl, false);
+    if (impl->interface && impl->interface->cleanup) {
+        impl->interface->cleanup(&engine, impl, false);
+    }
+    flecsEngine_surfaceImpl_release(impl);
+    flecsEngine_cleanup(world, &engine, false);
     return -1;
 }
 
@@ -242,8 +239,8 @@ void FlecsEngineImport(
         .on_remove = flecsEngine_destroy
     });
 
-    ECS_IMPORT(world, FlecsEngineWindow);
-    ECS_IMPORT(world, FlecsEngineFrameCapture);
+    flecsEngine_surface_register(world);
+
     ECS_IMPORT(world, FlecsEngineLight);
     ECS_IMPORT(world, FlecsEngineTexture);
     ECS_IMPORT(world, FlecsEngineMaterial);

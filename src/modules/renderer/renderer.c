@@ -88,14 +88,12 @@ static void flecsEngine_createDepthResources(
 }
 
 static int flecsEngine_ensureDepthResources(
+    ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
-    if (impl->actual_width <= 0 || impl->actual_height <= 0) {
-        return 0;
-    }
-
-    uint32_t width = (uint32_t)impl->actual_width;
-    uint32_t height = (uint32_t)impl->actual_height;
+    const FlecsSurface *surface = ecs_get(world, impl->surface, FlecsSurface);
+    uint32_t width = (uint32_t)surface->actual_width;
+    uint32_t height = (uint32_t)surface->actual_height;
 
     if (impl->depth.depth_texture &&
         impl->depth.depth_texture_view &&
@@ -187,9 +185,11 @@ void flecsEngine_renderer_cleanup(
 }
 
 static int flecsEngine_ensureMsaaResources(
+    ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
-    int32_t sc = impl->sample_count;
+    const FlecsSurface *surface = ecs_get(world, impl->surface, FlecsSurface);
+    int32_t sc = surface->sample_count;
     if (sc < 2) {
         /* MSAA disabled — release any existing MSAA resources. */
         if (impl->depth.msaa_color_texture) {
@@ -198,12 +198,8 @@ static int flecsEngine_ensureMsaaResources(
         return 0;
     }
 
-    if (impl->actual_width <= 0 || impl->actual_height <= 0) {
-        return 0;
-    }
-
-    uint32_t width = (uint32_t)impl->actual_width;
-    uint32_t height = (uint32_t)impl->actual_height;
+    uint32_t width = (uint32_t)surface->actual_width;
+    uint32_t height = (uint32_t)surface->actual_height;
     WGPUTextureFormat color_format = flecsEngine_getHdrFormat(impl);
 
     if (impl->depth.msaa_color_texture &&
@@ -314,7 +310,7 @@ int flecsEngine_initRenderer(
 {
     impl->hdr_color_format = WGPUTextureFormat_RGBA16Float;
 
-    if (flecsEngine_ensureDepthResources(impl)) {
+    if (flecsEngine_ensureDepthResources(world, impl)) {
         goto error;
     }
 
@@ -464,11 +460,12 @@ static void FlecsEngineRender(
 #endif
     FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
 
-    const FlecsEngineSurfaceInterface *surface_impl = impl->surface_impl;
+    FlecsSurfaceImpl *surf = ecs_get_mut(
+        it->world, impl->surface, FlecsSurfaceImpl);
 
     FLECS_TRACY_ZONE_BEGIN_N(__prepare, "PrepareFrame");
     int prep_result = flecsEngine_surfaceInterface_prepareFrame(
-        surface_impl, it->world, impl);
+        it->world, impl, surf);
     FLECS_TRACY_ZONE_END_N(__prepare);
     if (prep_result > 0) {
         FLECS_TRACY_ZONE_END;
@@ -476,32 +473,32 @@ static void FlecsEngineRender(
     }
     if (prep_result < 0) {
         flecsEngine_surfaceInterface_onFrameFailed(
-            surface_impl, it->world, impl);
+            it->world, impl, surf);
         FLECS_TRACY_ZONE_END;
         return;
     }
 
-    if (!impl->width || !impl->height) {
+    const FlecsSurface *surface = ecs_get(it->world, impl->surface, FlecsSurface);
+    if (!surface->width || !surface->height) {
         FLECS_TRACY_ZONE_END;
         return;
     }
 
     /* Recompute actual dimensions for runtime resolution_scale changes */
-    {
-        int32_t scale = impl->resolution_scale;
-        if (scale < 1) scale = 1;
-        impl->actual_width = impl->width / scale;
-        impl->actual_height = impl->height / scale;
-        if (impl->actual_width < 1) impl->actual_width = 1;
-        if (impl->actual_height < 1) impl->actual_height = 1;
-    }
+    flecsEngine_surface_set(
+        it->world,
+        impl->surface,
+        surface->width,
+        surface->height,
+        surface->resolution_scale,
+        surface->sample_count);
 
     FLECS_TRACY_ZONE_BEGIN_N(__depth, "EnsureDepthResources");
-    bool depth_err = flecsEngine_ensureDepthResources(impl);
+    bool depth_err = flecsEngine_ensureDepthResources(it->world, impl);
     FLECS_TRACY_ZONE_END_N(__depth);
     if (depth_err) {
         flecsEngine_surfaceInterface_onFrameFailed(
-            surface_impl, it->world, impl);
+            it->world, impl, surf);
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -510,14 +507,14 @@ static void FlecsEngineRender(
      * If sample_count changed, also rebuild batch pipelines. */
     {
         int32_t prev_sc = impl->depth.msaa_texture_sample_count;
-        int32_t cur_sc = impl->sample_count < 2 ? 0 : impl->sample_count;
+        int32_t cur_sc = surface->sample_count < 2 ? 0 : surface->sample_count;
 
         FLECS_TRACY_ZONE_BEGIN_N(__msaa, "EnsureMsaaResources");
-        bool msaa_err = flecsEngine_ensureMsaaResources(impl);
+        bool msaa_err = flecsEngine_ensureMsaaResources(it->world, impl);
         FLECS_TRACY_ZONE_END_N(__msaa);
         if (msaa_err) {
             flecsEngine_surfaceInterface_onFrameFailed(
-                surface_impl, it->world, impl);
+                it->world, impl, surf);
             FLECS_TRACY_ZONE_END;
             return;
         }
@@ -536,7 +533,7 @@ static void FlecsEngineRender(
 
     FLECS_TRACY_ZONE_BEGIN_N(__acquire, "AcquireFrame");
     int target_result = flecsEngine_surfaceInterface_acquireFrame(
-        surface_impl, impl, &frame_target);
+        impl, surf, &frame_target);
     FLECS_TRACY_ZONE_END_N(__acquire);
     if (target_result > 0) {
         FLECS_TRACY_ZONE_END;
@@ -574,7 +571,7 @@ static void FlecsEngineRender(
 
     FLECS_TRACY_ZONE_BEGIN_N(__enc, "EncodeFrame");
     bool enc_err = flecsEngine_surfaceInterface_encodeFrame(
-        surface_impl, impl, encoder, &frame_target);
+        it->world, impl, surf, encoder, &frame_target);
     FLECS_TRACY_ZONE_END_N(__enc);
     if (enc_err) {
         failed = true;
@@ -595,7 +592,7 @@ static void FlecsEngineRender(
     wgpuQueueSubmit(impl->queue, 1, &cmd);
 
     if (flecsEngine_surfaceInterface_submitFrame(
-        surface_impl, it->world, impl, &frame_target))
+        it->world, impl, surf, &frame_target))
     {
         failed = true;
     }
@@ -613,7 +610,7 @@ cleanup:
 
     if (failed) {
         flecsEngine_surfaceInterface_onFrameFailed(
-            surface_impl, it->world, impl);
+            it->world, impl, surf);
     }
 
     FLECS_TRACY_FRAME_MARK;

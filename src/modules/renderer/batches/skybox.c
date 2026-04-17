@@ -61,9 +61,11 @@ static void flecsEngine_skybox_deleteCtx(
 static void flecsEngine_skybox_renderCallback(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
+    (void)view_impl;
     flecs_engine_skybox_ctx_t *ctx = batch->ctx;
     flecsEngine_skybox_ensureInitialized(world, engine, ctx);
 

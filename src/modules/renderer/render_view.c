@@ -115,11 +115,13 @@ static void flecsEngine_renderView_releaseImpl(
 }
 
 static bool flecsEngine_renderView_ensureSceneTarget(
+    const ecs_world_t *world,
     FlecsEngineImpl *engine,
     FlecsRenderViewImpl *impl)
 {
-    uint32_t w = (uint32_t)engine->actual_width;
-    uint32_t h = (uint32_t)engine->actual_height;
+    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
+    uint32_t w = (uint32_t)surface->actual_width;
+    uint32_t h = (uint32_t)surface->actual_height;
     if (impl->scene_target_texture &&
         impl->effect_target_width == w &&
         impl->effect_target_height == h)
@@ -334,13 +336,15 @@ static bool flecsEngine_renderView_ensureFrameUniformBuffer(
 }
 
 static bool flecsEngine_renderView_createTargets(
+    const ecs_world_t *world,
     FlecsEngineImpl *engine,
     FlecsRenderViewImpl *impl,
     int32_t effect_count,
     WGPUTextureFormat format)
 {
-    uint32_t width = (uint32_t)engine->actual_width;
-    uint32_t height = (uint32_t)engine->actual_height;
+    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
+    uint32_t width = (uint32_t)surface->actual_width;
+    uint32_t height = (uint32_t)surface->actual_height;
 
     impl->effect_target_textures = ecs_os_calloc_n(WGPUTexture, effect_count);
     impl->effect_target_views = ecs_os_calloc_n(WGPUTextureView, effect_count);
@@ -388,6 +392,7 @@ error:
 }
 
 static int flecsEngine_renderView_ensureTargets(
+    const ecs_world_t *world,
     FlecsEngineImpl *engine,
     FlecsRenderViewImpl *impl,
     int32_t effect_count)
@@ -396,9 +401,10 @@ static int flecsEngine_renderView_ensureTargets(
         return 0;
     }
 
-    uint32_t width = (uint32_t)engine->actual_width;
-    uint32_t height = (uint32_t)engine->actual_height;
-    WGPUTextureFormat surface_format = engine->surface_config.format;
+    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
+    uint32_t width = (uint32_t)surface->actual_width;
+    uint32_t height = (uint32_t)surface->actual_height;
+    WGPUTextureFormat surface_format = engine->target_format;
     WGPUTextureFormat desired_format = flecsEngine_getHdrFormat(engine);
 
     if (impl->effect_target_count >= effect_count) {
@@ -415,14 +421,14 @@ static int flecsEngine_renderView_ensureTargets(
     flecsEngine_renderView_releaseTargets(impl);
 
     if (flecsEngine_renderView_createTargets(
-        engine, impl, effect_count, desired_format))
+        world, engine, impl, effect_count, desired_format))
     {
         return 0;
     }
 
     if (desired_format != surface_format &&
         flecsEngine_renderView_createTargets(
-            engine, impl, effect_count, surface_format))
+            world, engine, impl, effect_count, surface_format))
     {
         engine->hdr_color_format = surface_format;
         ecs_warn("falling back to LDR targets: HDR format unavailable");
@@ -433,6 +439,7 @@ static int flecsEngine_renderView_ensureTargets(
 }
 
 static WGPURenderPassEncoder flecsEngine_renderView_beginPass(
+    const ecs_world_t *world,
     const FlecsEngineImpl *impl,
     const FlecsRenderView *view,
     WGPUCommandEncoder encoder,
@@ -442,7 +449,8 @@ static WGPURenderPassEncoder flecsEngine_renderView_beginPass(
 {
     (void)view;
 
-    bool msaa = impl->sample_count > 1 && impl->depth.msaa_color_texture_view;
+    const FlecsSurface *surface = ecs_get(world, impl->surface, FlecsSurface);
+    bool msaa = surface->sample_count > 1 && impl->depth.msaa_color_texture_view;
 
     WGPURenderPassColorAttachment color_attachment = {
         .view = msaa ? impl->depth.msaa_color_texture_view : color_view,
@@ -478,6 +486,7 @@ static void flecsEngine_renderView_extractBatches(
     ecs_world_t *world,
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderView *view)
 {
     (void)view;
@@ -486,7 +495,7 @@ static void flecsEngine_renderView_extractBatches(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    flecsEngine_renderBatchSet_extract(world, engine, batch_set);
+    flecsEngine_renderBatchSet_extract(world, engine, view_impl, batch_set);
     FLECS_TRACY_ZONE_END;
 }
 
@@ -494,6 +503,7 @@ static void flecsEngine_renderView_uploadBatches(
     ecs_world_t *world,
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderView *view)
 {
     (void)view;
@@ -502,7 +512,7 @@ static void flecsEngine_renderView_uploadBatches(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    flecsEngine_renderBatchSet_upload(world, engine, batch_set);
+    flecsEngine_renderBatchSet_upload(world, engine, view_impl, batch_set);
     FLECS_TRACY_ZONE_END;
 }
 
@@ -533,12 +543,12 @@ static void flecsEngine_renderView_renderBatches(
         /* Pass 1: render opaque batches (render_after_snapshot = false) */
         {
             WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
-                engine, view, encoder, batch_target,
+                world, engine, view, encoder, batch_target,
                 WGPULoadOp_Clear, WGPULoadOp_Clear);
             viewImpl->last_pipeline = NULL;
 
             flecsEngine_renderBatchSet_render(
-                world, engine, batch_set, pass, view, 1);
+                world, engine, viewImpl, batch_set, pass, view, 1);
 
             wgpuRenderPassEncoderEnd(pass);
             wgpuRenderPassEncoderRelease(pass);
@@ -559,12 +569,12 @@ static void flecsEngine_renderView_renderBatches(
          * LoadOp_Load preserves both color and depth from pass 1. */
         {
             WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
-                engine, view, encoder, batch_target,
+                world, engine, view, encoder, batch_target,
                 WGPULoadOp_Load, WGPULoadOp_Load);
             viewImpl->last_pipeline = NULL;
 
             flecsEngine_renderBatchSet_render(
-                world, engine, batch_set, pass, view, 2);
+                world, engine, viewImpl, batch_set, pass, view, 2);
 
             wgpuRenderPassEncoderEnd(pass);
             wgpuRenderPassEncoderRelease(pass);
@@ -572,12 +582,12 @@ static void flecsEngine_renderView_renderBatches(
     } else {
         /* No transmissive materials — single pass, no snapshot needed */
         WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
-            engine, view, encoder, batch_target,
+            world, engine, view, encoder, batch_target,
             WGPULoadOp_Clear, WGPULoadOp_Clear);
         viewImpl->last_pipeline = NULL;
 
         flecsEngine_renderBatchSet_render(
-            world, engine, batch_set, pass, view, 0);
+            world, engine, viewImpl, batch_set, pass, view, 0);
 
         wgpuRenderPassEncoderEnd(pass);
         wgpuRenderPassEncoderRelease(pass);
@@ -596,27 +606,26 @@ static void flecsEngine_renderView_render(
     WGPUTextureView view_texture)
 {
     FLECS_TRACY_ZONE_BEGIN("RenderView");
-    engine->current_view_impl = impl;
     impl->last_pipeline = NULL;
+
+    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
 
     int32_t effect_count = ecs_vec_count(&view->effects);
     int32_t target_count = effect_count > 0 ? effect_count : 1;
-    if (effect_count > 0 && engine->resolution_scale > 1) {
+    if (effect_count > 0 && surface->resolution_scale > 1) {
         target_count = effect_count + 1;
     }
     FLECS_TRACY_ZONE_BEGIN_N(ensure_targets_zone, "EnsureTargets");
-    bool ensure_err = flecsEngine_renderView_ensureTargets(engine, impl, target_count);
+    bool ensure_err = flecsEngine_renderView_ensureTargets(world, engine, impl, target_count);
     FLECS_TRACY_ZONE_END_N(ensure_targets_zone);
     if (ensure_err) {
         ecs_err("failed to allocate effect render targets");
-        engine->current_view_impl = NULL;
         FLECS_TRACY_ZONE_END;
         return;
     }
 
     if (!flecsEngine_renderView_ensureFrameUniformBuffer(engine, impl)) {
         ecs_err("failed to create frame uniform buffer");
-        engine->current_view_impl = NULL;
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -624,19 +633,17 @@ static void flecsEngine_renderView_render(
     bool have_atmosphere = view->atmosphere != 0;
     if (have_atmosphere) {
         FLECS_TRACY_ZONE_BEGIN_N(atm_ensure_zone, "AtmosEnsureImpl");
-        bool scene_ok = flecsEngine_renderView_ensureSceneTarget(engine, impl);
+        bool scene_ok = flecsEngine_renderView_ensureSceneTarget(world, engine, impl);
         bool impl_ok = scene_ok && flecsEngine_atmosphere_ensureImpl(
             world, engine, view->atmosphere);
         FLECS_TRACY_ZONE_END_N(atm_ensure_zone);
         if (!scene_ok) {
             ecs_err("failed to allocate scene pre-atmosphere target");
-            engine->current_view_impl = NULL;
             FLECS_TRACY_ZONE_END;
             return;
         }
         if (!impl_ok) {
             ecs_err("failed to initialize atmosphere resources");
-            engine->current_view_impl = NULL;
             FLECS_TRACY_ZONE_END;
             return;
         }
@@ -663,7 +670,6 @@ static void flecsEngine_renderView_render(
     /* Ensure per-view cluster buffers exist before building. */
     if (flecsEngine_cluster_initView(engine, impl)) {
         ecs_err("failed to initialize view cluster buffers");
-        engine->current_view_impl = NULL;
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -688,7 +694,7 @@ static void flecsEngine_renderView_render(
     flecsEngine_renderView_renderBatches(
         world, view_entity, engine, view, impl, encoder);
 
-    if (engine->sample_count > 1) {
+    if (surface->sample_count > 1) {
         flecsEngine_depthResolve(engine, encoder);
     }
 
@@ -707,7 +713,6 @@ static void flecsEngine_renderView_render(
     flecsEngine_renderView_renderEffects(
         world, view_entity, engine, view, impl, view_texture, encoder);
 
-    engine->current_view_impl = NULL;
     FLECS_TRACY_ZONE_END;
 }
 
@@ -719,8 +724,6 @@ static void flecsEngine_renderView_extract(
     FlecsRenderViewImpl *impl)
 {
     FLECS_TRACY_ZONE_BEGIN("ExtractView");
-
-    engine->current_view_impl = impl;
 
     impl->frustum_valid = false;
     impl->shadow_frustum_valid = false;
@@ -765,7 +768,9 @@ static void flecsEngine_renderView_extract(
         if (cam && !cam->orthographic && cam->fov > 0.0f) {
             float half_tan = tanf(cam->fov * 0.5f);
             if (half_tan > 1e-6f) {
-                float vh = (float)engine->actual_height;
+                const FlecsSurface *surface = ecs_get(
+                    world, engine->surface, FlecsSurface);
+                float vh = (float)surface->actual_height;
                 float f = vh / half_tan;
                 impl->screen_cull_factor = f * f;
                 impl->screen_cull_threshold = view->screen_size_threshold;
@@ -774,9 +779,8 @@ static void flecsEngine_renderView_extract(
         }
     }
 
-    flecsEngine_renderView_extractBatches(world, view_entity, engine, view);
+    flecsEngine_renderView_extractBatches(world, view_entity, engine, impl, view);
 
-    engine->current_view_impl = NULL;
     FLECS_TRACY_ZONE_END;
 }
 
@@ -808,12 +812,10 @@ void flecsEngine_renderView_uploadAll(
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
         FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
         for (int32_t i = 0; i < it.count; i ++) {
-            engine->current_view_impl = &viewImpls[i];
             flecsEngine_renderView_uploadBatches(
-                world, it.entities[i], engine, &views[i]);
+                world, it.entities[i], engine, &viewImpls[i], &views[i]);
         }
     }
-    engine->current_view_impl = NULL;
 }
 
 void flecsEngine_renderView_renderAll(

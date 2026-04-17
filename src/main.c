@@ -10,7 +10,6 @@
 #endif
 
 typedef struct {
-  bool frame_output_mode;
   const char *frame_output_path;
   const char *scene_path;
   int32_t width;
@@ -82,7 +81,6 @@ static int flecsParseArgs(
         fprintf(stderr, "Missing value for --frame-out\n");
         return -1;
       }
-      options->frame_output_mode = true;
       options->frame_output_path = argv[++ i];
       continue;
     }
@@ -148,24 +146,16 @@ void initEngine(
 
   FlecsRenderBatchSet batch_set = {};
 
-  ecs_entity_t window = ecs_entity(world, { .name = "window" });
-
-  if (options.frame_output_mode) {
-    ecs_set(world, window, FlecsFrameOutput, {
-      .width = options.width,
-      .height = options.height,
-      .path = options.frame_output_path,
-    });
-  } else {
-    ecs_set(world, window, FlecsWindow, {
-      .title = "Hello World",
-      .width = options.width,
-      .height = options.height,
-      .resolution_scale = 1,
-      .vsync = true,
-      .msaa = true
-    });
-  }
+  ecs_entity_t surface = ecs_entity(world, { .name = "surface" });
+  ecs_set(world, surface, FlecsSurface, {
+    .title = "Hello World",
+    .width = options.width,
+    .height = options.height,
+    .resolution_scale = 1,
+    .vsync = true,
+    .msaa = true,
+    .write_to_file = options.frame_output_path,
+  });
 
   // Camera
   view.camera = ecs_entity(world, { .name = "camera" });
@@ -263,9 +253,6 @@ int main(
   char *argv[])
 {
   FlecsAppOptions options = {
-    .frame_output_mode = false,
-    .frame_output_path = NULL,
-    .scene_path = NULL,
     .width = 1280,
     .height = 800
   };
@@ -282,7 +269,7 @@ int main(
   ECS_IMPORT(world, FlecsScriptMath);
   ECS_IMPORT(world, FlecsEngine);
 
-  if (!options.frame_output_mode) {
+  if (!options.frame_output_path) {
     ecs_log_set_level(0);
   }
 
@@ -313,7 +300,7 @@ int main(
   emscripten_set_main_loop_arg(
       (em_arg_callback_func)flecsWasmFrame, world, 0, 1);
 #else
-  if (!options.frame_output_mode) {
+  if (!options.frame_output_path) {
     ecs_singleton_set(world, EcsRest, {0});
   }
   while (ecs_progress(world, 0)) {}

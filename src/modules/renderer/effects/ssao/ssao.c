@@ -686,9 +686,11 @@ static bool flecsEngine_ssao_render(
         return true;
     }
 
+    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
+
     /* Determine intermediate texture size */
-    uint32_t width = engine->actual_width > 0 ? (uint32_t)engine->actual_width : 1;
-    uint32_t height = engine->actual_height > 0 ? (uint32_t)engine->actual_height : 1;
+    uint32_t width = (uint32_t)surface->actual_width;
+    uint32_t height = (uint32_t)surface->actual_height;
 
     ecs_entity_t view_entity = ecs_get_target(
         world, effect_entity, EcsChildOf, 0);
@@ -701,8 +703,8 @@ static bool flecsEngine_ssao_render(
         }
     }
 
-    uint32_t ssao_width = engine->width > 1 ? (uint32_t)(engine->width / 2) : 1;
-    uint32_t ssao_height = engine->height > 1 ? (uint32_t)(engine->height / 2) : 1;
+    uint32_t ssao_width = surface->width > 1 ? (uint32_t)(surface->width / 2) : 1;
+    uint32_t ssao_height = surface->height > 1 ? (uint32_t)(surface->height / 2) : 1;
     if (ssao_width > width) ssao_width = width;
     if (ssao_height > height) ssao_height = height;
     if (!flecsEngine_ssao_ensureBlurTexture(engine, impl, ssao_width, ssao_height)) {

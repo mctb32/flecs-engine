@@ -173,8 +173,10 @@ static int32_t flecsEngine_bevel_box_clampSegments(
 static void flecsEngine_bevel_box_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch)
 {
+    (void)view_impl;
     flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
     flecsEngine_batch_t *buf = &ctx->buffers;
     bool owns_material_data = (buf->flags & FLECS_BATCH_OWNS_MATERIAL) != 0;
@@ -302,9 +304,11 @@ static void flecsEngine_bevel_box_extract(
 static void flecsEngine_bevel_box_upload(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch)
 {
     (void)world;
+    (void)view_impl;
     flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
     flecsEngine_batch_upload(engine, &ctx->buffers);
 }
@@ -312,10 +316,12 @@ static void flecsEngine_bevel_box_upload(
 static void flecsEngine_bevel_box_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
     (void)world;
+    (void)view_impl;
 
     flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
     flecsEngine_batch_bindMaterialGroup(

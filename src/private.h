@@ -2,6 +2,7 @@
 #define FLECS_ENGINE_PRIVATE_H
 
 #include "types.h"
+#include "modules/renderer/surface.h"
 #include "utils.h"
 #include "platform.h"
 

@@ -73,11 +73,10 @@ void flecsEngine_batch_group_draw(
 
 void flecsEngine_batch_group_drawShadow(
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_group_t *ctx)
 {
-    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
-    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
     int cascade = view_impl->shadow.current_cascade;
     int32_t count = ctx->view.shadow_count[cascade];
     if (!count) {

@@ -7,6 +7,7 @@ static void flecsEngine_renderView_extractShadowBatches(
     ecs_world_t *world,
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderView *view)
 {
     (void)view;
@@ -15,7 +16,7 @@ static void flecsEngine_renderView_extractShadowBatches(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    flecsEngine_renderBatchSet_extractShadow(world, engine, batch_set);
+    flecsEngine_renderBatchSet_extractShadow(world, engine, view_impl, batch_set);
     FLECS_TRACY_ZONE_END;
 }
 
@@ -23,6 +24,7 @@ static void flecsEngine_renderView_uploadShadowBatches(
     ecs_world_t *world,
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderView *view)
 {
     (void)view;
@@ -31,7 +33,7 @@ static void flecsEngine_renderView_uploadShadowBatches(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    flecsEngine_renderBatchSet_uploadShadow(world, engine, batch_set);
+    flecsEngine_renderBatchSet_uploadShadow(world, engine, view_impl, batch_set);
     FLECS_TRACY_ZONE_END;
 }
 
@@ -44,9 +46,6 @@ static void flecsEngine_renderView_extractShadow(
 {
     FLECS_TRACY_ZONE_BEGIN("ExtractShadowView");
 
-    engine->current_view_impl = view_impl;
-
-    /* Compute cascade light VP matrices and per-cascade frustum planes. */
     view_impl->cascade_frustum_valid = false;
     uint32_t shadow_map_size = (uint32_t)view->shadow.map_size;
     if (!shadow_map_size) {
@@ -69,9 +68,8 @@ static void flecsEngine_renderView_extractShadow(
     }
 
     flecsEngine_renderView_extractShadowBatches(
-        world, view_entity, engine, view);
+        world, view_entity, engine, view_impl, view);
 
-    engine->current_view_impl = NULL;
     FLECS_TRACY_ZONE_END;
 }
 
@@ -103,12 +101,10 @@ void flecsEngine_renderView_uploadShadowsAll(
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
         FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
         for (int32_t i = 0; i < it.count; i ++) {
-            engine->current_view_impl = &viewImpls[i];
             flecsEngine_renderView_uploadShadowBatches(
-                world, it.entities[i], engine, &views[i]);
+                world, it.entities[i], engine, &viewImpls[i], &views[i]);
         }
     }
-    engine->current_view_impl = NULL;
 }
 
 void flecsEngine_renderView_renderShadow(
@@ -180,7 +176,7 @@ void flecsEngine_renderView_renderShadow(
         view_impl->last_pipeline = NULL;
 
         flecsEngine_renderBatchSet_renderShadow(
-            world, engine, batch_set, shadow_pass);
+            world, engine, view_impl, batch_set, shadow_pass);
 
         wgpuRenderPassEncoderEnd(shadow_pass);
         wgpuRenderPassEncoderRelease(shadow_pass);

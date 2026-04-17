@@ -437,8 +437,10 @@ static void FlecsRenderBatch_on_set(
 
         WGPUTextureFormat hdr_format = flecsEngine_getHdrFormat(engine);
 
-        uint32_t sample_count = engine->sample_count > 1
-            ? (uint32_t)engine->sample_count : 1;
+        const FlecsSurface *surface = ecs_get(
+            world, engine->surface, FlecsSurface);
+        uint32_t sample_count = surface->sample_count > 1
+            ? (uint32_t)surface->sample_count : 1;
 
         impl.pipeline_hdr = flecsEngine_renderBatch_createPipeline(
             engine,
@@ -472,6 +474,7 @@ static void FlecsRenderBatch_on_set(
 void flecsEngine_renderBatch_render(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
     ecs_entity_t batch_entity)
@@ -485,9 +488,6 @@ void flecsEngine_renderBatch_render(
         FLECS_TRACY_ZONE_END;
         return;
     }
-
-    FlecsRenderViewImpl *view_impl = engine->current_view_impl;
-    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
 
     WGPURenderPipeline pipeline = impl->pipeline_hdr;
     ecs_assert(pipeline != NULL, ECS_INTERNAL_ERROR, NULL);
@@ -534,13 +534,14 @@ void flecsEngine_renderBatch_render(
             pass, 0, view_impl->scene_bind_group, 0, NULL);
     }
 
-    batch->callback(world, engine, pass, batch);
+    batch->callback(world, engine, view_impl, pass, batch);
     FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderBatch_extract(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     ecs_entity_t batch_entity)
 {
     FLECS_TRACY_ZONE_BEGIN("BatchExtract");
@@ -551,13 +552,14 @@ void flecsEngine_renderBatch_extract(
         return;
     }
 
-    batch->extract_callback(world, engine, batch);
+    batch->extract_callback(world, engine, view_impl, batch);
     FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderBatch_extractShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     ecs_entity_t batch_entity)
 {
     FLECS_TRACY_ZONE_BEGIN("BatchExtractShadow");
@@ -568,13 +570,14 @@ void flecsEngine_renderBatch_extractShadow(
         return;
     }
 
-    batch->shadow_extract_callback(world, engine, batch);
+    batch->shadow_extract_callback(world, engine, view_impl, batch);
     FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderBatch_upload(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     ecs_entity_t batch_entity)
 {
     FLECS_TRACY_ZONE_BEGIN("BatchUploadCallback");
@@ -585,13 +588,14 @@ void flecsEngine_renderBatch_upload(
         return;
     }
 
-    batch->upload_callback(world, engine, batch);
+    batch->upload_callback(world, engine, view_impl, batch);
     FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderBatch_uploadShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     ecs_entity_t batch_entity)
 {
     FLECS_TRACY_ZONE_BEGIN("BatchUploadShadowCallback");
@@ -602,13 +606,14 @@ void flecsEngine_renderBatch_uploadShadow(
         return;
     }
 
-    batch->shadow_upload_callback(world, engine, batch);
+    batch->shadow_upload_callback(world, engine, view_impl, batch);
     FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderBatch_renderShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     ecs_entity_t batch_entity)
 {
@@ -621,9 +626,6 @@ void flecsEngine_renderBatch_renderShadow(
         FLECS_TRACY_ZONE_END;
         return;
     }
-
-    FlecsRenderViewImpl *view_impl = engine->current_view_impl;
-    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
 
     WGPURenderPipeline pipeline = impl->pipeline_shadow;
 
@@ -638,7 +640,7 @@ void flecsEngine_renderBatch_renderShadow(
         0, NULL);
 
     if (batch->shadow_callback) {
-        batch->shadow_callback(world, engine, pass, batch);
+        batch->shadow_callback(world, engine, view_impl, pass, batch);
     }
     FLECS_TRACY_ZONE_END;
 }

@@ -6,12 +6,14 @@ struct FlecsRenderBatch;
 typedef void (*flecs_render_batch_callback)(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const struct FlecsRenderBatch *batch);
 
 typedef void (*flecs_render_batch_extract_callback)(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const struct FlecsRenderBatch *batch);
 
 // Render entities matching a query with specified shader
@@ -40,6 +42,7 @@ ECS_PRIVATE
 void flecsEngine_renderBatch_render(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
+    FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
     ecs_entity_t batch_entity);
@@ -47,27 +50,32 @@ void flecsEngine_renderBatch_render(
 void flecsEngine_renderBatch_renderShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     ecs_entity_t batch_entity);
 
 void flecsEngine_renderBatch_extract(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
+    FlecsRenderViewImpl *view_impl,
     ecs_entity_t batch_entity);
 
 void flecsEngine_renderBatch_extractShadow(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
+    FlecsRenderViewImpl *view_impl,
     ecs_entity_t batch_entity);
 
 void flecsEngine_renderBatch_upload(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
+    FlecsRenderViewImpl *view_impl,
     ecs_entity_t batch_entity);
 
 void flecsEngine_renderBatch_uploadShadow(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
+    FlecsRenderViewImpl *view_impl,
     ecs_entity_t batch_entity);
 
 void flecsEngine_renderBatch_register(
@@ -84,26 +92,31 @@ bool flecsEngine_renderBatchSet_hasTransmission(
 void flecsEngine_renderBatchSet_extract(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set);
 
 void flecsEngine_renderBatchSet_extractShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set);
 
 void flecsEngine_renderBatchSet_upload(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set);
 
 void flecsEngine_renderBatchSet_uploadShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set);
 
 void flecsEngine_renderBatchSet_render(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set,
     WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
@@ -112,6 +125,7 @@ void flecsEngine_renderBatchSet_render(
 void flecsEngine_renderBatchSet_renderShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set,
     WGPURenderPassEncoder pass);
 

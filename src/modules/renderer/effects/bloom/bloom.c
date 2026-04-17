@@ -155,18 +155,20 @@ static uint32_t flecsEngine_bloom_computeMipCount(
 }
 
 static void flecsEngine_bloom_computeTextureSize(
+    const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     uint32_t *out_width,
     uint32_t *out_height)
 {
-    if (engine->height <= 0 || engine->width <= 0) {
+    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
+    if (surface->height <= 0 || surface->width <= 0) {
         *out_width = 1u;
         *out_height = 1u;
         return;
     }
 
-    uint32_t width = (uint32_t)engine->width / 2u;
-    uint32_t height = (uint32_t)engine->height / 2u;
+    uint32_t width = (uint32_t)surface->width / 2u;
+    uint32_t height = (uint32_t)surface->height / 2u;
     if (!width) {
         width = 1u;
     }
@@ -270,13 +272,14 @@ static bool flecsEngine_bloom_createTexture(
 }
 
 static bool flecsEngine_bloom_ensureTexture(
+    const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsBloom *bloom,
     FlecsBloomImpl *impl)
 {
     uint32_t width = 0;
     uint32_t height = 0;
-    flecsEngine_bloom_computeTextureSize(engine, &width, &height);
+    flecsEngine_bloom_computeTextureSize(world, engine, &width, &height);
     uint32_t mip_count = flecsEngine_bloom_computeMipCount(bloom);
 
     /* Clamp to the maximum mip count the texture dimensions support */
@@ -495,10 +498,12 @@ static float flecsEngine_bloom_computeBlendFactor(
 }
 
 static void flecsEngine_bloom_fillUniform(
+    const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsBloom *settings,
     FlecsBloomUniform *uniform)
 {
+    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
     float knee = settings->prefilter.threshold *
         glm_clamp(settings->prefilter.threshold_softness, 0.0f, 1.0f);
 
@@ -514,9 +519,7 @@ static void flecsEngine_bloom_fillUniform(
 
     uniform->scale[0] = settings->scale_x;
     uniform->scale[1] = settings->scale_y;
-    uniform->aspect = engine->actual_height > 0
-        ? (float)engine->actual_width / (float)engine->actual_height
-        : 1.0f;
+    uniform->aspect = (float)surface->actual_width / (float)surface->actual_height;
     uniform->_padding = 0.0f;
 }
 
@@ -736,12 +739,12 @@ static bool flecsEngine_bloom_render(
             output_load_op);
     }
 
-    if (!flecsEngine_bloom_ensureTexture(engine, bloom, impl)) {
+    if (!flecsEngine_bloom_ensureTexture(world, engine, bloom, impl)) {
         return false;
     }
 
     FlecsBloomUniform uniform = {0};
-    flecsEngine_bloom_fillUniform(engine, bloom, &uniform);
+    flecsEngine_bloom_fillUniform(world, engine, bloom, &uniform);
     wgpuQueueWriteBuffer(
         engine->queue,
         impl->uniform_buffer,

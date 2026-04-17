@@ -50,13 +50,16 @@ WGPUSurface flecsEngine_createSurface(
     WGPUInstance instance,
     GLFWwindow *window);
 
-/* Query and populate impl->surface_config, then configure the surface
+/* Query and populate surf->surface_config, then configure the surface
    (native) or create a swap chain (emscripten).  Returns 0 on success. */
 int flecsEngine_configureSurface(
-    FlecsEngineImpl *impl);
+    ecs_world_t *world,
+    FlecsEngineImpl *impl,
+    FlecsSurfaceImpl *surf);
 
 void flecsEngine_reconfigureSurface(
-    FlecsEngineImpl *impl);
+    FlecsEngineImpl *impl,
+    FlecsSurfaceImpl *surf);
 
 /* Get the current framebuffer size in pixels.
    On emscripten this reads the canvas CSS size × devicePixelRatio. */
@@ -67,6 +70,7 @@ void flecsEngine_getFramebufferSize(
 
 int flecsEngine_acquireFrame(
     FlecsEngineImpl *impl,
+    FlecsSurfaceImpl *surf,
     FlecsEngineSurface *target);
 
 /* Present the surface.  No-op on emscripten. */

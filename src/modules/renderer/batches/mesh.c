@@ -196,6 +196,7 @@ static void flecsEngine_transparent_mesh_deleteCtx(void *ptr)
 static void flecsEngine_transparent_mesh_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
@@ -228,8 +229,6 @@ static void flecsEngine_transparent_mesh_render(
     flecsEngine_sorted_instance_t *sorted =
         ecs_os_malloc_n(flecsEngine_sorted_instance_t, total_instances);
 
-    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
-    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
     float cam_x = view_impl->camera_pos[0];
     float cam_y = view_impl->camera_pos[1];
     float cam_z = view_impl->camera_pos[2];

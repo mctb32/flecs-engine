@@ -103,6 +103,7 @@ void flecsEngine_batch_ensureShadowCapacity(
 void flecsEngine_batch_group_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch,
     flecsEngine_batch_group_t *ctx,
     flecsEngine_primitive_scale_t scale_callback,
@@ -112,6 +113,7 @@ void flecsEngine_batch_group_extract(
 void flecsEngine_batch_group_extractShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch,
     flecsEngine_batch_group_t *ctx,
     flecsEngine_primitive_scale_t scale,
@@ -124,6 +126,7 @@ void flecsEngine_batch_group_draw(
 
 void flecsEngine_batch_group_drawShadow(
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_group_t *ctx);
 
@@ -189,32 +192,38 @@ void flecsEngine_mesh_onGroupDelete(
 void flecsEngine_mesh_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch);
 
 void flecsEngine_mesh_upload(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch);
 
 void flecsEngine_mesh_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch);
 
 void flecsEngine_mesh_extractShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch);
 
 void flecsEngine_mesh_uploadShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch);
 
 void flecsEngine_mesh_renderShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch);
 

@@ -60,6 +60,7 @@ bool flecsEngine_renderBatchSet_hasTransmission(
 void flecsEngine_renderBatchSet_extract(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set)
 {
     int32_t count = ecs_vec_count(&batch_set->batches);
@@ -74,17 +75,18 @@ void flecsEngine_renderBatchSet_extract(
         const FlecsRenderBatchSet *nested = ecs_get(
             world, batch_entity, FlecsRenderBatchSet);
         if (nested) {
-            flecsEngine_renderBatchSet_extract(world, engine, nested);
+            flecsEngine_renderBatchSet_extract(world, engine, view_impl, nested);
             continue;
         }
 
-        flecsEngine_renderBatch_extract(world, engine, batch_entity);
+        flecsEngine_renderBatch_extract(world, engine, view_impl, batch_entity);
     }
 }
 
 void flecsEngine_renderBatchSet_extractShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set)
 {
     int32_t count = ecs_vec_count(&batch_set->batches);
@@ -99,17 +101,18 @@ void flecsEngine_renderBatchSet_extractShadow(
         const FlecsRenderBatchSet *nested = ecs_get(
             world, batch_entity, FlecsRenderBatchSet);
         if (nested) {
-            flecsEngine_renderBatchSet_extractShadow(world, engine, nested);
+            flecsEngine_renderBatchSet_extractShadow(world, engine, view_impl, nested);
             continue;
         }
 
-        flecsEngine_renderBatch_extractShadow(world, engine, batch_entity);
+        flecsEngine_renderBatch_extractShadow(world, engine, view_impl, batch_entity);
     }
 }
 
 void flecsEngine_renderBatchSet_upload(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set)
 {
     int32_t count = ecs_vec_count(&batch_set->batches);
@@ -124,17 +127,18 @@ void flecsEngine_renderBatchSet_upload(
         const FlecsRenderBatchSet *nested = ecs_get(
             world, batch_entity, FlecsRenderBatchSet);
         if (nested) {
-            flecsEngine_renderBatchSet_upload(world, engine, nested);
+            flecsEngine_renderBatchSet_upload(world, engine, view_impl, nested);
             continue;
         }
 
-        flecsEngine_renderBatch_upload(world, engine, batch_entity);
+        flecsEngine_renderBatch_upload(world, engine, view_impl, batch_entity);
     }
 }
 
 void flecsEngine_renderBatchSet_uploadShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set)
 {
     int32_t count = ecs_vec_count(&batch_set->batches);
@@ -149,17 +153,18 @@ void flecsEngine_renderBatchSet_uploadShadow(
         const FlecsRenderBatchSet *nested = ecs_get(
             world, batch_entity, FlecsRenderBatchSet);
         if (nested) {
-            flecsEngine_renderBatchSet_uploadShadow(world, engine, nested);
+            flecsEngine_renderBatchSet_uploadShadow(world, engine, view_impl, nested);
             continue;
         }
 
-        flecsEngine_renderBatch_uploadShadow(world, engine, batch_entity);
+        flecsEngine_renderBatch_uploadShadow(world, engine, view_impl, batch_entity);
     }
 }
 
 void flecsEngine_renderBatchSet_render(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set,
     WGPURenderPassEncoder pass,
     const FlecsRenderView *view,
@@ -178,7 +183,7 @@ void flecsEngine_renderBatchSet_render(
             world, batch_entity, FlecsRenderBatchSet);
         if (nested) {
             flecsEngine_renderBatchSet_render(
-                world, engine, nested, pass, view, phase);
+                world, engine, view_impl, nested, pass, view, phase);
             continue;
         }
 
@@ -194,13 +199,14 @@ void flecsEngine_renderBatchSet_render(
         }
 
         flecsEngine_renderBatch_render(
-            world, engine, pass, view, batch_entity);
+            world, engine, view_impl, pass, view, batch_entity);
     }
 }
 
 void flecsEngine_renderBatchSet_renderShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set,
     WGPURenderPassEncoder pass)
 {
@@ -217,12 +223,12 @@ void flecsEngine_renderBatchSet_renderShadow(
             world, batch_entity, FlecsRenderBatchSet);
         if (nested) {
             flecsEngine_renderBatchSet_renderShadow(
-                world, engine, nested, pass);
+                world, engine, view_impl, nested, pass);
             continue;
         }
 
         flecsEngine_renderBatch_renderShadow(
-            world, engine, pass, batch_entity);
+            world, engine, view_impl, pass, batch_entity);
     }
 }
 

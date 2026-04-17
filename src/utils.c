@@ -169,13 +169,13 @@ WGPUTextureFormat flecsEngine_getHdrFormat(
     if (impl->hdr_color_format != WGPUTextureFormat_Undefined) {
         return impl->hdr_color_format;
     }
-    return impl->surface_config.format;
+    return impl->target_format;
 }
 
 WGPUTextureFormat flecsEngine_getViewTargetFormat(
     const FlecsEngineImpl *impl)
 {
-    return impl->surface_config.format;
+    return impl->target_format;
 }
 
 ecs_entity_t flecsEngine_vecEntity(

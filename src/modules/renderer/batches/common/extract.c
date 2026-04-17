@@ -3,6 +3,7 @@
 void flecsEngine_batch_group_extractTable(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch,
     flecsEngine_batch_group_t *ctx,
     flecsEngine_primitive_scale_t scale,
@@ -14,8 +15,6 @@ void flecsEngine_batch_group_extractTable(
     int32_t base = ctx->view.offset + ctx->view.count;
     int32_t dst = base;
 
-    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
-    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
     bool do_screen_cull = view_impl->screen_cull_valid;
     FlecsAABB mesh_aabb = ctx->mesh.aabb;
 
@@ -110,6 +109,7 @@ void flecsEngine_batch_group_extractTable(
 void flecsEngine_batch_group_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch,
     flecsEngine_batch_group_t *ctx,
     flecsEngine_primitive_scale_t scale,
@@ -117,20 +117,17 @@ void flecsEngine_batch_group_extract(
     ecs_size_t scale_size)
 {
     FLECS_TRACY_ZONE_BEGIN("ExtractGroup");
-    
+
     int32_t base = ctx->view.offset;
     ctx->view.count = 0;
 
-    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
-    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
     ecs_assert(view_impl->frustum_valid, ECS_INTERNAL_ERROR, NULL);
-    (void)view_impl;
 
     ecs_iter_t it = ecs_query_iter(world, batch->query);
     ecs_iter_set_group(&it, ctx->group_id);
     while (ecs_query_next(&it)) {
         flecsEngine_batch_group_extractTable(
-            world, engine, batch, ctx, scale, scale_aabb, scale_size, &it);
+            world, engine, view_impl, batch, ctx, scale, scale_aabb, scale_size, &it);
     }
 
     FLECS_TRACY_ZONE_END;
@@ -138,15 +135,14 @@ void flecsEngine_batch_group_extract(
 
 void flecsEngine_batch_group_extractShadowTable(
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     flecsEngine_batch_group_t *ctx,
     flecsEngine_primitive_scale_t scale,
     ecs_size_t scale_size,
     ecs_iter_t *it)
 {
+    (void)engine;
     flecsEngine_batch_t *buf = ctx->batch;
-
-    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
-    ecs_assert(view_impl != NULL, ECS_INTERNAL_ERROR, NULL);
 
     const void *scale_data = scale
         ? ecs_field_w_size(it, scale_size, 0) : NULL;
@@ -189,6 +185,7 @@ void flecsEngine_batch_group_extractShadowTable(
 void flecsEngine_batch_group_extractShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch,
     flecsEngine_batch_group_t *ctx,
     flecsEngine_primitive_scale_t scale,
@@ -202,8 +199,7 @@ void flecsEngine_batch_group_extractShadow(
         ctx->view.shadow_count[c] = 0;
     }
 
-    const FlecsRenderViewImpl *view_impl = engine->current_view_impl;
-    if (!view_impl || !view_impl->cascade_frustum_valid) {
+    if (!view_impl->cascade_frustum_valid) {
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -214,7 +210,7 @@ void flecsEngine_batch_group_extractShadow(
     }
     while (ecs_query_next(&it)) {
         flecsEngine_batch_group_extractShadowTable(
-            engine, ctx, scale, scale_size, &it);
+            engine, view_impl, ctx, scale, scale_size, &it);
     }
 
     FLECS_TRACY_ZONE_END;

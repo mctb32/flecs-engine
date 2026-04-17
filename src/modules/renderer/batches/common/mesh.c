@@ -68,6 +68,7 @@ void flecsEngine_mesh_deleteCtx(void *ptr)
 static void flecsEngine_mesh_extractGroup(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch,
     uint64_t group_id,
     flecsEngine_batch_t *shared)
@@ -90,12 +91,13 @@ static void flecsEngine_mesh_extractGroup(
 
     ctx->mesh = *mesh;
     ctx->batch = shared;
-    flecsEngine_batch_group_extract(world, engine, batch, ctx, NULL, NULL, 0);
+    flecsEngine_batch_group_extract(world, engine, view_impl, batch, ctx, NULL, NULL, 0);
 }
 
 void flecsEngine_mesh_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch)
 {
     FLECS_TRACY_ZONE_BEGIN("MeshExtract");
@@ -121,7 +123,7 @@ redo: {
 
             ctx->view.offset = total;
             flecsEngine_mesh_extractGroup(
-                world, engine, batch, group_id, shared);
+                world, engine, view_impl, batch, group_id, shared);
             total += ctx->view.count;
         }
 
@@ -139,21 +141,25 @@ redo: {
 void flecsEngine_mesh_upload(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch)
 {
     (void)world;
+    (void)view_impl;
     flecsEngine_batch_upload(engine, batch->ctx);
 }
 
 void flecsEngine_mesh_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     const FlecsRenderBatch *batch)
 {
     FLECS_TRACY_ZONE_BEGIN("MeshRender");
 
     (void)world;
+    (void)view_impl;
 
     flecsEngine_batch_t *buf = batch->ctx;
     flecsEngine_batch_bindMaterialGroup((FlecsEngineImpl*)engine, pass, buf);
