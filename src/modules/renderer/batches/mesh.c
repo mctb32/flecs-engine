@@ -31,9 +31,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .instance_types = {
-            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsGpuTransform),
             ecs_id(FlecsMaterialId)
         },
         .extract_callback = flecsEngine_mesh_extract,
@@ -80,9 +80,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .instance_types = {
-            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsGpuTransform),
             ecs_id(FlecsMaterialId)
         },
         .extract_callback = flecsEngine_mesh_extract,
@@ -129,9 +129,9 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .instance_types = {
-            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsGpuTransform),
             ecs_id(FlecsMaterialId)
         },
         .extract_callback = flecsEngine_mesh_extract,
@@ -244,7 +244,7 @@ static void flecsEngine_transparent_mesh_render(
         if (!ctx || !ctx->view.count) continue;
 
         for (int32_t j = 0; j < ctx->view.count; j ++) {
-            const FlecsInstanceTransform *t =
+            const FlecsGpuTransform *t =
                 &ctx->batch->buffers.cpu_transforms[ctx->view.offset + j];
             float dx = t->c3.x - cam_x;
             float dy = t->c3.y - cam_y;
@@ -268,9 +268,9 @@ static void flecsEngine_transparent_mesh_render(
     const FlecsRenderBatchImpl *self_impl =
         ecs_get(world, tctx->self_entity, FlecsRenderBatchImpl);
     wgpuRenderPassEncoderSetPipeline(pass, self_impl->pipeline_hdr);
-    if (engine->materials.texture_array_bind_group) {
+    if (engine->textures.array_bind_group) {
         wgpuRenderPassEncoderSetBindGroup(
-            pass, 1, engine->materials.texture_array_bind_group, 0, NULL);
+            pass, 1, engine->textures.array_bind_group, 0, NULL);
     }
 
     uint64_t active_group = 0;
@@ -307,13 +307,13 @@ static void flecsEngine_transparent_mesh_render(
         /* Bind this instance's transform and material id */
         int32_t global_index = ctx->view.offset + sorted[i].instance_index;
         uint64_t transform_offset =
-            (uint64_t)global_index * sizeof(FlecsInstanceTransform);
+            (uint64_t)global_index * sizeof(FlecsGpuTransform);
         uint64_t matid_offset =
             (uint64_t)global_index * sizeof(FlecsMaterialId);
 
         wgpuRenderPassEncoderSetVertexBuffer(
             pass, 1, buf->buffers.gpu_transforms,
-            transform_offset, sizeof(FlecsInstanceTransform));
+            transform_offset, sizeof(FlecsGpuTransform));
         wgpuRenderPassEncoderSetVertexBuffer(
             pass, 2, buf->buffers.gpu_material_ids,
             matid_offset, sizeof(FlecsMaterialId));
@@ -359,9 +359,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .instance_types = {
-            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsGpuTransform),
             ecs_id(FlecsMaterialId)
         },
         .depth_test = WGPUCompareFunction_Less,
@@ -421,9 +421,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmission(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .instance_types = {
-            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsGpuTransform),
             ecs_id(FlecsMaterialId)
         },
         .depth_write = false,
@@ -470,9 +470,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmissionData(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .instance_types = {
-            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsGpuTransform),
             ecs_id(FlecsMaterialId)
         },
         .depth_write = false,

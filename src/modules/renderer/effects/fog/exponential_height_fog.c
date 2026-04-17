@@ -302,6 +302,7 @@ static bool flecsEngine_heightFog_setup(
 static bool flecsEngine_heightFog_bind(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *impl,
@@ -315,7 +316,7 @@ static bool flecsEngine_heightFog_bind(
     ecs_assert(entry_count != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(*entry_count == 2, ECS_INVALID_PARAMETER, NULL);
 
-    if (!engine->depth.depth_texture_view) {
+    if (!view_impl || !view_impl->depth_texture_view) {
         return false;
     }
 
@@ -341,7 +342,7 @@ static bool flecsEngine_heightFog_bind(
 
     entries[2] = (WGPUBindGroupEntry){
         .binding = 2,
-        .textureView = engine->depth.depth_texture_view
+        .textureView = view_impl->depth_texture_view
     };
 
     entries[3] = (WGPUBindGroupEntry){

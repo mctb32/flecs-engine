@@ -91,7 +91,7 @@ static void page_bindings(ecs_strbuf_t *b, const FlecsEngineImpl *impl)
         "<table><tr><th>Binding</th><th>Type</th><th>Description</th></tr>");
 
     const char *g0[][3] = {
-        {"0",  "uniform",          "Frame uniforms (FlecsUniform)"},
+        {"0",  "uniform",          "Frame uniforms (FlecsGpuUniforms)"},
         {"1",  "texture_cube",     "IBL prefiltered env cubemap"},
         {"2",  "sampler",          "IBL sampler"},
         {"4",  "texture_cube",     "IBL irradiance cubemap"},
@@ -124,8 +124,8 @@ static void page_bindings(ecs_strbuf_t *b, const FlecsEngineImpl *impl)
     for (int ch = 0; ch < 4; ch++) {
         for (int b_idx = 0; b_idx < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b_idx++) {
             int binding = ch * FLECS_ENGINE_TEXTURE_BUCKET_COUNT + b_idx;
-            const flecs_engine_texture_bucket_t *bk =
-                &impl->materials.buckets[b_idx];
+            const flecsEngine_texture_bucket_t *bk =
+                &impl->textures.buckets[b_idx];
 
             const char *fmt_class = bk->is_bc7 ? "bc7" : "rgba";
             const char *fmt_name = bk->is_bc7 ? "BC7" : "RGBA8";
@@ -166,7 +166,7 @@ static void page_bindings(ecs_strbuf_t *b, const FlecsEngineImpl *impl)
     ecs_strbuf_appendlit(b, "<h2>Group 1 — Sampler</h2>");
     ecs_strbuf_append(b,
         "<p>Binding 12: filtering sampler (trilinear, 16x aniso, repeat) — %s</p>",
-        impl->materials.pbr_sampler ? "created" : "not created");
+        impl->textures.pbr_sampler ? "created" : "not created");
 
     html_tail(b);
 }
@@ -186,15 +186,15 @@ static void page_textures(
         impl->materials.count, impl->materials.buffer_capacity);
     ecs_strbuf_append(b,
         "<p>Bind group: %s</p>",
-        impl->materials.texture_array_bind_group ? "built" : "not built");
+        impl->textures.array_bind_group ? "built" : "not built");
 
     static const char *channel_names[4] = {
         "albedo", "emissive", "mr", "normal"
     };
 
     for (int b_idx = 0; b_idx < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b_idx++) {
-        const flecs_engine_texture_bucket_t *bk =
-            &impl->materials.buckets[b_idx];
+        const flecsEngine_texture_bucket_t *bk =
+            &impl->textures.buckets[b_idx];
 
         uint32_t total_layers = 0;
         for (int ch = 0; ch < 4; ch++) {
@@ -245,13 +245,13 @@ static void page_textures(
             }
             ecs_strbuf_appendlit(b, "</summary>");
 
-            if (lc && impl->materials.texture_query) {
+            if (lc && impl->textures.query) {
                 ecs_strbuf_appendlit(b,
                     "<table><tr><th>Slot</th><th>Path</th>"
                     "<th>Source</th><th>Actual</th></tr>");
 
                 ecs_iter_t it = ecs_query_iter(
-                    world, impl->materials.texture_query);
+                    world, impl->textures.query);
                 while (ecs_query_next(&it)) {
                     const FlecsPbrTextures *textures =
                         ecs_field(&it, FlecsPbrTextures, 0);
@@ -327,8 +327,8 @@ static void page_textures(
     ecs_strbuf_appendlit(b, "<h2>Total Memory Estimate</h2>");
     float total_mib = 0;
     for (int b_idx = 0; b_idx < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b_idx++) {
-        const flecs_engine_texture_bucket_t *bk =
-            &impl->materials.buckets[b_idx];
+        const flecsEngine_texture_bucket_t *bk =
+            &impl->textures.buckets[b_idx];
         if (!bk->width) continue;
         float bpp = bk->is_bc7 ? 1.0f : 4.0f;
         for (int ch = 0; ch < 4; ch++) {
@@ -343,13 +343,13 @@ static void page_textures(
         (double)total_mib, (double)(total_mib / 1024.0f));
 
     ecs_strbuf_appendlit(b, "<h2>Source Memory (hypothetical)</h2>");
-    if (impl->materials.texture_query) {
+    if (impl->textures.query) {
         uint32_t seen_cap = (impl->materials.count + 1) * 4;
         ecs_entity_t *seen = ecs_os_calloc_n(ecs_entity_t, seen_cap);
         uint32_t seen_count = 0;
         float source_mib = 0;
 
-        ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
+        ecs_iter_t it = ecs_query_iter(world, impl->textures.query);
         while (ecs_query_next(&it)) {
             const FlecsPbrTextures *textures =
                 ecs_field(&it, FlecsPbrTextures, 0);

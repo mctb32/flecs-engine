@@ -1464,6 +1464,7 @@ static bool flecsEngine_atmos_runAerial(
 
 static bool flecsEngine_atmos_runCompose(
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const FlecsAtmosphereImpl *a,
     WGPUCommandEncoder encoder,
     WGPUTextureView input_view,
@@ -1472,14 +1473,14 @@ static bool flecsEngine_atmos_runCompose(
     WGPULoadOp output_load_op)
 {
     FLECS_TRACY_ZONE_BEGIN("AtmosCompose");
-    if (!engine->depth.depth_texture_view) {
+    if (!view_impl->depth_texture_view) {
         FLECS_TRACY_ZONE_END;
         return false;
     }
     WGPUBindGroupEntry entries[8] = {
         { .binding = 0, .textureView = input_view },
         { .binding = 1, .sampler = a->clamp_sampler },
-        { .binding = 2, .textureView = engine->depth.depth_texture_view },
+        { .binding = 2, .textureView = view_impl->depth_texture_view },
         { .binding = 3, .buffer = a->uniform_buffer,
           .offset = 0, .size = sizeof(FlecsAtmosphereUniform) },
         { .binding = 4, .textureView = a->trans_view },
@@ -1614,6 +1615,7 @@ bool flecsEngine_atmosphere_renderIbl(
 bool flecsEngine_atmosphere_renderCompose(
     ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     ecs_entity_t atmosphere_entity,
     WGPUCommandEncoder encoder,
     WGPUTextureView input_view,
@@ -1625,7 +1627,8 @@ bool flecsEngine_atmosphere_renderCompose(
         world, atmosphere_entity, FlecsAtmosphereImpl);
     if (!a) return false;
     return flecsEngine_atmos_runCompose(
-        engine, a, encoder, input_view, output_view, output_format, output_load_op);
+        engine, view_impl, a, encoder, input_view, output_view, output_format,
+        output_load_op);
 }
 
 /* CPU transmittance function for calculating light color from time of day */

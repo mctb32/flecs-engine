@@ -7,7 +7,7 @@ void flecsEngine_batch_bindMaterialGroup(
 {
     WGPUBindGroup group = (buf->flags & FLECS_BATCH_OWNS_MATERIAL)
         ? buf->buffers.gpu_material_bind_group
-        : flecsEngine_materialBind_ensureScene(engine);
+        : flecsEngine_materialBind_ensure(engine);
 
     if (group) {
         wgpuRenderPassEncoderSetBindGroup(pass, 2, group, 0, NULL);
@@ -37,9 +37,9 @@ void flecsEngine_batch_group_draw(
     }
 
     uint64_t transform_offset =
-        (uint64_t)ctx->view.offset * sizeof(FlecsInstanceTransform);
+        (uint64_t)ctx->view.offset * sizeof(FlecsGpuTransform);
     uint64_t transform_size =
-        (uint64_t)ctx->view.count * sizeof(FlecsInstanceTransform);
+        (uint64_t)ctx->view.count * sizeof(FlecsGpuTransform);
 
     wgpuRenderPassEncoderSetVertexBuffer(
         pass, 0, ctx->mesh.vertex_uv_buffer, 0, WGPU_WHOLE_SIZE);
@@ -52,7 +52,7 @@ void flecsEngine_batch_group_draw(
          * the shared cpu_materials array. */
         int32_t identity_end = ctx->view.offset + ctx->view.count;
         WGPUBuffer identity =
-            flecsEngine_defaultAttrCache_getMaterialIdIdentityBuffer(
+            flecsEngine_material_getIdIdentityBuffer(
                 (FlecsEngineImpl*)engine, identity_end);
         wgpuRenderPassEncoderSetVertexBuffer(pass, 2, identity,
             (uint64_t)ctx->view.offset * sizeof(FlecsMaterialId),
@@ -95,9 +95,9 @@ void flecsEngine_batch_group_drawShadow(
     }
 
     uint64_t transform_offset =
-        (uint64_t)ctx->view.shadow_offset[cascade] * sizeof(FlecsInstanceTransform);
+        (uint64_t)ctx->view.shadow_offset[cascade] * sizeof(FlecsGpuTransform);
     uint64_t transform_size =
-        (uint64_t)count * sizeof(FlecsInstanceTransform);
+        (uint64_t)count * sizeof(FlecsGpuTransform);
 
     wgpuRenderPassEncoderSetVertexBuffer(
         pass, 0, ctx->mesh.vertex_buffer, 0, WGPU_WHOLE_SIZE);
@@ -107,7 +107,7 @@ void flecsEngine_batch_group_drawShadow(
 
     if ((buf->flags & FLECS_BATCH_OWNS_MATERIAL)) {
         WGPUBuffer identity =
-            flecsEngine_defaultAttrCache_getMaterialIdIdentityBuffer(
+            flecsEngine_material_getIdIdentityBuffer(
                 (FlecsEngineImpl*)engine, count);
         wgpuRenderPassEncoderSetVertexBuffer(pass, 2, identity, 0,
             (uint64_t)count * sizeof(FlecsMaterialId));

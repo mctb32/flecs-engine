@@ -4,19 +4,19 @@
 WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
     FlecsEngineImpl *impl)
 {
-    if (impl->ibl_shadow_bind_layout) {
-        return impl->ibl_shadow_bind_layout;
+    if (impl->scene_bind_layout) {
+        return impl->scene_bind_layout;
     }
 
     flecsEngine_material_ensureBuffer(impl);
 
     WGPUBindGroupLayoutEntry layout_entries[11] = {
-        { /* 0: Frame uniform (FlecsUniform) */
+        { /* 0: Frame uniform (FlecsGpuUniforms) */
             .binding = 0,
             .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
             .buffer = {
                 .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(FlecsUniform)
+                .minBindingSize = sizeof(FlecsGpuUniforms)
             }
         },
         { /* 1: IBL prefiltered env cubemap */
@@ -103,14 +103,14 @@ WGPUBindGroupLayout flecsEngine_globals_ensureBindLayout(
         }
     };
 
-    impl->ibl_shadow_bind_layout = wgpuDeviceCreateBindGroupLayout(
+    impl->scene_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device,
         &(WGPUBindGroupLayoutDescriptor){
             .entryCount = 11,
             .entries = layout_entries
         });
 
-    return impl->ibl_shadow_bind_layout;
+    return impl->scene_bind_layout;
 }
 
 bool flecsEngine_globals_createBindGroup(
@@ -124,7 +124,7 @@ bool flecsEngine_globals_createBindGroup(
         view_impl->scene_bind_group = NULL;
     }
 
-    WGPUBindGroupLayout bind_layout = engine->ibl_shadow_bind_layout;
+    WGPUBindGroupLayout bind_layout = engine->scene_bind_layout;
     if (!bind_layout) {
         return false;
     }
@@ -156,7 +156,7 @@ bool flecsEngine_globals_createBindGroup(
                 {
                     .binding = 0,
                     .buffer = view_impl->frame_uniform_buffer,
-                    .size = sizeof(FlecsUniform)
+                    .size = sizeof(FlecsGpuUniforms)
                 },
                 {
                     .binding = 1,
@@ -171,7 +171,7 @@ bool flecsEngine_globals_createBindGroup(
                     .binding = 3,
                     .textureView = view_impl->opaque_snapshot.view
                         ? view_impl->opaque_snapshot.view
-                        : engine->materials.fallback_white_2d_view
+                        : engine->textures.fallback_white_view
                 },
                 {
                     .binding = 4,

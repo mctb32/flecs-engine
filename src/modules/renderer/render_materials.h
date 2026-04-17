@@ -27,10 +27,10 @@ WGPUBindGroup flecsEngine_materialBind_createGroup(
     WGPUBuffer buffer,
     uint64_t size);
 
-WGPUBindGroup flecsEngine_materialBind_ensureScene(
+WGPUBindGroup flecsEngine_materialBind_ensure(
     FlecsEngineImpl *impl);
 
-void flecsEngine_materialBind_releaseScene(
+void flecsEngine_materialBind_release(
     FlecsEngineImpl *impl);
 
 void flecsEngine_material_ensureBuffer(
@@ -44,14 +44,14 @@ FlecsGpuMaterial flecsEngine_material_pack(
     const FlecsTransmission *transmission,
     const FlecsTextureTransform *tex_transform);
 
-FlecsDefaultAttrCache* flecsEngine_defaultAttrCache_create(void);
+flecsEngine_default_attr_cache_t* flecsEngine_defaultAttrCache_create(void);
 
-WGPUBuffer flecsEngine_defaultAttrCache_getMaterialIdIdentityBuffer(
+WGPUBuffer flecsEngine_material_getIdIdentityBuffer(
     FlecsEngineImpl *engine,
     int32_t count);
 
 void flecsEngine_defaultAttrCache_free(
-    FlecsDefaultAttrCache *ptr);
+    flecsEngine_default_attr_cache_t *ptr);
 
 FlecsPbrMaterial* flecsEngine_defaultAttrCache_getMaterial(
     const FlecsEngineImpl *engine,

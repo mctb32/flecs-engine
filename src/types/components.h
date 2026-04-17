@@ -17,6 +17,10 @@ struct FlecsSurfaceImpl {
     WGPUTexture offscreen_texture;
     WGPUTextureView offscreen_view;
     bool done;
+
+    /* Previous sample count, used to detect MSAA changes and trigger batch
+     * pipeline rebuilds when the surface's sample_count changes. */
+    int32_t prev_sample_count;
 };
 
 extern ECS_COMPONENT_DECLARE(FlecsSurfaceImpl);
@@ -35,9 +39,9 @@ typedef struct {
 extern ECS_COMPONENT_DECLARE(FlecsHdriImpl);
 
 typedef struct {
-    WGPUBuffer vertex_buffer;    /* vec<FlecsVertex> — position only, used
+    WGPUBuffer vertex_buffer;    /* vec<FlecsGpuVertex> — position only, used
                                   * by the shadow depth pass */
-    WGPUBuffer vertex_uv_buffer; /* vec<FlecsLitVertexUv>, always built
+    WGPUBuffer vertex_uv_buffer; /* vec<FlecsGpuVertexLitUv>, always built
                                   * (zero UVs/tangents if the source had none) */
     WGPUBuffer index_buffer;     /* vec<uint32_t> */
     int32_t vertex_count;
@@ -97,6 +101,25 @@ typedef struct {
 } flecs_view_opaque_snapshot_t;
 
 struct FlecsRenderViewImpl {
+    /* Per-view depth target. Written by the main batch pass and read by
+     * SSAO/fog/sunshafts/atmosphere compose. */
+    WGPUTexture depth_texture;
+    WGPUTextureView depth_texture_view;
+    uint32_t depth_texture_width;
+    uint32_t depth_texture_height;
+
+    /* Per-view MSAA color + depth targets. The main color is resolved into
+     * effect_target_views[0]; the MSAA depth is resolved into depth_texture
+     * via the depth_resolve pipeline. */
+    WGPUTexture msaa_color_texture;
+    WGPUTextureView msaa_color_texture_view;
+    WGPUTexture msaa_depth_texture;
+    WGPUTextureView msaa_depth_texture_view;
+    uint32_t msaa_texture_width;
+    uint32_t msaa_texture_height;
+    int32_t msaa_texture_sample_count;
+    WGPUTextureFormat msaa_color_format;
+
     WGPUTexture *effect_target_textures;
     WGPUTextureView *effect_target_views;
     int32_t effect_target_count;

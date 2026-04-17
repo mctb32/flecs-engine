@@ -108,6 +108,7 @@ static WGPURenderPassEncoder flecsEngine_renderEffect_beginPass(
 void flecsEngine_renderEffect_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
@@ -129,6 +130,7 @@ void flecsEngine_renderEffect_render(
         bool bind_ok = effect->bind_callback(
             world,
             engine,
+            view_impl,
             effect_entity,
             effect,
             impl,
@@ -205,12 +207,12 @@ void flecsEngine_renderView_renderEffects(
         if (!viewImpl->passthrough_bind_group) {
             WGPUBindGroupEntry entries[2] = {
                 { .binding = 0, .textureView = viewImpl->effect_target_views[0] },
-                { .binding = 1, .sampler = engine->depth.passthrough_sampler }
+                { .binding = 1, .sampler = engine->pipelines.passthrough_sampler }
             };
             viewImpl->passthrough_bind_group = wgpuDeviceCreateBindGroup(
                 engine->device,
                 &(WGPUBindGroupDescriptor){
-                    .layout = engine->depth.passthrough_bind_layout,
+                    .layout = engine->pipelines.passthrough_bind_layout,
                     .entryCount = 2,
                     .entries = entries
                 });
@@ -218,7 +220,7 @@ void flecsEngine_renderView_renderEffects(
 
         WGPURenderPassEncoder pass = flecsEngine_renderEffect_beginPass(
             engine, view, encoder, view_texture, WGPULoadOp_Load);
-        wgpuRenderPassEncoderSetPipeline(pass, engine->depth.passthrough_pipeline);
+        wgpuRenderPassEncoderSetPipeline(pass, engine->pipelines.passthrough_pipeline);
         wgpuRenderPassEncoderSetBindGroup(pass, 0,
             viewImpl->passthrough_bind_group, 0, NULL);
         wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
@@ -270,6 +272,7 @@ void flecsEngine_renderView_renderEffects(
             bool render_ok = effect->render_callback(
                 world,
                 engine,
+                viewImpl,
                 encoder,
                 entity,
                 effect,
@@ -298,6 +301,7 @@ void flecsEngine_renderView_renderEffects(
         flecsEngine_renderEffect_render(
             world,
             engine,
+            viewImpl,
             effect_pass,
             entity,
             effect,
@@ -318,18 +322,18 @@ void flecsEngine_renderView_renderEffects(
 
         WGPUBindGroupEntry entries[2] = {
             { .binding = 0, .textureView = upscale_input },
-            { .binding = 1, .sampler = engine->depth.passthrough_sampler }
+            { .binding = 1, .sampler = engine->pipelines.passthrough_sampler }
         };
         WGPUBindGroup bg = wgpuDeviceCreateBindGroup(engine->device,
             &(WGPUBindGroupDescriptor){
-                .layout = engine->depth.passthrough_bind_layout,
+                .layout = engine->pipelines.passthrough_bind_layout,
                 .entryCount = 2,
                 .entries = entries
             });
 
         WGPURenderPassEncoder pass = flecsEngine_renderEffect_beginPass(
             engine, view, encoder, view_texture, WGPULoadOp_Load);
-        wgpuRenderPassEncoderSetPipeline(pass, engine->depth.passthrough_pipeline);
+        wgpuRenderPassEncoderSetPipeline(pass, engine->pipelines.passthrough_pipeline);
         wgpuRenderPassEncoderSetBindGroup(pass, 0, bg, 0, NULL);
         wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
         wgpuRenderPassEncoderEnd(pass);

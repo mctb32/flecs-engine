@@ -193,6 +193,7 @@ static bool flecsEngine_tony_setup(
 static bool flecsEngine_tony_bind(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *impl,
@@ -200,6 +201,7 @@ static bool flecsEngine_tony_bind(
     uint32_t *entry_count)
 {
     (void)engine;
+    (void)view_impl;
     (void)effect;
     (void)impl;
 

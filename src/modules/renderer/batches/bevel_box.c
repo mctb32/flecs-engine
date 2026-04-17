@@ -18,7 +18,7 @@ typedef struct {
 } flecsEngine_bevel_box_batch_t;
 
 static void flecsEngine_bevel_box_setInstance(
-    FlecsInstanceTransform *out,
+    FlecsGpuTransform *out,
     const FlecsWorldTransform3 *wt,
     float lc0_x, float lc0_y, float lc0_z,
     float lc1_x, float lc1_y, float lc1_z,
@@ -43,7 +43,7 @@ static void flecsEngine_bevel_box_setInstance(
 }
 
 static void flecsEngine_bevel_box_generateQuads(
-    FlecsInstanceTransform *t,
+    FlecsGpuTransform *t,
     int32_t base,
     const FlecsWorldTransform3 *wt,
     float w, float h, float d, float r)
@@ -66,7 +66,7 @@ static void flecsEngine_bevel_box_generateQuads(
 }
 
 static void flecsEngine_bevel_box_generateBevels(
-    FlecsInstanceTransform *t,
+    FlecsGpuTransform *t,
     int32_t base,
     const FlecsWorldTransform3 *wt,
     float w, float h, float d, float r)
@@ -104,7 +104,7 @@ static void flecsEngine_bevel_box_generateBevels(
 }
 
 static void flecsEngine_bevel_box_generateCorners(
-    FlecsInstanceTransform *t,
+    FlecsGpuTransform *t,
     int32_t base,
     const FlecsWorldTransform3 *wt,
     float w, float h, float d, float r)
@@ -405,9 +405,9 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .instance_types = {
-            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsGpuTransform),
             ecs_id(FlecsMaterialId)
         },
         .extract_callback = flecsEngine_bevel_box_extract,
@@ -443,9 +443,9 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .instance_types = {
-            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsGpuTransform),
             ecs_id(FlecsMaterialId)
         },
         .extract_callback = flecsEngine_bevel_box_extract,

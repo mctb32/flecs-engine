@@ -18,7 +18,7 @@ int flecsEngine_initPassthrough(
         return -1;
     }
 
-    impl->depth.passthrough_sampler = wgpuDeviceCreateSampler(impl->device,
+    impl->pipelines.passthrough_sampler = wgpuDeviceCreateSampler(impl->device,
         &(WGPUSamplerDescriptor){
             .addressModeU = WGPUAddressMode_ClampToEdge,
             .addressModeV = WGPUAddressMode_ClampToEdge,
@@ -30,7 +30,7 @@ int flecsEngine_initPassthrough(
             .lodMaxClamp = 32.0f,
             .maxAnisotropy = 1
         });
-    if (!impl->depth.passthrough_sampler) {
+    if (!impl->pipelines.passthrough_sampler) {
         wgpuShaderModuleRelease(module);
         return -1;
     }
@@ -51,12 +51,12 @@ int flecsEngine_initPassthrough(
         }
     };
 
-    impl->depth.passthrough_bind_layout = wgpuDeviceCreateBindGroupLayout(
+    impl->pipelines.passthrough_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device, &(WGPUBindGroupLayoutDescriptor){
             .entries = layout_entries,
             .entryCount = 2
         });
-    if (!impl->depth.passthrough_bind_layout) {
+    if (!impl->pipelines.passthrough_bind_layout) {
         wgpuShaderModuleRelease(module);
         return -1;
     }
@@ -66,10 +66,10 @@ int flecsEngine_initPassthrough(
         .writeMask = WGPUColorWriteMask_All
     };
 
-    impl->depth.passthrough_pipeline = flecsEngine_createFullscreenPipeline(
-        impl, module, impl->depth.passthrough_bind_layout, &color_target, NULL);
+    impl->pipelines.passthrough_pipeline = flecsEngine_createFullscreenPipeline(
+        impl, module, impl->pipelines.passthrough_bind_layout, &color_target, NULL);
 
     wgpuShaderModuleRelease(module);
 
-    return impl->depth.passthrough_pipeline ? 0 : -1;
+    return impl->pipelines.passthrough_pipeline ? 0 : -1;
 }

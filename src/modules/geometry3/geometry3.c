@@ -273,13 +273,13 @@ static void FlecsMesh3_on_set(
 
         /* Position-only buffer for the shadow depth pass. */
         {
-            int32_t vert_size = vert_count * (int32_t)sizeof(FlecsVertex);
+            int32_t vert_size = vert_count * (int32_t)sizeof(FlecsGpuVertex);
             WGPUBufferDescriptor vert_desc = {
                 .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                 .size = (uint64_t)vert_size
             };
 
-            FlecsVertex *verts = ecs_os_malloc_n(FlecsVertex, vert_count);
+            FlecsGpuVertex *verts = ecs_os_malloc_n(FlecsGpuVertex, vert_count);
             for (int v = 0; v < vert_count; v ++) {
                 verts[v].p = mesh_vertices[v];
             }
@@ -296,13 +296,13 @@ static void FlecsMesh3_on_set(
          * UVs + zero tangents don't matter. This lets one unified shader
          * handle both textured and non-textured geometry. */
         {
-            int32_t vert_uv_size = vert_count * (int32_t)sizeof(FlecsLitVertexUv);
+            int32_t vert_uv_size = vert_count * (int32_t)sizeof(FlecsGpuVertexLitUv);
             WGPUBufferDescriptor vert_uv_desc = {
                 .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
                 .size = (uint64_t)vert_uv_size
             };
 
-            FlecsLitVertexUv *uv_verts = ecs_os_malloc_n(FlecsLitVertexUv, vert_count);
+            FlecsGpuVertexLitUv *uv_verts = ecs_os_malloc_n(FlecsGpuVertexLitUv, vert_count);
 
             if (has_uvs) {
                 flecs_vec2_t *mesh_uvs = ecs_vec_first_t(&mesh[i].uvs, flecs_vec2_t);

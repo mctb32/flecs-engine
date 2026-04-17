@@ -96,10 +96,10 @@ void flecsEngine_batch_ensureShadowCapacity(
         buf->buffers.gpu_shadow_transforms[c] = wgpuDeviceCreateBuffer(engine->device,
             &(WGPUBufferDescriptor){
                 .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
-                .size = (uint64_t)new_capacity * sizeof(FlecsInstanceTransform)
+                .size = (uint64_t)new_capacity * sizeof(FlecsGpuTransform)
             });
         buf->buffers.cpu_shadow_transforms[c] =
-            ecs_os_malloc_n(FlecsInstanceTransform, new_capacity);
+            ecs_os_malloc_n(FlecsGpuTransform, new_capacity);
     }
 
     buf->buffers.shadow_capacity = new_capacity;
@@ -119,7 +119,7 @@ void flecsEngine_batch_uploadShadow(
             buf->buffers.gpu_shadow_transforms[c],
             0,
             buf->buffers.cpu_shadow_transforms[c],
-            (uint64_t)count * sizeof(FlecsInstanceTransform));
+            (uint64_t)count * sizeof(FlecsGpuTransform));
     }
 }
 
@@ -155,9 +155,9 @@ void flecsEngine_batch_ensureCapacity(
 
     /* Transforms are always needed. */
     buf->buffers.gpu_transforms = flecsEngine_makeVertexBuffer(device,
-        (uint64_t)new_capacity * sizeof(FlecsInstanceTransform));
+        (uint64_t)new_capacity * sizeof(FlecsGpuTransform));
     buf->buffers.cpu_transforms =
-        ecs_os_malloc_n(FlecsInstanceTransform, new_capacity);
+        ecs_os_malloc_n(FlecsGpuTransform, new_capacity);
 
     if (!(buf->flags & FLECS_BATCH_OWNS_MATERIAL)) {
         buf->buffers.gpu_material_ids = flecsEngine_makeVertexBuffer(device,
@@ -199,7 +199,7 @@ void flecsEngine_batch_upload(
     wgpuQueueWriteBuffer(queue,
         buf->buffers.gpu_transforms, 0,
         buf->buffers.cpu_transforms,
-        (uint64_t)count * sizeof(FlecsInstanceTransform));
+        (uint64_t)count * sizeof(FlecsGpuTransform));
 
     if (!(buf->flags & FLECS_BATCH_OWNS_MATERIAL)) {
         wgpuQueueWriteBuffer(queue,
@@ -256,7 +256,7 @@ void flecsEngine_batch_group_delete(
 /* --- Extract / Draw --- */
 
 void flecsEngine_batch_transformInstance(
-    FlecsInstanceTransform *out,
+    FlecsGpuTransform *out,
     const FlecsWorldTransform3 *wt,
     float scale_x,
     float scale_y,

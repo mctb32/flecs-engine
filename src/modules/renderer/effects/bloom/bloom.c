@@ -664,6 +664,7 @@ static bool flecsEngine_bloom_setup(
 static bool flecsEngine_bloom_renderPassthrough(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *effect_impl,
@@ -694,6 +695,7 @@ static bool flecsEngine_bloom_renderPassthrough(
     flecsEngine_renderEffect_render(
         world,
         engine,
+        view_impl,
         pass,
         effect_entity,
         effect,
@@ -708,6 +710,7 @@ static bool flecsEngine_bloom_renderPassthrough(
 static bool flecsEngine_bloom_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
@@ -729,6 +732,7 @@ static bool flecsEngine_bloom_render(
         return flecsEngine_bloom_renderPassthrough(
             world,
             engine,
+            view_impl,
             effect_entity,
             effect,
             effect_impl,
@@ -812,6 +816,7 @@ static bool flecsEngine_bloom_render(
     if (!flecsEngine_bloom_renderPassthrough(
         world,
         engine,
+        view_impl,
         effect_entity,
         effect,
         effect_impl,

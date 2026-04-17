@@ -42,7 +42,7 @@ static const char *kMipGenShaderSource =
 static void flecsEngine_textureArray_ensureBlitPipeline(
     FlecsEngineImpl *impl)
 {
-    if (impl->materials.blit_pipeline) return;
+    if (impl->textures.blit_pipeline) return;
 
     WGPUBindGroupLayoutEntry blit_entries[2] = {0};
     blit_entries[0].binding = 0;
@@ -53,7 +53,7 @@ static void flecsEngine_textureArray_ensureBlitPipeline(
     blit_entries[1].visibility = WGPUShaderStage_Fragment;
     blit_entries[1].sampler.type = WGPUSamplerBindingType_Filtering;
 
-    impl->materials.blit_bind_layout = wgpuDeviceCreateBindGroupLayout(
+    impl->textures.blit_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device, &(WGPUBindGroupLayoutDescriptor){
             .entries = blit_entries,
             .entryCount = 2
@@ -62,7 +62,7 @@ static void flecsEngine_textureArray_ensureBlitPipeline(
     WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
         impl->device, &(WGPUPipelineLayoutDescriptor){
             .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &impl->materials.blit_bind_layout
+            .bindGroupLayouts = &impl->textures.blit_bind_layout
         });
 
     WGPUShaderSourceWGSL wgsl_src = {
@@ -79,7 +79,7 @@ static void flecsEngine_textureArray_ensureBlitPipeline(
         .writeMask = WGPUColorWriteMask_All
     };
 
-    impl->materials.blit_pipeline = wgpuDeviceCreateRenderPipeline(
+    impl->textures.blit_pipeline = wgpuDeviceCreateRenderPipeline(
         impl->device, &(WGPURenderPipelineDescriptor){
             .layout = pipeline_layout,
             .vertex = {
@@ -104,7 +104,7 @@ static void flecsEngine_textureArray_ensureBlitPipeline(
     wgpuShaderModuleRelease(module);
 
     /* Linear-filter, clamp-to-edge sampler used for the blit. */
-    impl->materials.blit_sampler = wgpuDeviceCreateSampler(
+    impl->textures.blit_sampler = wgpuDeviceCreateSampler(
         impl->device, &(WGPUSamplerDescriptor){
             .addressModeU = WGPUAddressMode_ClampToEdge,
             .addressModeV = WGPUAddressMode_ClampToEdge,
@@ -121,7 +121,7 @@ static void flecsEngine_textureArray_ensureBlitPipeline(
 static void flecsEngine_textureArray_ensureMipGenPipeline(
     FlecsEngineImpl *impl)
 {
-    if (impl->materials.mipgen_pipeline) return;
+    if (impl->textures.mipgen_pipeline) return;
 
     WGPUBindGroupLayoutEntry mip_entries[2] = {0};
     mip_entries[0].binding = 0;
@@ -135,7 +135,7 @@ static void flecsEngine_textureArray_ensureMipGenPipeline(
     mip_entries[1].storageTexture.viewDimension =
         WGPUTextureViewDimension_2DArray;
 
-    impl->materials.mipgen_bind_layout = wgpuDeviceCreateBindGroupLayout(
+    impl->textures.mipgen_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device, &(WGPUBindGroupLayoutDescriptor){
             .entries = mip_entries,
             .entryCount = 2
@@ -144,7 +144,7 @@ static void flecsEngine_textureArray_ensureMipGenPipeline(
     WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
         impl->device, &(WGPUPipelineLayoutDescriptor){
             .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &impl->materials.mipgen_bind_layout
+            .bindGroupLayouts = &impl->textures.mipgen_bind_layout
         });
 
     WGPUShaderSourceWGSL wgsl_src = {
@@ -156,7 +156,7 @@ static void flecsEngine_textureArray_ensureMipGenPipeline(
             .nextInChain = &wgsl_src.chain
         });
 
-    impl->materials.mipgen_pipeline = wgpuDeviceCreateComputePipeline(
+    impl->textures.mipgen_pipeline = wgpuDeviceCreateComputePipeline(
         impl->device, &(WGPUComputePipelineDescriptor){
             .layout = pipeline_layout,
             .compute = {
@@ -179,11 +179,11 @@ static void flecsEngine_textureArray_doBlit(
 {
     WGPUBindGroupEntry bg_entries[2] = {
         { .binding = 0, .textureView = src_2d_view },
-        { .binding = 1, .sampler = impl->materials.blit_sampler }
+        { .binding = 1, .sampler = impl->textures.blit_sampler }
     };
     WGPUBindGroup bg = wgpuDeviceCreateBindGroup(
         impl->device, &(WGPUBindGroupDescriptor){
-            .layout = impl->materials.blit_bind_layout,
+            .layout = impl->textures.blit_bind_layout,
             .entries = bg_entries,
             .entryCount = 2
         });
@@ -200,7 +200,7 @@ static void flecsEngine_textureArray_doBlit(
             .colorAttachmentCount = 1,
             .colorAttachments = &color_att
         });
-    wgpuRenderPassEncoderSetPipeline(pass, impl->materials.blit_pipeline);
+    wgpuRenderPassEncoderSetPipeline(pass, impl->textures.blit_pipeline);
     wgpuRenderPassEncoderSetBindGroup(pass, 0, bg, 0, NULL);
     wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
     wgpuRenderPassEncoderEnd(pass);
@@ -247,14 +247,14 @@ static void flecsEngine_textureArray_genMipsForChannel(
         };
         WGPUBindGroup bg = wgpuDeviceCreateBindGroup(
             impl->device, &(WGPUBindGroupDescriptor){
-                .layout = impl->materials.mipgen_bind_layout,
+                .layout = impl->textures.mipgen_bind_layout,
                 .entries = bg_entries,
                 .entryCount = 2
             });
 
         WGPUComputePassEncoder cpass = wgpuCommandEncoderBeginComputePass(
             encoder, &(WGPUComputePassDescriptor){0});
-        wgpuComputePassEncoderSetPipeline(cpass, impl->materials.mipgen_pipeline);
+        wgpuComputePassEncoderSetPipeline(cpass, impl->textures.mipgen_pipeline);
         wgpuComputePassEncoderSetBindGroup(cpass, 0, bg, 0, NULL);
         wgpuComputePassEncoderDispatchWorkgroups(
             cpass,
@@ -280,7 +280,7 @@ void flecsEngine_textureArray_blitTextures(
     WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(
         impl->device, &(WGPUCommandEncoderDescriptor){0});
 
-    ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
+    ecs_iter_t it = ecs_query_iter(world, impl->textures.query);
     while (ecs_query_next(&it)) {
         const FlecsPbrTextures *textures =
             ecs_field(&it, FlecsPbrTextures, 0);
@@ -296,7 +296,7 @@ void flecsEngine_textureArray_blitTextures(
             uint8_t bucket = (uint8_t)gm->texture_bucket;
             if (bucket >= FLECS_ENGINE_TEXTURE_BUCKET_COUNT) continue;
 
-            flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket];
+            flecsEngine_texture_bucket_t *bk = &impl->textures.buckets[bucket];
             if (bk->is_bc7) continue;  /* handled by BC7 copy path */
 
             ecs_entity_t tex_entities[4] = {
@@ -363,7 +363,7 @@ void flecsEngine_textureArray_blitTextures(
     /* Generate mips 1..N for every populated RGBA8 (bucket, channel).
      * BC7 buckets use source mips directly — no generation needed. */
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
-        flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[b];
+        flecsEngine_texture_bucket_t *bk = &impl->textures.buckets[b];
         if (bk->is_bc7 || bk->mip_count <= 1) continue;
         for (int ch = 0; ch < 4; ch++) {
             if (!bk->layer_counts[ch] || !bk->texture_arrays[ch]) continue;
@@ -438,7 +438,7 @@ void flecsEngine_textureArray_copyTextures_bc7(
 
     bool any_work = false;
 
-    ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
+    ecs_iter_t it = ecs_query_iter(world, impl->textures.query);
     while (ecs_query_next(&it)) {
         const FlecsPbrTextures *textures =
             ecs_field(&it, FlecsPbrTextures, 0);
@@ -454,7 +454,7 @@ void flecsEngine_textureArray_copyTextures_bc7(
             uint8_t bucket = (uint8_t)gm->texture_bucket;
             if (bucket >= FLECS_ENGINE_TEXTURE_BUCKET_COUNT) continue;
 
-            flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket];
+            flecsEngine_texture_bucket_t *bk = &impl->textures.buckets[bucket];
             if (!bk->is_bc7) continue;  /* RGBA8 buckets handled by blit */
 
             ecs_entity_t tex_entities[4] = {
@@ -568,24 +568,24 @@ void flecsEngine_textureArray_copyTextures_bc7(
 void flecsEngine_textureBlit_release(
     FlecsEngineImpl *impl)
 {
-    if (impl->materials.blit_pipeline) {
-        wgpuRenderPipelineRelease(impl->materials.blit_pipeline);
-        impl->materials.blit_pipeline = NULL;
+    if (impl->textures.blit_pipeline) {
+        wgpuRenderPipelineRelease(impl->textures.blit_pipeline);
+        impl->textures.blit_pipeline = NULL;
     }
-    if (impl->materials.blit_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->materials.blit_bind_layout);
-        impl->materials.blit_bind_layout = NULL;
+    if (impl->textures.blit_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->textures.blit_bind_layout);
+        impl->textures.blit_bind_layout = NULL;
     }
-    if (impl->materials.blit_sampler) {
-        wgpuSamplerRelease(impl->materials.blit_sampler);
-        impl->materials.blit_sampler = NULL;
+    if (impl->textures.blit_sampler) {
+        wgpuSamplerRelease(impl->textures.blit_sampler);
+        impl->textures.blit_sampler = NULL;
     }
-    if (impl->materials.mipgen_pipeline) {
-        wgpuComputePipelineRelease(impl->materials.mipgen_pipeline);
-        impl->materials.mipgen_pipeline = NULL;
+    if (impl->textures.mipgen_pipeline) {
+        wgpuComputePipelineRelease(impl->textures.mipgen_pipeline);
+        impl->textures.mipgen_pipeline = NULL;
     }
-    if (impl->materials.mipgen_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->materials.mipgen_bind_layout);
-        impl->materials.mipgen_bind_layout = NULL;
+    if (impl->textures.mipgen_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->textures.mipgen_bind_layout);
+        impl->textures.mipgen_bind_layout = NULL;
     }
 }

@@ -150,7 +150,7 @@ void flecsEngine_batch_group_extractShadowTable(
     const FlecsAABB *aabb = ecs_field(it, FlecsAABB, 2);
 
     for (int32_t i = 0; i < it->count; i ++) {
-        FlecsInstanceTransform t;
+        FlecsGpuTransform t;
         bool transformed = false;
 
         for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {

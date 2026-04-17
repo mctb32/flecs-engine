@@ -4,8 +4,8 @@
 WGPUBindGroupLayout flecsEngine_textures_ensureBindLayout(
     FlecsEngineImpl *impl)
 {
-    if (impl->materials.pbr_texture_bind_layout) {
-        return impl->materials.pbr_texture_bind_layout;
+    if (impl->textures.pbr_bind_layout) {
+        return impl->textures.pbr_bind_layout;
     }
 
     WGPUBindGroupLayoutEntry entries[13] = {0};
@@ -25,9 +25,9 @@ WGPUBindGroupLayout flecsEngine_textures_ensureBindLayout(
         .entryCount = 13
     };
 
-    impl->materials.pbr_texture_bind_layout = wgpuDeviceCreateBindGroupLayout(
+    impl->textures.pbr_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device, &layout_desc);
 
-    return impl->materials.pbr_texture_bind_layout;
+    return impl->textures.pbr_bind_layout;
 }
 

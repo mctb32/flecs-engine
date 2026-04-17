@@ -334,9 +334,9 @@ static ecs_entity_t flecsEngine_createBatch_primitive_materialIndex(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .instance_types = {
-            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsGpuTransform),
             ecs_id(FlecsMaterialId)
         },
         .extract_callback = flecsEngine_primitive_extract,
@@ -390,9 +390,9 @@ ecs_entity_t flecsEngine_createBatch_primitive(
     ecs_set(world, batch, FlecsRenderBatch, {
         .shader = shader,
         .query = q,
-        .vertex_type = ecs_id(FlecsLitVertexUv),
+        .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .instance_types = {
-            ecs_id(FlecsInstanceTransform),
+            ecs_id(FlecsGpuTransform),
             ecs_id(FlecsMaterialId)
         },
         .extract_callback = flecsEngine_primitive_extract,

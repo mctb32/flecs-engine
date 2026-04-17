@@ -5,6 +5,50 @@
 #include "../vendor.h"
 
 typedef struct {
+    flecs_vec3_t p;
+} FlecsGpuVertex;
+
+extern ECS_COMPONENT_DECLARE(FlecsGpuVertex);
+
+typedef struct {
+    flecs_vec3_t p;
+    flecs_vec3_t n;
+    flecs_vec2_t uv;
+    flecs_vec4_t t;  /* tangent xyz + bitangent sign in w */
+} FlecsGpuVertexLitUv;
+
+extern ECS_COMPONENT_DECLARE(FlecsGpuVertexLitUv);
+
+typedef struct {
+    flecs_vec3_t c0;
+    flecs_vec3_t c1;
+    flecs_vec3_t c2;
+    flecs_vec3_t c3;
+} FlecsGpuTransform;
+
+extern ECS_COMPONENT_DECLARE(FlecsGpuTransform);
+
+typedef struct {
+    float position[4];  /* xyz = position, w = range */
+    float direction[4]; /* xyz = direction, w = outer_cos (-2 = point light) */
+    float color[4];     /* rgb = color * intensity, w = inner_cos */
+} FlecsGpuLight;
+
+typedef struct {
+    flecs_mat4_t mvp;
+    flecs_mat4_t inv_vp;
+    flecs_mat4_t light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    float cascade_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    float light_ray_dir[4];
+    float light_color[4];
+    float camera_pos[4];
+    float shadow_info[4];
+    float ambient_light[4];
+} FlecsGpuUniforms;
+
+extern ECS_COMPONENT_DECLARE(FlecsGpuUniforms);
+
+typedef struct {
     flecs_rgba_t color;
     float metallic;
     float roughness;
@@ -27,21 +71,5 @@ typedef struct {
     float uv_offset_x;
     float uv_offset_y;
 } FlecsGpuMaterial;
-
-typedef struct {
-    FlecsRgba *color;
-    ecs_size_t color_count;
-    FlecsPbrMaterial *material;
-    ecs_size_t material_count;
-    FlecsEmissive *emissive;
-    ecs_size_t emissive_count;
-
-    /* Identity MaterialId GPU buffer: [0, 1, 2, ..., N-1]. Used as the
-     * MaterialId VBO for owns-material-data batches, where each instance
-     * indexes its own private material storage buffer at its instance
-     * position. */
-    WGPUBuffer material_id_identity_buffer;
-    int32_t material_id_identity_capacity;
-} FlecsDefaultAttrCache;
 
 #endif

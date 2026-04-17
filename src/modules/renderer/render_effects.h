@@ -15,6 +15,7 @@ typedef bool (*flecs_render_effect_setup_callback)(
 typedef bool (*flecs_render_effect_bind_callback)(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     ecs_entity_t effect_entity,
     const struct FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *effect_impl,
@@ -24,6 +25,7 @@ typedef bool (*flecs_render_effect_bind_callback)(
 typedef bool (*flecs_render_effect_render_callback)(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder,
     ecs_entity_t effect_entity,
     const struct FlecsRenderEffect *effect,
@@ -55,6 +57,7 @@ int flecsEngine_initDepthResolve(
 
 void flecsEngine_depthResolve(
     const FlecsEngineImpl *impl,
+    const FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder);
 
 void flecsEngine_renderEffect_register(
@@ -78,6 +81,7 @@ void flecsEngine_sunShafts_register(
 void flecsEngine_renderEffect_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *impl,
+    const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,

@@ -4,8 +4,8 @@
 WGPUBindGroupLayout flecsEngine_materialBind_ensureLayout(
     FlecsEngineImpl *impl)
 {
-    if (impl->material_bind_layout) {
-        return impl->material_bind_layout;
+    if (impl->materials.bind_layout) {
+        return impl->materials.bind_layout;
     }
 
     WGPUBindGroupLayoutEntry entry = {
@@ -17,14 +17,14 @@ WGPUBindGroupLayout flecsEngine_materialBind_ensureLayout(
         }
     };
 
-    impl->material_bind_layout = wgpuDeviceCreateBindGroupLayout(
+    impl->materials.bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device,
         &(WGPUBindGroupLayoutDescriptor){
             .entryCount = 1,
             .entries = &entry
         });
 
-    return impl->material_bind_layout;
+    return impl->materials.bind_layout;
 }
 
 WGPUBindGroup flecsEngine_materialBind_createGroup(
@@ -32,14 +32,14 @@ WGPUBindGroup flecsEngine_materialBind_createGroup(
     WGPUBuffer buffer,
     uint64_t size)
 {
-    if (!engine->material_bind_layout || !buffer || !size) {
+    if (!engine->materials.bind_layout || !buffer || !size) {
         return NULL;
     }
 
     return wgpuDeviceCreateBindGroup(
         engine->device,
         &(WGPUBindGroupDescriptor){
-            .layout = engine->material_bind_layout,
+            .layout = engine->materials.bind_layout,
             .entryCount = 1,
             .entries = (WGPUBindGroupEntry[1]){
                 {
@@ -51,7 +51,7 @@ WGPUBindGroup flecsEngine_materialBind_createGroup(
         });
 }
 
-WGPUBindGroup flecsEngine_materialBind_ensureScene(
+WGPUBindGroup flecsEngine_materialBind_ensure(
     FlecsEngineImpl *impl)
 {
     flecsEngine_material_ensureBuffer(impl);
@@ -60,41 +60,41 @@ WGPUBindGroup flecsEngine_materialBind_ensureScene(
     }
 
     flecsEngine_materialBind_ensureLayout(impl);
-    if (!impl->material_bind_layout) {
+    if (!impl->materials.bind_layout) {
         return NULL;
     }
 
-    if (impl->scene_material_bind_group &&
-        impl->scene_material_bind_version == impl->scene_bind_version)
+    if (impl->materials.bind_group &&
+        impl->materials.bind_version == impl->scene_bind_version)
     {
-        return impl->scene_material_bind_group;
+        return impl->materials.bind_group;
     }
 
-    if (impl->scene_material_bind_group) {
-        wgpuBindGroupRelease(impl->scene_material_bind_group);
-        impl->scene_material_bind_group = NULL;
+    if (impl->materials.bind_group) {
+        wgpuBindGroupRelease(impl->materials.bind_group);
+        impl->materials.bind_group = NULL;
     }
 
     uint64_t size =
         (uint64_t)impl->materials.buffer_capacity * sizeof(FlecsGpuMaterial);
 
-    impl->scene_material_bind_group = flecsEngine_materialBind_createGroup(
+    impl->materials.bind_group = flecsEngine_materialBind_createGroup(
         impl, impl->materials.buffer, size);
-    impl->scene_material_bind_version = impl->scene_bind_version;
+    impl->materials.bind_version = impl->scene_bind_version;
 
-    return impl->scene_material_bind_group;
+    return impl->materials.bind_group;
 }
 
-void flecsEngine_materialBind_releaseScene(
+void flecsEngine_materialBind_release(
     FlecsEngineImpl *impl)
 {
-    if (impl->scene_material_bind_group) {
-        wgpuBindGroupRelease(impl->scene_material_bind_group);
-        impl->scene_material_bind_group = NULL;
+    if (impl->materials.bind_group) {
+        wgpuBindGroupRelease(impl->materials.bind_group);
+        impl->materials.bind_group = NULL;
     }
-    if (impl->material_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->material_bind_layout);
-        impl->material_bind_layout = NULL;
+    if (impl->materials.bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->materials.bind_layout);
+        impl->materials.bind_layout = NULL;
     }
-    impl->scene_material_bind_version = 0;
+    impl->materials.bind_version = 0;
 }

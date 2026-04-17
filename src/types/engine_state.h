@@ -7,14 +7,11 @@
 
 #define FLECS_ENGINE_INSTANCE_TYPES_MAX (8)
 
-struct FlecsEngineSurfaceInterface;
-typedef struct FlecsRenderViewImpl FlecsRenderViewImpl;
-
 typedef struct {
     WGPUShaderModule shader_module;
     WGPUBindGroupLayout pass_bind_layout;
     WGPUSampler sampler;
-} flecs_engine_shadow_t;
+} flecsEngine_shadow_t;
 
 typedef struct {
     FlecsGpuLight *cpu_lights;
@@ -24,7 +21,7 @@ typedef struct {
 
     ecs_query_t *point_light_query;
     ecs_query_t *spot_light_query;
-} flecs_engine_lighting_t;
+} flecsEngine_lighting_t;
 
 #define FLECS_ENGINE_TEXTURE_BUCKET_COUNT 3
 
@@ -36,7 +33,7 @@ typedef struct {
     uint32_t width;
     uint32_t height;
     bool is_bc7;
-} flecs_engine_texture_bucket_t;
+} flecsEngine_texture_bucket_t;
 
 typedef struct {
     WGPUBuffer buffer;
@@ -44,60 +41,67 @@ typedef struct {
     uint32_t buffer_capacity;
     uint32_t count;
     ecs_query_t *query;
-
-    WGPUBindGroupLayout pbr_texture_bind_layout;
-    WGPUSampler pbr_sampler;
-    WGPUTexture fallback_white_tex;
-    WGPUTextureView fallback_white_view;
-    WGPUTextureView fallback_white_2d_view;
-    WGPUTexture fallback_normal_tex;
-    WGPUTextureView fallback_normal_view;
     uint32_t next_id;
 
     uint32_t dirty_version;
     uint32_t uploaded_version;
 
-    ecs_query_t *texture_query;
+    WGPUBindGroupLayout bind_layout;
+    WGPUBindGroup bind_group;
+    uint32_t bind_version;
 
-    flecs_engine_texture_bucket_t buckets[FLECS_ENGINE_TEXTURE_BUCKET_COUNT];
-    WGPUBindGroup texture_array_bind_group;
+    WGPUBuffer id_identity_buffer;
+    int32_t id_identity_capacity;
+} flecsEngine_materials_t;
+
+typedef struct {
+    ecs_query_t *query;
+
+    flecsEngine_texture_bucket_t buckets[FLECS_ENGINE_TEXTURE_BUCKET_COUNT];
+    WGPUBindGroup array_bind_group;
+
+    WGPUBindGroupLayout pbr_bind_layout;
+    WGPUSampler pbr_sampler;
+
+    WGPUTexture fallback_white_tex;
+    WGPUTextureView fallback_white_array_view;
+    WGPUTextureView fallback_white_view;
+    WGPUTexture fallback_normal_tex;
+    WGPUTextureView fallback_normal_array_view;
 
     WGPURenderPipeline blit_pipeline;
     WGPUBindGroupLayout blit_bind_layout;
     WGPUSampler blit_sampler;
     WGPUComputePipeline mipgen_pipeline;
     WGPUBindGroupLayout mipgen_bind_layout;
-} flecs_engine_materials_t;
+} flecsEngine_textures_t;
 
 typedef struct {
-    WGPUTexture depth_texture;
-    WGPUTextureView depth_texture_view;
-    uint32_t depth_texture_width;
-    uint32_t depth_texture_height;
-
-    WGPUTexture msaa_color_texture;
-    WGPUTextureView msaa_color_texture_view;
-    WGPUTexture msaa_depth_texture;
-    WGPUTextureView msaa_depth_texture_view;
-    uint32_t msaa_texture_width;
-    uint32_t msaa_texture_height;
-    int32_t msaa_texture_sample_count;
-    WGPUTextureFormat msaa_color_format;
-
-    /* Passthrough effect for blitting batch output to screen when no
-     * effects are enabled. Built directly during renderer init. */
     WGPURenderPipeline passthrough_pipeline;
     WGPUBindGroupLayout passthrough_bind_layout;
     WGPUSampler passthrough_sampler;
 
-    /* Depth resolve pass: resolves MSAA depth into the 1-sample depth
-     * texture so that post-process effects (SSAO, fog, …) can read it. */
     WGPURenderPipeline depth_resolve_pipeline;
     WGPUBindGroupLayout depth_resolve_bind_layout;
-} flecs_engine_depth_t;
+
+    WGPURenderPipeline opaque_snapshot_downsample_pipeline;
+    WGPUBindGroupLayout opaque_snapshot_downsample_layout;
+    WGPUSampler opaque_snapshot_sampler;
+} flecsEngine_pipelines_t;
+
+typedef struct {
+    FlecsRgba *color;
+    ecs_size_t color_count;
+    FlecsPbrMaterial *material;
+    ecs_size_t material_count;
+    FlecsEmissive *emissive;
+    ecs_size_t emissive_count;
+} flecsEngine_default_attr_cache_t;
 
 typedef struct {
     ecs_entity_t surface;
+    ecs_entity_t fallback_hdri;
+    ecs_query_t *view_query;
 
     WGPUInstance instance;
     WGPUAdapter adapter;
@@ -106,29 +110,20 @@ typedef struct {
 
     WGPUTextureFormat target_format;
     WGPUTextureFormat hdr_color_format;
-
-    ecs_entity_t sky_background_hdri;
-    ecs_entity_t black_hdri;
-    WGPUBindGroupLayout ibl_shadow_bind_layout;
-    WGPUBindGroupLayout empty_bind_layout;
-    WGPUBindGroup empty_bind_group;
-    WGPUBindGroupLayout material_bind_layout;
-    WGPUBindGroup scene_material_bind_group;
-    uint32_t scene_material_bind_version;
+    
+    WGPUBindGroupLayout scene_bind_layout;
     uint32_t scene_bind_version;
 
-    ecs_query_t *view_query;
+    WGPUBindGroupLayout no_texture_bind_layout;
+    WGPUBindGroup no_texture_bind_group;
 
-    WGPURenderPipeline opaque_snapshot_downsample_pipeline;
-    WGPUBindGroupLayout opaque_snapshot_downsample_layout;
-    WGPUSampler opaque_snapshot_sampler;
+    flecsEngine_shadow_t shadow;
+    flecsEngine_lighting_t lighting;
+    flecsEngine_materials_t materials;
+    flecsEngine_textures_t textures;
+    flecsEngine_pipelines_t pipelines;
 
-    flecs_engine_shadow_t shadow;
-    flecs_engine_lighting_t lighting;
-    flecs_engine_materials_t materials;
-    flecs_engine_depth_t depth;
-
-    FlecsDefaultAttrCache *default_attr_cache;
+    flecsEngine_default_attr_cache_t *default_attr_cache;
 } FlecsEngineImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);

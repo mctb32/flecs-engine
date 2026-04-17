@@ -84,7 +84,7 @@ void flecsEngine_material_releaseBuffer(
     impl->materials.buffer_capacity = 0;
     impl->materials.count = 0;
 
-    flecsEngine_materialBind_releaseScene(impl);
+    flecsEngine_materialBind_release(impl);
 
     flecsEngine_textureArray_release(impl);
     flecsEngine_textureBlit_release(impl);

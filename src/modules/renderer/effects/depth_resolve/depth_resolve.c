@@ -35,12 +35,12 @@ int flecsEngine_initDepthResolve(
         }
     };
 
-    impl->depth.depth_resolve_bind_layout = wgpuDeviceCreateBindGroupLayout(
+    impl->pipelines.depth_resolve_bind_layout = wgpuDeviceCreateBindGroupLayout(
         impl->device, &(WGPUBindGroupLayoutDescriptor){
             .entries = &layout_entry,
             .entryCount = 1
         });
-    if (!impl->depth.depth_resolve_bind_layout) {
+    if (!impl->pipelines.depth_resolve_bind_layout) {
         wgpuShaderModuleRelease(module);
         return -1;
     }
@@ -51,22 +51,23 @@ int flecsEngine_initDepthResolve(
         .depthCompare = WGPUCompareFunction_Always
     };
 
-    impl->depth.depth_resolve_pipeline = flecsEngine_createFullscreenPipeline(
-        impl, module, impl->depth.depth_resolve_bind_layout, NULL, &depth_stencil);
+    impl->pipelines.depth_resolve_pipeline = flecsEngine_createFullscreenPipeline(
+        impl, module, impl->pipelines.depth_resolve_bind_layout, NULL, &depth_stencil);
 
     wgpuShaderModuleRelease(module);
 
-    return impl->depth.depth_resolve_pipeline ? 0 : -1;
+    return impl->pipelines.depth_resolve_pipeline ? 0 : -1;
 }
 
 void flecsEngine_depthResolve(
     const FlecsEngineImpl *impl,
+    const FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder)
 {
     FLECS_TRACY_ZONE_BEGIN("DepthResolve");
-    if (!impl->depth.depth_resolve_pipeline ||
-        !impl->depth.msaa_depth_texture_view ||
-        !impl->depth.depth_texture_view)
+    if (!impl->pipelines.depth_resolve_pipeline ||
+        !view_impl->msaa_depth_texture_view ||
+        !view_impl->depth_texture_view)
     {
         FLECS_TRACY_ZONE_END;
         return;
@@ -74,12 +75,12 @@ void flecsEngine_depthResolve(
 
     WGPUBindGroupEntry entry = {
         .binding = 0,
-        .textureView = impl->depth.msaa_depth_texture_view
+        .textureView = view_impl->msaa_depth_texture_view
     };
 
     WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
         impl->device, &(WGPUBindGroupDescriptor){
-            .layout = impl->depth.depth_resolve_bind_layout,
+            .layout = impl->pipelines.depth_resolve_bind_layout,
             .entryCount = 1,
             .entries = &entry
         });
@@ -89,7 +90,7 @@ void flecsEngine_depthResolve(
     }
 
     WGPURenderPassDepthStencilAttachment depth_attachment = {
-        .view = impl->depth.depth_texture_view,
+        .view = view_impl->depth_texture_view,
         .depthLoadOp = WGPULoadOp_Clear,
         .depthStoreOp = WGPUStoreOp_Store,
         .depthClearValue = 1.0f,
@@ -109,7 +110,7 @@ void flecsEngine_depthResolve(
     WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
         encoder, &pass_desc);
     if (pass) {
-        wgpuRenderPassEncoderSetPipeline(pass, impl->depth.depth_resolve_pipeline);
+        wgpuRenderPassEncoderSetPipeline(pass, impl->pipelines.depth_resolve_pipeline);
         wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
         wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
         wgpuRenderPassEncoderEnd(pass);

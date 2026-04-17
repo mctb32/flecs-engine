@@ -42,7 +42,7 @@ void flecsEngine_textureArray_release(
     FlecsEngineImpl *impl)
 {
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
-        flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[b];
+        flecsEngine_texture_bucket_t *bk = &impl->textures.buckets[b];
         for (int ch = 0; ch < 4; ch++) {
             if (bk->texture_array_views[ch]) {
                 wgpuTextureViewRelease(bk->texture_array_views[ch]);
@@ -59,9 +59,9 @@ void flecsEngine_textureArray_release(
         bk->height = 0;
         bk->is_bc7 = false;
     }
-    if (impl->materials.texture_array_bind_group) {
-        wgpuBindGroupRelease(impl->materials.texture_array_bind_group);
-        impl->materials.texture_array_bind_group = NULL;
+    if (impl->textures.array_bind_group) {
+        wgpuBindGroupRelease(impl->textures.array_bind_group);
+        impl->textures.array_bind_group = NULL;
     }
 }
 
@@ -80,7 +80,7 @@ static void flecsEngine_textureArray_censusFormats(
         census[b].other_count = 0;
     }
 
-    ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
+    ecs_iter_t it = ecs_query_iter(world, impl->textures.query);
     while (ecs_query_next(&it)) {
         const FlecsPbrTextures *textures =
             ecs_field(&it, FlecsPbrTextures, 0);
@@ -139,17 +139,17 @@ static void flecsEngine_textureArray_decideBucketFormats(
         bool mixed = census[b].bc7_count > 0 && census[b].other_count > 0;
 
         if (all_bc7) {
-            impl->materials.buckets[b].is_bc7 = true;
+            impl->textures.buckets[b].is_bc7 = true;
         } else if (all_other) {
-            impl->materials.buckets[b].is_bc7 = false;
+            impl->textures.buckets[b].is_bc7 = false;
         } else if (mixed && (uint8_t)b == top_bucket) {
             /* Top bucket mixed: prefer BC7, non-BC7 sources will be
              * redirected to the next-smaller bucket. */
-            impl->materials.buckets[b].is_bc7 = true;
+            impl->textures.buckets[b].is_bc7 = true;
         } else {
             /* Smaller bucket mixed: prefer RGBA8, BC7 sources will be
              * decoded via the blit sampler (already works). */
-            impl->materials.buckets[b].is_bc7 = false;
+            impl->textures.buckets[b].is_bc7 = false;
         }
     }
 }
@@ -169,7 +169,7 @@ static bool flecsEngine_textureArray_survey(
 
     bool any_material = false;
 
-    ecs_iter_t it = ecs_query_iter(world, impl->materials.texture_query);
+    ecs_iter_t it = ecs_query_iter(world, impl->textures.query);
     while (ecs_query_next(&it)) {
         const FlecsPbrTextures *textures =
             ecs_field(&it, FlecsPbrTextures, 0);
@@ -215,7 +215,7 @@ static bool flecsEngine_textureArray_survey(
 
             uint8_t bucket = flecsEngine_textureArray_pickBucket(max_w, max_h);
 
-            if (any_non_bc7 && impl->materials.buckets[bucket].is_bc7
+            if (any_non_bc7 && impl->textures.buckets[bucket].is_bc7
                 && bucket > 0)
             {
                 bucket = bucket - 1;
@@ -238,7 +238,7 @@ static bool flecsEngine_textureArray_survey(
             }
 
             uint32_t bk_dim = flecs_engine_bucket_dim[bucket];
-            bool bk_bc7 = impl->materials.buckets[bucket].is_bc7;
+            bool bk_bc7 = impl->textures.buckets[bucket].is_bc7;
             uint32_t bk_mips =
                 flecsEngine_textureArray_mipCount(bk_dim);
             for (int ch = 0; ch < 4; ch++) {
@@ -282,7 +282,7 @@ static bool flecsEngine_textureArray_createBucket(
     uint8_t bucket_idx,
     const uint32_t channel_layer_counts[4])
 {
-    flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket_idx];
+    flecsEngine_texture_bucket_t *bk = &impl->textures.buckets[bucket_idx];
     uint32_t dim = flecs_engine_bucket_dim[bucket_idx];
     uint32_t mip_count = flecsEngine_textureArray_mipCount(dim);
 
@@ -338,7 +338,7 @@ static void flecsEngine_textureArray_fillBucketFallback(
     FlecsEngineImpl *impl,
     uint8_t bucket_idx)
 {
-    flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[bucket_idx];
+    flecsEngine_texture_bucket_t *bk = &impl->textures.buckets[bucket_idx];
 
     uint32_t dim = bk->width;
     if (!dim) {
@@ -442,7 +442,7 @@ static void flecsEngine_textureArray_createBindGroup(
     FlecsEngineImpl *impl)
 {
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
-        flecs_engine_texture_bucket_t *bk = &impl->materials.buckets[b];
+        flecsEngine_texture_bucket_t *bk = &impl->textures.buckets[b];
 
         for (int ch = 0; ch < 4; ch++) {
             if (!bk->layer_counts[ch] || !bk->texture_arrays[ch]) continue;
@@ -466,14 +466,14 @@ static void flecsEngine_textureArray_createBindGroup(
     WGPUBindGroupLayout layout =
         flecsEngine_textures_ensureBindLayout(impl);
 
-    WGPUTextureView fallback_white  = impl->materials.fallback_white_view;
-    WGPUTextureView fallback_normal = impl->materials.fallback_normal_view;
+    WGPUTextureView fallback_white  = impl->textures.fallback_white_array_view;
+    WGPUTextureView fallback_normal = impl->textures.fallback_normal_array_view;
 
     WGPUTextureView views[12];
     for (int ch = 0; ch < 4; ch++) {
         WGPUTextureView fb = (ch == 3) ? fallback_normal : fallback_white;
         for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
-            WGPUTextureView v = impl->materials.buckets[b].texture_array_views[ch];
+            WGPUTextureView v = impl->textures.buckets[b].texture_array_views[ch];
             views[ch * 3 + b] = v ? v : fb;
         }
     }
@@ -490,7 +490,7 @@ static void flecsEngine_textureArray_createBindGroup(
         .sampler = sampler
     };
 
-    impl->materials.texture_array_bind_group =
+    impl->textures.array_bind_group =
         wgpuDeviceCreateBindGroup(impl->device,
             &(WGPUBindGroupDescriptor){
                 .layout = layout,
@@ -505,7 +505,7 @@ void flecsEngine_material_buildTextureArrays(
     ecs_world_t *world,
     FlecsEngineImpl *impl)
 {
-    if (!impl->materials.texture_query || !impl->device) {
+    if (!impl->textures.query || !impl->device) {
         return;
     }
 

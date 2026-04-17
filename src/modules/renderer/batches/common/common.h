@@ -28,10 +28,10 @@ typedef void (*flecsEngine_primitive_scale_aabb_t)(
 
 /* Set of CPU/GPU buffers that store extracted data from the ECS for a batch. */
 typedef struct {
-    FlecsInstanceTransform *cpu_transforms;
+    FlecsGpuTransform *cpu_transforms;
     FlecsMaterialId *cpu_material_ids;
     FlecsGpuMaterial *cpu_materials;
-    FlecsInstanceTransform *cpu_shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    FlecsGpuTransform *cpu_shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
 
     WGPUBuffer gpu_transforms;
     WGPUBuffer gpu_material_ids;
@@ -159,7 +159,7 @@ void flecsEngine_batch_uploadShadow(
     const flecsEngine_batch_t *buf);
 
 void flecsEngine_batch_transformInstance(
-    FlecsInstanceTransform *out,
+    FlecsGpuTransform *out,
     const FlecsWorldTransform3 *wt,
     float scale_x,
     float scale_y,

@@ -545,6 +545,7 @@ static bool flecsEngine_ssao_setup(
 static bool flecsEngine_ssao_bind(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
     const FlecsRenderEffectImpl *impl,
@@ -558,7 +559,7 @@ static bool flecsEngine_ssao_bind(
     ecs_assert(entry_count != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(*entry_count == 2, ECS_INVALID_PARAMETER, NULL);
 
-    if (!engine->depth.depth_texture_view) {
+    if (!view_impl || !view_impl->depth_texture_view) {
         return false;
     }
 
@@ -580,7 +581,7 @@ static bool flecsEngine_ssao_bind(
 
     entries[2] = (WGPUBindGroupEntry){
         .binding = 2,
-        .textureView = engine->depth.depth_texture_view
+        .textureView = view_impl->depth_texture_view
     };
 
     entries[3] = (WGPUBindGroupEntry){
@@ -640,6 +641,7 @@ static bool flecsEngine_ssao_ensureBlurTexture(
 static bool flecsEngine_ssao_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
@@ -679,7 +681,7 @@ static bool flecsEngine_ssao_render(
         }
 
         flecsEngine_renderEffect_render(
-            world, engine, pass, effect_entity,
+            world, engine, view_impl, pass, effect_entity,
             effect, effect_impl, input_view, output_format);
         wgpuRenderPassEncoderEnd(pass);
         wgpuRenderPassEncoderRelease(pass);
@@ -688,19 +690,16 @@ static bool flecsEngine_ssao_render(
 
     const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
 
+    if (!view_impl || !view_impl->depth_texture_view) {
+        return false;
+    }
+
     /* Determine intermediate texture size */
     uint32_t width = (uint32_t)surface->actual_width;
     uint32_t height = (uint32_t)surface->actual_height;
-
-    ecs_entity_t view_entity = ecs_get_target(
-        world, effect_entity, EcsChildOf, 0);
-    if (view_entity) {
-        const FlecsRenderViewImpl *view_impl = ecs_get(
-            world, view_entity, FlecsRenderViewImpl);
-        if (view_impl && view_impl->effect_target_width > 0) {
-            width = view_impl->effect_target_width;
-            height = view_impl->effect_target_height;
-        }
+    if (view_impl->effect_target_width > 0) {
+        width = view_impl->effect_target_width;
+        height = view_impl->effect_target_height;
     }
 
     uint32_t ssao_width = surface->width > 1 ? (uint32_t)(surface->width / 2) : 1;
@@ -735,7 +734,7 @@ static bool flecsEngine_ssao_render(
         }
 
         flecsEngine_renderEffect_render(
-            world, engine, pass, effect_entity,
+            world, engine, view_impl, pass, effect_entity,
             effect, effect_impl, input_view, hdr_format);
         wgpuRenderPassEncoderEnd(pass);
         wgpuRenderPassEncoderRelease(pass);
@@ -746,7 +745,7 @@ static bool flecsEngine_ssao_render(
         WGPUBindGroupEntry blur_entries[5] = {
             { .binding = 0, .textureView = impl->blur_intermediate_view },
             { .binding = 1, .sampler = effect_impl->input_sampler },
-            { .binding = 2, .textureView = engine->depth.depth_texture_view },
+            { .binding = 2, .textureView = view_impl->depth_texture_view },
             {
                 .binding = 3,
                 .buffer = impl->uniform_buffer,

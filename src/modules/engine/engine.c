@@ -29,8 +29,7 @@ static void flecsEngine_cleanup(
     // Queries do not have to be freed because they are automatically cleaned up
     // when the world is deleted.
 
-    impl->sky_background_hdri = 0;
-    impl->black_hdri = 0;
+    impl->fallback_hdri = 0;
 
     /* Delete views first so that per-view shadow/cluster/snapshot/bind
      * groups are released before engine-side shared resources. */

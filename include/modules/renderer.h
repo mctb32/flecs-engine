@@ -6,42 +6,12 @@
 #define ECS_META_IMPL EXTERN
 #endif
 
-typedef struct {
-    flecs_vec3_t p;
-} FlecsVertex;
-
-extern ECS_COMPONENT_DECLARE(FlecsVertex);
-
-typedef struct {
-    flecs_vec3_t p;
-    flecs_vec3_t n;
-    flecs_vec2_t uv;
-    flecs_vec4_t t;  /* tangent xyz + bitangent sign in w */
-} FlecsLitVertexUv;
-
-extern ECS_COMPONENT_DECLARE(FlecsLitVertexUv);
-
-typedef struct {
-    flecs_vec3_t c0;
-    flecs_vec3_t c1;
-    flecs_vec3_t c2;
-    flecs_vec3_t c3;
-} FlecsInstanceTransform;
-
-extern ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
-
 #define FLECS_ENGINE_SHADOW_CASCADE_COUNT 4
 #define FLECS_ENGINE_CLUSTER_X 16
 #define FLECS_ENGINE_CLUSTER_Y 9
 #define FLECS_ENGINE_CLUSTER_Z 24
 #define FLECS_ENGINE_CLUSTER_TOTAL \
     (FLECS_ENGINE_CLUSTER_X * FLECS_ENGINE_CLUSTER_Y * FLECS_ENGINE_CLUSTER_Z)
-
-typedef struct {
-    float position[4];  /* xyz = position, w = range */
-    float direction[4]; /* xyz = direction, w = outer_cos (-2 = point light) */
-    float color[4];     /* rgb = color * intensity, w = inner_cos */
-} FlecsGpuLight;
 
 typedef struct {
     uint32_t grid_size[4];   /* x, y, z, total */
@@ -54,20 +24,6 @@ typedef struct {
     uint32_t _pad0;
     uint32_t _pad1;
 } FlecsClusterEntry;
-
-typedef struct {
-    flecs_mat4_t mvp;
-    flecs_mat4_t inv_vp;
-    flecs_mat4_t light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    float cascade_splits[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    float light_ray_dir[4];
-    float light_color[4];
-    float camera_pos[4];
-    float shadow_info[4];
-    float ambient_light[4];
-} FlecsUniform;
-
-extern ECS_COMPONENT_DECLARE(FlecsUniform);
 
 typedef struct {
     const char *source;

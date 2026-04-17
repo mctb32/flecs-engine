@@ -22,40 +22,40 @@ ECS_MOVE(FlecsRenderBatch, dst, src, {
     ecs_os_zeromem(src);
 })
 
-static WGPUBindGroupLayout flecsEngine_renderBatch_ensureEmptyBindLayout(
+static WGPUBindGroupLayout flecsEngine_renderBatch_ensureNoTextureBindLayout(
     FlecsEngineImpl *engine)
 {
-    if (engine->empty_bind_layout) {
-        return engine->empty_bind_layout;
+    if (engine->no_texture_bind_layout) {
+        return engine->no_texture_bind_layout;
     }
-    engine->empty_bind_layout = wgpuDeviceCreateBindGroupLayout(
+    engine->no_texture_bind_layout = wgpuDeviceCreateBindGroupLayout(
         engine->device,
         &(WGPUBindGroupLayoutDescriptor){
             .entryCount = 0,
             .entries = NULL
         });
-    return engine->empty_bind_layout;
+    return engine->no_texture_bind_layout;
 }
 
-static WGPUBindGroup flecsEngine_renderBatch_ensureEmptyBindGroup(
+static WGPUBindGroup flecsEngine_renderBatch_ensureNoTextureBindGroup(
     FlecsEngineImpl *engine)
 {
-    if (engine->empty_bind_group) {
-        return engine->empty_bind_group;
+    if (engine->no_texture_bind_group) {
+        return engine->no_texture_bind_group;
     }
     WGPUBindGroupLayout layout =
-        flecsEngine_renderBatch_ensureEmptyBindLayout(engine);
+        flecsEngine_renderBatch_ensureNoTextureBindLayout(engine);
     if (!layout) {
         return NULL;
     }
-    engine->empty_bind_group = wgpuDeviceCreateBindGroup(
+    engine->no_texture_bind_group = wgpuDeviceCreateBindGroup(
         engine->device,
         &(WGPUBindGroupDescriptor){
             .layout = layout,
             .entryCount = 0,
             .entries = NULL
         });
-    return engine->empty_bind_group;
+    return engine->no_texture_bind_group;
 }
 
 static void flecsEngine_renderBatch_releaseImpl(
@@ -192,16 +192,16 @@ static WGPURenderPipeline flecsEngine_renderBatch_createPipeline(
     WGPUTextureFormat color_format,
     uint32_t sample_count)
 {
-    if (!engine->ibl_shadow_bind_layout) {
+    if (!engine->scene_bind_layout) {
         return NULL;
     }
 
-    WGPUBindGroupLayout empty_layout =
-        flecsEngine_renderBatch_ensureEmptyBindLayout((FlecsEngineImpl*)engine);
+    WGPUBindGroupLayout no_texture_layout =
+        flecsEngine_renderBatch_ensureNoTextureBindLayout((FlecsEngineImpl*)engine);
 
     WGPUBindGroupLayout bind_layouts[3] = {
-        engine->ibl_shadow_bind_layout,
-        empty_layout,
+        engine->scene_bind_layout,
+        no_texture_layout,
         NULL
     };
     uint32_t bind_layout_count = 2u;
@@ -335,10 +335,10 @@ static void flecsEngine_renderBatch_setupShadowPipeline(
     WGPUVertexBufferLayout shadow_vbufs[1 + FLECS_ENGINE_INSTANCE_TYPES_MAX] = {0};
 
     int32_t sv_count = flecsEngine_vertexAttrFromType(
-        world, ecs_id(FlecsVertex), shadow_vert_attrs, 16, 0);
+        world, ecs_id(FlecsGpuVertex), shadow_vert_attrs, 16, 0);
 
     shadow_vbufs[0] = (WGPUVertexBufferLayout){
-        .arrayStride = flecsEngine_type_sizeof(world, ecs_id(FlecsVertex)),
+        .arrayStride = flecsEngine_type_sizeof(world, ecs_id(FlecsGpuVertex)),
         .stepMode = WGPUVertexStepMode_Vertex,
         .attributeCount = sv_count,
         .attributes = shadow_vert_attrs
@@ -498,25 +498,25 @@ void flecsEngine_renderBatch_render(
     }
 
     if (impl->uses_textures) {
-        if (!engine->materials.texture_array_bind_group) {
+        if (!engine->textures.array_bind_group) {
             /* Texture array not yet available this frame — skip. */
             FLECS_TRACY_ZONE_END;
             return;
         }
         wgpuRenderPassEncoderSetBindGroup(pass, 1,
-            engine->materials.texture_array_bind_group, 0, NULL);
+            engine->textures.array_bind_group, 0, NULL);
     } else {
-        WGPUBindGroup empty = flecsEngine_renderBatch_ensureEmptyBindGroup(
+        WGPUBindGroup no_texture = flecsEngine_renderBatch_ensureNoTextureBindGroup(
             (FlecsEngineImpl*)engine);
-        if (empty) {
-            wgpuRenderPassEncoderSetBindGroup(pass, 1, empty, 0, NULL);
+        if (no_texture) {
+            wgpuRenderPassEncoderSetBindGroup(pass, 1, no_texture, 0, NULL);
         }
     }
 
     {
         ecs_entity_t hdri = view->atmosphere
             ? view->atmosphere
-            : (view->hdri ? view->hdri : engine->sky_background_hdri);
+            : (view->hdri ? view->hdri : engine->fallback_hdri);
 
         FlecsHdriImpl *ibl = ecs_get_mut(world, hdri, FlecsHdriImpl);
         ecs_assert(ibl != NULL, ECS_INTERNAL_ERROR, NULL);

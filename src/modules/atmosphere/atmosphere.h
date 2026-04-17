@@ -24,6 +24,7 @@ bool flecsEngine_atmosphere_renderIbl(
 bool flecsEngine_atmosphere_renderCompose(
     ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
     ecs_entity_t atmosphere_entity,
     WGPUCommandEncoder encoder,
     WGPUTextureView input_view,

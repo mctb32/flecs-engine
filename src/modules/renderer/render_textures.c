@@ -305,35 +305,35 @@ static WGPUTextureView flecsEngine_texture_createArrayView(
 void flecsEngine_pbr_texture_ensureFallbacks(
     FlecsEngineImpl *engine)
 {
-    if (engine->materials.fallback_white_tex) {
+    if (engine->textures.fallback_white_tex) {
         return;
     }
 
     WGPUDevice device = engine->device;
     WGPUQueue queue = engine->queue;
 
-    engine->materials.fallback_white_tex = flecsEngine_texture_create1x1(
+    engine->textures.fallback_white_tex = flecsEngine_texture_create1x1(
         device, queue, 255, 255, 255, 255);
-    engine->materials.fallback_white_view =
+    engine->textures.fallback_white_array_view =
         flecsEngine_texture_createArrayView(
-            engine->materials.fallback_white_tex);
-    engine->materials.fallback_white_2d_view =
+            engine->textures.fallback_white_tex);
+    engine->textures.fallback_white_view =
         wgpuTextureCreateView(
-            engine->materials.fallback_white_tex, NULL);
+            engine->textures.fallback_white_tex, NULL);
 
     /* Default normal: (0.5, 0.5, 1.0) = flat surface pointing up */
-    engine->materials.fallback_normal_tex = flecsEngine_texture_create1x1(
+    engine->textures.fallback_normal_tex = flecsEngine_texture_create1x1(
         device, queue, 128, 128, 255, 255);
-    engine->materials.fallback_normal_view =
+    engine->textures.fallback_normal_array_view =
         flecsEngine_texture_createArrayView(
-            engine->materials.fallback_normal_tex);
+            engine->textures.fallback_normal_tex);
 }
 
 WGPUSampler flecsEngine_pbr_texture_ensureSampler(
     FlecsEngineImpl *engine)
 {
-    if (engine->materials.pbr_sampler) {
-        return engine->materials.pbr_sampler;
+    if (engine->textures.pbr_sampler) {
+        return engine->textures.pbr_sampler;
     }
 
     WGPUSamplerDescriptor sampler_desc = {
@@ -348,9 +348,9 @@ WGPUSampler flecsEngine_pbr_texture_ensureSampler(
         .maxAnisotropy = 16
     };
 
-    engine->materials.pbr_sampler = wgpuDeviceCreateSampler(
+    engine->textures.pbr_sampler = wgpuDeviceCreateSampler(
         engine->device, &sampler_desc);
-    return engine->materials.pbr_sampler;
+    return engine->textures.pbr_sampler;
 }
 
 const char* flecsEngine_texture_formatName(

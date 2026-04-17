@@ -8,16 +8,16 @@
 #include "flecs_engine.h"
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderEffect);
-ECS_COMPONENT_DECLARE(FlecsVertex);
-ECS_COMPONENT_DECLARE(FlecsLitVertexUv);
-ECS_COMPONENT_DECLARE(FlecsInstanceTransform);
+ECS_COMPONENT_DECLARE(FlecsGpuVertex);
+ECS_COMPONENT_DECLARE(FlecsGpuVertexLitUv);
+ECS_COMPONENT_DECLARE(FlecsGpuTransform);
 ECS_COMPONENT_DECLARE(FlecsTextureImpl);
 extern ECS_COMPONENT_DECLARE(FlecsPbrTextures);
 extern ECS_COMPONENT_DECLARE(FlecsRgba);
 extern ECS_COMPONENT_DECLARE(FlecsPbrMaterial);
 extern ECS_COMPONENT_DECLARE(FlecsEmissive);
 extern ECS_COMPONENT_DECLARE(FlecsMaterialId);
-ECS_COMPONENT_DECLARE(FlecsUniform);
+ECS_COMPONENT_DECLARE(FlecsGpuUniforms);
 
 static void flecsEngine_releaseFrameTarget(
     FlecsEngineSurface *target)
@@ -43,242 +43,30 @@ static void flecsEngine_releaseFrameTarget(
     target->readback_buffer_size = 0;
 }
 
-static void flecsEngine_createDepthResources(
-    WGPUDevice device,
-    uint32_t width,
-    uint32_t height,
-    WGPUTexture *texture,
-    WGPUTextureView *view)
-{
-    if (*view) {
-        wgpuTextureViewRelease(*view);
-        *view = NULL;
-    }
-
-    if (*texture) {
-        wgpuTextureRelease(*texture);
-        *texture = NULL;
-    }
-
-    WGPUTextureDescriptor depth_desc = {
-        .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
-        .dimension = WGPUTextureDimension_2D,
-        .size = (WGPUExtent3D){
-            .width = width,
-            .height = height,
-            .depthOrArrayLayers = 1
-        },
-        .format = WGPUTextureFormat_Depth24Plus,
-        .mipLevelCount = 1,
-        .sampleCount = 1
-    };
-
-    *texture = wgpuDeviceCreateTexture(device, &depth_desc);
-    if (!*texture) {
-        ecs_err("Failed to create depth texture\n");
-        return;
-    }
-
-    *view = wgpuTextureCreateView(*texture, NULL);
-    if (!*view) {
-        ecs_err("Failed to create depth texture view\n");
-        wgpuTextureRelease(*texture);
-        *texture = NULL;
-    }
-}
-
-static int flecsEngine_ensureDepthResources(
-    ecs_world_t *world,
-    FlecsEngineImpl *impl)
-{
-    const FlecsSurface *surface = ecs_get(world, impl->surface, FlecsSurface);
-    uint32_t width = (uint32_t)surface->actual_width;
-    uint32_t height = (uint32_t)surface->actual_height;
-
-    if (impl->depth.depth_texture &&
-        impl->depth.depth_texture_view &&
-        impl->depth.depth_texture_width == width &&
-        impl->depth.depth_texture_height == height)
-    {
-        return 0;
-    }
-
-    flecsEngine_createDepthResources(
-        impl->device,
-        width,
-        height,
-        &impl->depth.depth_texture,
-        &impl->depth.depth_texture_view);
-    if (!impl->depth.depth_texture || !impl->depth.depth_texture_view) {
-        impl->depth.depth_texture_width = 0;
-        impl->depth.depth_texture_height = 0;
-        return -1;
-    }
-
-    impl->depth.depth_texture_width = width;
-    impl->depth.depth_texture_height = height;
-    return 0;
-}
-
-static void flecsEngine_releaseMsaaResources(
-    FlecsEngineImpl *impl)
-{
-    if (impl->depth.msaa_color_texture_view) {
-        wgpuTextureViewRelease(impl->depth.msaa_color_texture_view);
-        impl->depth.msaa_color_texture_view = NULL;
-    }
-    if (impl->depth.msaa_color_texture) {
-        wgpuTextureRelease(impl->depth.msaa_color_texture);
-        impl->depth.msaa_color_texture = NULL;
-    }
-    if (impl->depth.msaa_depth_texture_view) {
-        wgpuTextureViewRelease(impl->depth.msaa_depth_texture_view);
-        impl->depth.msaa_depth_texture_view = NULL;
-    }
-    if (impl->depth.msaa_depth_texture) {
-        wgpuTextureRelease(impl->depth.msaa_depth_texture);
-        impl->depth.msaa_depth_texture = NULL;
-    }
-    impl->depth.msaa_texture_width = 0;
-    impl->depth.msaa_texture_height = 0;
-    impl->depth.msaa_texture_sample_count = 0;
-    impl->depth.msaa_color_format = WGPUTextureFormat_Undefined;
-}
-
 void flecsEngine_renderer_cleanup(
     FlecsEngineImpl *impl)
 {
-    if (impl->depth.passthrough_pipeline) {
-        wgpuRenderPipelineRelease(impl->depth.passthrough_pipeline);
-        impl->depth.passthrough_pipeline = NULL;
+    if (impl->pipelines.passthrough_pipeline) {
+        wgpuRenderPipelineRelease(impl->pipelines.passthrough_pipeline);
+        impl->pipelines.passthrough_pipeline = NULL;
     }
-    if (impl->depth.passthrough_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->depth.passthrough_bind_layout);
-        impl->depth.passthrough_bind_layout = NULL;
+    if (impl->pipelines.passthrough_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->pipelines.passthrough_bind_layout);
+        impl->pipelines.passthrough_bind_layout = NULL;
     }
-    if (impl->depth.passthrough_sampler) {
-        wgpuSamplerRelease(impl->depth.passthrough_sampler);
-        impl->depth.passthrough_sampler = NULL;
-    }
-
-    if (impl->depth.depth_resolve_pipeline) {
-        wgpuRenderPipelineRelease(impl->depth.depth_resolve_pipeline);
-        impl->depth.depth_resolve_pipeline = NULL;
-    }
-    if (impl->depth.depth_resolve_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->depth.depth_resolve_bind_layout);
-        impl->depth.depth_resolve_bind_layout = NULL;
+    if (impl->pipelines.passthrough_sampler) {
+        wgpuSamplerRelease(impl->pipelines.passthrough_sampler);
+        impl->pipelines.passthrough_sampler = NULL;
     }
 
-    flecsEngine_releaseMsaaResources(impl);
-
-    if (impl->depth.depth_texture_view) {
-        wgpuTextureViewRelease(impl->depth.depth_texture_view);
-        impl->depth.depth_texture_view = NULL;
+    if (impl->pipelines.depth_resolve_pipeline) {
+        wgpuRenderPipelineRelease(impl->pipelines.depth_resolve_pipeline);
+        impl->pipelines.depth_resolve_pipeline = NULL;
     }
-    if (impl->depth.depth_texture) {
-        wgpuTextureRelease(impl->depth.depth_texture);
-        impl->depth.depth_texture = NULL;
+    if (impl->pipelines.depth_resolve_bind_layout) {
+        wgpuBindGroupLayoutRelease(impl->pipelines.depth_resolve_bind_layout);
+        impl->pipelines.depth_resolve_bind_layout = NULL;
     }
-    impl->depth.depth_texture_width = 0;
-    impl->depth.depth_texture_height = 0;
-}
-
-static int flecsEngine_ensureMsaaResources(
-    ecs_world_t *world,
-    FlecsEngineImpl *impl)
-{
-    const FlecsSurface *surface = ecs_get(world, impl->surface, FlecsSurface);
-    int32_t sc = surface->sample_count;
-    if (sc < 2) {
-        /* MSAA disabled — release any existing MSAA resources. */
-        if (impl->depth.msaa_color_texture) {
-            flecsEngine_releaseMsaaResources(impl);
-        }
-        return 0;
-    }
-
-    uint32_t width = (uint32_t)surface->actual_width;
-    uint32_t height = (uint32_t)surface->actual_height;
-    WGPUTextureFormat color_format = flecsEngine_getHdrFormat(impl);
-
-    if (impl->depth.msaa_color_texture &&
-        impl->depth.msaa_depth_texture &&
-        impl->depth.msaa_texture_width == width &&
-        impl->depth.msaa_texture_height == height &&
-        impl->depth.msaa_texture_sample_count == sc &&
-        impl->depth.msaa_color_format == color_format)
-    {
-        return 0;
-    }
-
-    flecsEngine_releaseMsaaResources(impl);
-
-    /* MSAA color texture */
-    WGPUTextureDescriptor color_desc = {
-        .usage = WGPUTextureUsage_RenderAttachment,
-        .dimension = WGPUTextureDimension_2D,
-        .size = (WGPUExtent3D){
-            .width = width,
-            .height = height,
-            .depthOrArrayLayers = 1
-        },
-        .format = color_format,
-        .mipLevelCount = 1,
-        .sampleCount = (uint32_t)sc
-    };
-
-    impl->depth.msaa_color_texture = wgpuDeviceCreateTexture(
-        impl->device, &color_desc);
-    if (!impl->depth.msaa_color_texture) {
-        ecs_err("Failed to create MSAA color texture");
-        goto error;
-    }
-
-    impl->depth.msaa_color_texture_view = wgpuTextureCreateView(
-        impl->depth.msaa_color_texture, NULL);
-    if (!impl->depth.msaa_color_texture_view) {
-        ecs_err("Failed to create MSAA color texture view");
-        goto error;
-    }
-
-    /* MSAA depth texture */
-    WGPUTextureDescriptor depth_desc = {
-        .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
-        .dimension = WGPUTextureDimension_2D,
-        .size = (WGPUExtent3D){
-            .width = width,
-            .height = height,
-            .depthOrArrayLayers = 1
-        },
-        .format = WGPUTextureFormat_Depth24Plus,
-        .mipLevelCount = 1,
-        .sampleCount = (uint32_t)sc
-    };
-
-    impl->depth.msaa_depth_texture = wgpuDeviceCreateTexture(
-        impl->device, &depth_desc);
-    if (!impl->depth.msaa_depth_texture) {
-        ecs_err("Failed to create MSAA depth texture");
-        goto error;
-    }
-
-    impl->depth.msaa_depth_texture_view = wgpuTextureCreateView(
-        impl->depth.msaa_depth_texture, NULL);
-    if (!impl->depth.msaa_depth_texture_view) {
-        ecs_err("Failed to create MSAA depth texture view");
-        goto error;
-    }
-
-    impl->depth.msaa_texture_width = width;
-    impl->depth.msaa_texture_height = height;
-    impl->depth.msaa_texture_sample_count = sc;
-    impl->depth.msaa_color_format = color_format;
-    return 0;
-
-error:
-    flecsEngine_releaseMsaaResources(impl);
-    return -1;
 }
 
 static void flecsEngine_rebuildBatchPipelines(
@@ -309,10 +97,6 @@ int flecsEngine_initRenderer(
     FlecsEngineImpl *impl)
 {
     impl->hdr_color_format = WGPUTextureFormat_RGBA16Float;
-
-    if (flecsEngine_ensureDepthResources(world, impl)) {
-        goto error;
-    }
 
     ecs_entity_t engine_parent = ecs_lookup(world, "flecs.engine");
 
@@ -348,7 +132,7 @@ int flecsEngine_initRenderer(
         .cache_kind = EcsQueryCacheAuto
     });
 
-    impl->materials.texture_query = ecs_query(world, {
+    impl->textures.query = ecs_query(world, {
         .entity = ecs_entity(world, {
             .parent = engine_parent
         }),
@@ -384,11 +168,8 @@ int flecsEngine_initRenderer(
         .cache_kind = EcsQueryCacheAuto
     });
 
-    impl->sky_background_hdri = flecsEngine_createHdri(
-        world, 0, "SkyBackgroundHdri", NULL, 1014, 64);
-
-    impl->black_hdri = flecsEngine_createHdri(
-        world, 0, "BlackHdri", NULL, 1014, 64);
+    impl->fallback_hdri = flecsEngine_createHdri(
+        world, 0, "FallbackHdri", NULL, 1014, 64);
 
     if (flecsEngine_initPassthrough(impl)) {
         goto error;
@@ -493,36 +274,15 @@ static void FlecsEngineRender(
         surface->resolution_scale,
         surface->sample_count);
 
-    FLECS_TRACY_ZONE_BEGIN_N(__depth, "EnsureDepthResources");
-    bool depth_err = flecsEngine_ensureDepthResources(it->world, impl);
-    FLECS_TRACY_ZONE_END_N(__depth);
-    if (depth_err) {
-        flecsEngine_surfaceInterface_onFrameFailed(
-            it->world, impl, surf);
-        FLECS_TRACY_ZONE_END;
-        return;
-    }
-
-    /* Ensure MSAA resources match current sample_count / dimensions.
-     * If sample_count changed, also rebuild batch pipelines. */
+    /* Per-view depth/MSAA targets are allocated during flecsEngine_renderView_render.
+     * When sample_count changes, rebuild batch pipelines before rendering views. */
     {
-        int32_t prev_sc = impl->depth.msaa_texture_sample_count;
         int32_t cur_sc = surface->sample_count < 2 ? 0 : surface->sample_count;
-
-        FLECS_TRACY_ZONE_BEGIN_N(__msaa, "EnsureMsaaResources");
-        bool msaa_err = flecsEngine_ensureMsaaResources(it->world, impl);
-        FLECS_TRACY_ZONE_END_N(__msaa);
-        if (msaa_err) {
-            flecsEngine_surfaceInterface_onFrameFailed(
-                it->world, impl, surf);
-            FLECS_TRACY_ZONE_END;
-            return;
-        }
-
-        if (prev_sc != cur_sc) {
+        if (surf->prev_sample_count != cur_sc) {
             FLECS_TRACY_ZONE_BEGIN_N(__rb, "RebuildBatchPipelines");
             flecsEngine_rebuildBatchPipelines(it->world);
             FLECS_TRACY_ZONE_END_N(__rb);
+            surf->prev_sample_count = cur_sc;
         }
     }
 
@@ -559,7 +319,7 @@ static void FlecsEngineRender(
     FLECS_TRACY_ZONE_END_N(__matu);
 
     // Build texture arrays (only runs when materials change)
-    if (!impl->materials.texture_array_bind_group) {
+    if (!impl->textures.array_bind_group) {
         FLECS_TRACY_ZONE_BEGIN_N(__mta, "BuildTextureArrays");
         flecsEngine_material_buildTextureArrays(it->world, impl);
         FLECS_TRACY_ZONE_END_N(__mta);
@@ -647,20 +407,20 @@ void FlecsEngineRendererImport(
 
     ecs_set_name_prefix(world, "Flecs");
 
-    ECS_COMPONENT_DEFINE(world, FlecsVertex);
-    ECS_COMPONENT_DEFINE(world, FlecsLitVertexUv);
-    ECS_COMPONENT_DEFINE(world, FlecsInstanceTransform);
-    ECS_COMPONENT_DEFINE(world, FlecsUniform);
+    ECS_COMPONENT_DEFINE(world, FlecsGpuVertex);
+    ECS_COMPONENT_DEFINE(world, FlecsGpuVertexLitUv);
+    ECS_COMPONENT_DEFINE(world, FlecsGpuTransform);
+    ECS_COMPONENT_DEFINE(world, FlecsGpuUniforms);
 
     ecs_struct(world, {
-        .entity = ecs_id(FlecsVertex),
+        .entity = ecs_id(FlecsGpuVertex),
         .members = {
             { .name = "p", .type = ecs_id(flecs_vec3_t) },
         }
     });
 
     ecs_struct(world, {
-        .entity = ecs_id(FlecsLitVertexUv),
+        .entity = ecs_id(FlecsGpuVertexLitUv),
         .members = {
             { .name = "p", .type = ecs_id(flecs_vec3_t) },
             { .name = "n", .type = ecs_id(flecs_vec3_t) },
@@ -671,7 +431,7 @@ void FlecsEngineRendererImport(
 
 
     ecs_struct(world, {
-        .entity = ecs_id(FlecsInstanceTransform),
+        .entity = ecs_id(FlecsGpuTransform),
         .members = {
             { .name = "c0", .type = ecs_id(flecs_vec3_t) },
             { .name = "c1", .type = ecs_id(flecs_vec3_t) },
@@ -681,7 +441,7 @@ void FlecsEngineRendererImport(
     });
 
     ecs_struct(world, {
-        .entity = ecs_id(FlecsUniform),
+        .entity = ecs_id(FlecsGpuUniforms),
         .members = {
             { .name = "mvp", .type = ecs_id(flecs_mat4_t) },
             { .name = "inv_vp", .type = ecs_id(flecs_mat4_t) },
