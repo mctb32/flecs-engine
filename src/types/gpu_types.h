@@ -20,10 +20,10 @@ typedef struct {
 extern ECS_COMPONENT_DECLARE(FlecsGpuVertexLitUv);
 
 typedef struct {
-    flecs_vec3_t c0;
-    flecs_vec3_t c1;
-    flecs_vec3_t c2;
-    flecs_vec3_t c3;
+    flecs_vec4_t c0;
+    flecs_vec4_t c1;
+    flecs_vec4_t c2;
+    flecs_vec4_t c3;
 } FlecsGpuTransform;
 
 extern ECS_COMPONENT_DECLARE(FlecsGpuTransform);

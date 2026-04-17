@@ -5,8 +5,6 @@
 #include "../vendor.h"
 #include "gpu_types.h"
 
-#define FLECS_ENGINE_INSTANCE_TYPES_MAX (8)
-
 typedef struct {
     WGPUShaderModule shader_module;
     WGPUBindGroupLayout pass_bind_layout;
@@ -116,6 +114,8 @@ typedef struct {
 
     WGPUBindGroupLayout no_texture_bind_layout;
     WGPUBindGroup no_texture_bind_group;
+
+    WGPUBindGroupLayout instance_bind_layout;
 
     flecsEngine_shadow_t shadow;
     flecsEngine_lighting_t lighting;

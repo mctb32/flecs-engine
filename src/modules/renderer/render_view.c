@@ -959,6 +959,57 @@ static void flecsEngine_renderView_extract(
     FlecsRenderViewImpl *impl)
 {
     FLECS_TRACY_ZONE_BEGIN("ExtractView");
+    (void)world;
+    (void)engine;
+    (void)view;
+
+    flecsEngine_renderView_extractBatches(world, view_entity, engine, impl, view);
+
+    FLECS_TRACY_ZONE_END;
+}
+
+void flecsEngine_renderView_extractAll(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine)
+{
+    ecs_iter_t it = ecs_query_iter(world, engine->view_query);
+    while (ecs_query_next(&it)) {
+        FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
+        FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
+        for (int32_t i = 0; i < it.count; i ++) {
+            flecsEngine_renderView_extract(
+                world,
+                engine,
+                it.entities[i],
+                &views[i],
+                &viewImpls[i]);
+        }
+    }
+}
+
+static void flecsEngine_renderView_cullBatches(
+    ecs_world_t *world,
+    ecs_entity_t view_entity,
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl)
+{
+    FLECS_TRACY_ZONE_BEGIN("CullBatches");
+    const FlecsRenderBatchSet *batch_set = ecs_get(
+        world, view_entity, FlecsRenderBatchSet);
+    ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    flecsEngine_renderBatchSet_cull(world, engine, view_impl, batch_set);
+    FLECS_TRACY_ZONE_END;
+}
+
+static void flecsEngine_renderView_cull(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    ecs_entity_t view_entity,
+    const FlecsRenderView *view,
+    FlecsRenderViewImpl *impl)
+{
+    FLECS_TRACY_ZONE_BEGIN("CullView");
 
     impl->frustum_valid = false;
     impl->shadow_frustum_valid = false;
@@ -1014,12 +1065,12 @@ static void flecsEngine_renderView_extract(
         }
     }
 
-    flecsEngine_renderView_extractBatches(world, view_entity, engine, impl, view);
+    flecsEngine_renderView_cullBatches(world, view_entity, engine, impl);
 
     FLECS_TRACY_ZONE_END;
 }
 
-void flecsEngine_renderView_extractAll(
+void flecsEngine_renderView_cullAll(
     ecs_world_t *world,
     FlecsEngineImpl *engine)
 {
@@ -1028,7 +1079,7 @@ void flecsEngine_renderView_extractAll(
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
         FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
         for (int32_t i = 0; i < it.count; i ++) {
-            flecsEngine_renderView_extract(
+            flecsEngine_renderView_cull(
                 world,
                 engine,
                 it.entities[i],

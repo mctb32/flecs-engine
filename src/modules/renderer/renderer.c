@@ -199,10 +199,10 @@ static void FlecsEngineExtract(
     FLECS_TRACY_ZONE_END;
 }
 
-static void FlecsEngineExtractShadows(
+static void FlecsEngineCull(
     ecs_iter_t *it)
 {
-    FLECS_TRACY_ZONE_BEGIN("ExtractShadows");
+    FLECS_TRACY_ZONE_BEGIN("Cull");
     FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
 
     if (!impl->device || !impl->queue) {
@@ -210,7 +210,22 @@ static void FlecsEngineExtractShadows(
         return;
     }
 
-    flecsEngine_renderView_extractShadowsAll(it->world, impl);
+    flecsEngine_renderView_cullAll(it->world, impl);
+    FLECS_TRACY_ZONE_END;
+}
+
+static void FlecsEngineCullShadows(
+    ecs_iter_t *it)
+{
+    FLECS_TRACY_ZONE_BEGIN("CullShadows");
+    FlecsEngineImpl *impl = ecs_field(it, FlecsEngineImpl, 0);
+
+    if (!impl->device || !impl->queue) {
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
+    flecsEngine_renderView_cullShadowsAll(it->world, impl);
     FLECS_TRACY_ZONE_END;
 }
 
@@ -433,10 +448,10 @@ void FlecsEngineRendererImport(
     ecs_struct(world, {
         .entity = ecs_id(FlecsGpuTransform),
         .members = {
-            { .name = "c0", .type = ecs_id(flecs_vec3_t) },
-            { .name = "c1", .type = ecs_id(flecs_vec3_t) },
-            { .name = "c2", .type = ecs_id(flecs_vec3_t) },
-            { .name = "c3", .type = ecs_id(flecs_vec3_t) }
+            { .name = "c0", .type = ecs_id(flecs_vec4_t) },
+            { .name = "c1", .type = ecs_id(flecs_vec4_t) },
+            { .name = "c2", .type = ecs_id(flecs_vec4_t) },
+            { .name = "c3", .type = ecs_id(flecs_vec4_t) }
         }
     });
 
@@ -501,7 +516,10 @@ void FlecsEngineRendererImport(
     ECS_SYSTEM(world, FlecsEngineExtract, EcsOnStore,
         flecs.engine.EngineImpl);
 
-    ECS_SYSTEM(world, FlecsEngineExtractShadows, EcsOnStore,
+    ECS_SYSTEM(world, FlecsEngineCull, EcsOnStore,
+        flecs.engine.EngineImpl);
+
+    ECS_SYSTEM(world, FlecsEngineCullShadows, EcsOnStore,
         flecs.engine.EngineImpl);
 
     ECS_SYSTEM(world, FlecsEngineUpload, EcsOnStore,

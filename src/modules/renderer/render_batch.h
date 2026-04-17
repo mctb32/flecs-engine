@@ -21,14 +21,14 @@ ECS_STRUCT(FlecsRenderBatch, {
     ecs_entity_t shader;
     ecs_query_t *query;
     ecs_entity_t vertex_type;
-    ecs_entity_t instance_types[FLECS_ENGINE_INSTANCE_TYPES_MAX];
     WGPUCompareFunction depth_test;
     WGPUCullMode cull_mode;
     WGPUBlendState blend;
     bool depth_write;
 ECS_PRIVATE
     flecs_render_batch_extract_callback extract_callback;
-    flecs_render_batch_extract_callback shadow_extract_callback;
+    flecs_render_batch_extract_callback cull_callback;
+    flecs_render_batch_extract_callback shadow_cull_callback;
     flecs_render_batch_extract_callback upload_callback;
     flecs_render_batch_extract_callback shadow_upload_callback;
     flecs_render_batch_callback callback;
@@ -60,7 +60,13 @@ void flecsEngine_renderBatch_extract(
     FlecsRenderViewImpl *view_impl,
     ecs_entity_t batch_entity);
 
-void flecsEngine_renderBatch_extractShadow(
+void flecsEngine_renderBatch_cull(
+    ecs_world_t *world,
+    FlecsEngineImpl *impl,
+    FlecsRenderViewImpl *view_impl,
+    ecs_entity_t batch_entity);
+
+void flecsEngine_renderBatch_cullShadow(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
     FlecsRenderViewImpl *view_impl,
@@ -95,7 +101,13 @@ void flecsEngine_renderBatchSet_extract(
     FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set);
 
-void flecsEngine_renderBatchSet_extractShadow(
+void flecsEngine_renderBatchSet_cull(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
+    const FlecsRenderBatchSet *batch_set);
+
+void flecsEngine_renderBatchSet_cullShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
     FlecsRenderViewImpl *view_impl,

@@ -3,7 +3,7 @@
 #include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
-static void flecsEngine_renderView_extractShadowBatches(
+static void flecsEngine_renderView_cullShadowBatches(
     ecs_world_t *world,
     ecs_entity_t view_entity,
     FlecsEngineImpl *engine,
@@ -11,12 +11,12 @@ static void flecsEngine_renderView_extractShadowBatches(
     const FlecsRenderView *view)
 {
     (void)view;
-    FLECS_TRACY_ZONE_BEGIN("ExtractShadowBatches");
+    FLECS_TRACY_ZONE_BEGIN("CullShadowBatches");
     const FlecsRenderBatchSet *batch_set = ecs_get(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    flecsEngine_renderBatchSet_extractShadow(world, engine, view_impl, batch_set);
+    flecsEngine_renderBatchSet_cullShadow(world, engine, view_impl, batch_set);
     FLECS_TRACY_ZONE_END;
 }
 
@@ -37,14 +37,14 @@ static void flecsEngine_renderView_uploadShadowBatches(
     FLECS_TRACY_ZONE_END;
 }
 
-static void flecsEngine_renderView_extractShadow(
+static void flecsEngine_renderView_cullShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
     ecs_entity_t view_entity,
     const FlecsRenderView *view,
     FlecsRenderViewImpl *view_impl)
 {
-    FLECS_TRACY_ZONE_BEGIN("ExtractShadowView");
+    FLECS_TRACY_ZONE_BEGIN("CullShadowView");
 
     view_impl->cascade_frustum_valid = false;
     uint32_t shadow_map_size = (uint32_t)view->shadow.map_size;
@@ -67,13 +67,13 @@ static void flecsEngine_renderView_extractShadow(
         view_impl->cascade_frustum_valid = true;
     }
 
-    flecsEngine_renderView_extractShadowBatches(
+    flecsEngine_renderView_cullShadowBatches(
         world, view_entity, engine, view_impl, view);
 
     FLECS_TRACY_ZONE_END;
 }
 
-void flecsEngine_renderView_extractShadowsAll(
+void flecsEngine_renderView_cullShadowsAll(
     ecs_world_t *world,
     FlecsEngineImpl *engine)
 {
@@ -82,7 +82,7 @@ void flecsEngine_renderView_extractShadowsAll(
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
         FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
         for (int32_t i = 0; i < it.count; i ++) {
-            flecsEngine_renderView_extractShadow(
+            flecsEngine_renderView_cullShadow(
                 world,
                 engine,
                 it.entities[i],

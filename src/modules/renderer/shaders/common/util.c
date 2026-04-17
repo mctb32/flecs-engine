@@ -59,3 +59,15 @@ bool flecsEngine_shader_usesMaterialBuffer(
         shader->source,
         "@group(2) @binding(0) var<storage, read> materials") != NULL;
 }
+
+bool flecsEngine_shader_usesInstanceBuffer(
+    const FlecsShader *shader)
+{
+    if (!shader || !shader->source) {
+        return false;
+    }
+
+    return strstr(
+        shader->source,
+        "instance_transforms") != NULL;
+}

@@ -18,6 +18,9 @@ ecs_entity_t flecsEngine_shader_pbr(
 bool flecsEngine_shader_usesMaterialBuffer(
     const FlecsShader *shader);
 
+bool flecsEngine_shader_usesInstanceBuffer(
+    const FlecsShader *shader);
+
 ecs_entity_t flecsEngine_shader_skybox(
     ecs_world_t *world);
 

@@ -301,6 +301,44 @@ static void flecsEngine_bevel_box_extract(
     buf->buffers.count = total;
 }
 
+static void flecsEngine_bevel_box_cull(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+    (void)view_impl;
+    flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
+    flecsEngine_batch_t *buf = &ctx->buffers;
+
+    if (!buf->buffers.count) {
+        buf->buffers.visible_count = 0;
+        return;
+    }
+
+    flecsEngine_batch_ensureVisibleCapacity(engine, buf, buf->buffers.count);
+
+    int32_t total = 0;
+    ctx->quad_batch.view.visible_offset = total;
+    flecsEngine_batch_group_cullIdentity(&ctx->quad_batch);
+    total += ctx->quad_batch.view.visible_count;
+
+    for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
+        for (int32_t sm = 0; sm < 2; sm ++) {
+            ctx->bevel_batches[s][sm].view.visible_offset = total;
+            flecsEngine_batch_group_cullIdentity(&ctx->bevel_batches[s][sm]);
+            total += ctx->bevel_batches[s][sm].view.visible_count;
+
+            ctx->corner_batches[s][sm].view.visible_offset = total;
+            flecsEngine_batch_group_cullIdentity(&ctx->corner_batches[s][sm]);
+            total += ctx->corner_batches[s][sm].view.visible_count;
+        }
+    }
+
+    buf->buffers.visible_count = total;
+}
+
 static void flecsEngine_bevel_box_upload(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
@@ -325,6 +363,8 @@ static void flecsEngine_bevel_box_render(
 
     flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
     flecsEngine_batch_bindMaterialGroup(
+        (FlecsEngineImpl*)engine, pass, &ctx->buffers);
+    flecsEngine_batch_bindInstanceGroup(
         (FlecsEngineImpl*)engine, pass, &ctx->buffers);
 
     flecsEngine_batch_group_draw(engine, pass, &ctx->quad_batch);
@@ -406,11 +446,8 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes(
         .shader = shader,
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-        .instance_types = {
-            ecs_id(FlecsGpuTransform),
-            ecs_id(FlecsMaterialId)
-        },
         .extract_callback = flecsEngine_bevel_box_extract,
+        .cull_callback = flecsEngine_bevel_box_cull,
         .upload_callback = flecsEngine_bevel_box_upload,
         .callback = flecsEngine_bevel_box_render,
         .ctx = flecsEngine_bevel_box_createCtx(world, FLECS_BATCH_OWNS_MATERIAL),
@@ -444,11 +481,8 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
         .shader = shader,
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-        .instance_types = {
-            ecs_id(FlecsGpuTransform),
-            ecs_id(FlecsMaterialId)
-        },
         .extract_callback = flecsEngine_bevel_box_extract,
+        .cull_callback = flecsEngine_bevel_box_cull,
         .upload_callback = flecsEngine_bevel_box_upload,
         .callback = flecsEngine_bevel_box_render,
         .ctx = flecsEngine_bevel_box_createCtx(world, FLECS_BATCH_DEFAULT),

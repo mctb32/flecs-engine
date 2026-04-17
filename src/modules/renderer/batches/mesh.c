@@ -32,12 +32,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
         .shader = shader,
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-        .instance_types = {
-            ecs_id(FlecsGpuTransform),
-            ecs_id(FlecsMaterialId)
-        },
         .extract_callback = flecsEngine_mesh_extract,
-        .shadow_extract_callback = flecsEngine_mesh_extractShadow,
+        .cull_callback = flecsEngine_mesh_cull,
+        .shadow_cull_callback = flecsEngine_mesh_cullShadow,
         .upload_callback = flecsEngine_mesh_upload,
         .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
@@ -81,12 +78,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
         .shader = shader,
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-        .instance_types = {
-            ecs_id(FlecsGpuTransform),
-            ecs_id(FlecsMaterialId)
-        },
         .extract_callback = flecsEngine_mesh_extract,
-        .shadow_extract_callback = flecsEngine_mesh_extractShadow,
+        .cull_callback = flecsEngine_mesh_cull,
+        .shadow_cull_callback = flecsEngine_mesh_cullShadow,
         .upload_callback = flecsEngine_mesh_upload,
         .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
@@ -130,12 +124,9 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
         .shader = shader,
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-        .instance_types = {
-            ecs_id(FlecsGpuTransform),
-            ecs_id(FlecsMaterialId)
-        },
         .extract_callback = flecsEngine_mesh_extract,
-        .shadow_extract_callback = flecsEngine_mesh_extractShadow,
+        .cull_callback = flecsEngine_mesh_cull,
+        .shadow_cull_callback = flecsEngine_mesh_cullShadow,
         .upload_callback = flecsEngine_mesh_upload,
         .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
@@ -193,6 +184,49 @@ static void flecsEngine_transparent_mesh_deleteCtx(void *ptr)
     ecs_os_free(ctx);
 }
 
+static void flecsEngine_transparent_mesh_cull(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+    (void)view_impl;
+
+    flecsEngine_transparent_mesh_ctx_t *tctx = batch->ctx;
+    flecsEngine_batch_t *shared = &tctx->buffers;
+    if (!shared->buffers.count) {
+        shared->buffers.visible_count = 0;
+        return;
+    }
+
+    flecsEngine_batch_ensureVisibleCapacity(
+        engine, shared, shared->buffers.count);
+
+    int32_t total = 0;
+    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
+    if (groups) {
+        ecs_map_iter_t git = ecs_map_iter(groups);
+        while (ecs_map_next(&git)) {
+            uint64_t group_id = ecs_map_key(&git);
+            if (!group_id) continue;
+
+            flecsEngine_batch_group_t *ctx =
+                ecs_query_get_group_ctx(batch->query, group_id);
+            if (!ctx) continue;
+
+            ctx->view.visible_offset = total;
+            if (ctx->view.count) {
+                flecsEngine_batch_group_cullIdentity(ctx);
+            } else {
+                ctx->view.visible_count = 0;
+            }
+            total += ctx->view.visible_count;
+        }
+    }
+    shared->buffers.visible_count = total;
+}
+
 static void flecsEngine_transparent_mesh_render(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
@@ -205,11 +239,12 @@ static void flecsEngine_transparent_mesh_render(
     flecsEngine_transparent_mesh_ctx_t *tctx = batch->ctx;
     flecsEngine_batch_bindMaterialGroup(
         (FlecsEngineImpl*)engine, pass, &tctx->buffers);
+    flecsEngine_batch_bindInstanceGroup(
+        (FlecsEngineImpl*)engine, pass, &tctx->buffers);
 
     const ecs_map_t *groups = ecs_query_get_groups(batch->query);
     ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    /* Count total instances across all groups */
     int32_t total_instances = 0;
     ecs_map_iter_t git = ecs_map_iter(groups);
     while (ecs_map_next(&git)) {
@@ -217,15 +252,15 @@ static void flecsEngine_transparent_mesh_render(
         if (!group_id) continue;
         flecsEngine_batch_group_t *ctx =
             ecs_query_get_group_ctx(batch->query, group_id);
-        if (!ctx || !ctx->view.count) continue;
-        total_instances += ctx->view.count;
+        if (!ctx || !ctx->view.visible_count) continue;
+        total_instances += ctx->view.visible_count;
     }
 
     if (!total_instances) {
-        goto done;
+        FLECS_TRACY_ZONE_END;
+        return;
     }
 
-    /* Collect every instance with its camera distance */
     flecsEngine_sorted_instance_t *sorted =
         ecs_os_malloc_n(flecsEngine_sorted_instance_t, total_instances);
 
@@ -241,30 +276,37 @@ static void flecsEngine_transparent_mesh_render(
 
         flecsEngine_batch_group_t *ctx =
             ecs_query_get_group_ctx(batch->query, group_id);
-        if (!ctx || !ctx->view.count) continue;
+        if (!ctx || !ctx->view.visible_count) continue;
 
-        for (int32_t j = 0; j < ctx->view.count; j ++) {
+        for (int32_t j = 0; j < ctx->view.visible_count; j ++) {
+            uint32_t slot = tctx->buffers.buffers.cpu_visible_slots[
+                ctx->view.visible_offset + j];
             const FlecsGpuTransform *t =
-                &ctx->batch->buffers.cpu_transforms[ctx->view.offset + j];
+                &tctx->buffers.buffers.cpu_transforms[slot];
             float dx = t->c3.x - cam_x;
             float dy = t->c3.y - cam_y;
             float dz = t->c3.z - cam_z;
 
             sorted[si].group_id = group_id;
-            sorted[si].instance_index = j;
+            sorted[si].instance_index = (int32_t)slot;
             sorted[si].distance_sq = dx * dx + dy * dy + dz * dz;
             si ++;
         }
     }
 
-    /* Sort all instances back-to-front */
     qsort(sorted, (size_t)total_instances,
         sizeof(flecsEngine_sorted_instance_t),
         flecsEngine_sortInstanceByDistance);
 
-    /* Single pipeline + texture array bind — the pbr shader handles both
-     * textured and non-textured meshes via layer_* != 0 gating. Every mesh
-     * has vertex_uv_buffer built unconditionally (see geometry3.c). */
+    for (int32_t i = 0; i < total_instances; i ++) {
+        tctx->buffers.buffers.cpu_visible_slots[i] =
+            (uint32_t)sorted[i].instance_index;
+    }
+    wgpuQueueWriteBuffer(engine->queue,
+        tctx->buffers.buffers.gpu_visible_slots, 0,
+        tctx->buffers.buffers.cpu_visible_slots,
+        (uint64_t)total_instances * sizeof(uint32_t));
+
     const FlecsRenderBatchImpl *self_impl =
         ecs_get(world, tctx->self_entity, FlecsRenderBatchImpl);
     wgpuRenderPassEncoderSetPipeline(pass, self_impl->pipeline_hdr);
@@ -274,57 +316,42 @@ static void flecsEngine_transparent_mesh_render(
     }
 
     uint64_t active_group = 0;
+    flecsEngine_batch_group_t *active_ctx = NULL;
 
     for (int32_t i = 0; i < total_instances; i ++) {
         uint64_t group_id = sorted[i].group_id;
 
-        flecsEngine_batch_group_t *ctx =
-            ecs_query_get_group_ctx(batch->query, group_id);
-        ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
-
-        const flecsEngine_batch_t *buf = ctx->batch;
-        if (!buf) {
-            continue;
-        }
-
-        /* When the group changes, rebind mesh vertex/index buffers. */
         if (group_id != active_group) {
             active_group = group_id;
+            active_ctx = ecs_query_get_group_ctx(batch->query, group_id);
+            ecs_assert(active_ctx != NULL, ECS_INTERNAL_ERROR, NULL);
 
-            if (!ctx->mesh.vertex_uv_buffer ||
-                !ctx->mesh.index_buffer || !ctx->mesh.index_count)
+            if (!active_ctx->mesh.vertex_uv_buffer ||
+                !active_ctx->mesh.index_buffer ||
+                !active_ctx->mesh.index_count)
             {
+                active_ctx = NULL;
                 continue;
             }
             wgpuRenderPassEncoderSetVertexBuffer(
-                pass, 0, ctx->mesh.vertex_uv_buffer,
+                pass, 0, active_ctx->mesh.vertex_uv_buffer,
                 0, WGPU_WHOLE_SIZE);
             wgpuRenderPassEncoderSetIndexBuffer(
-                pass, ctx->mesh.index_buffer, WGPUIndexFormat_Uint32,
+                pass, active_ctx->mesh.index_buffer, WGPUIndexFormat_Uint32,
                 0, WGPU_WHOLE_SIZE);
         }
-
-        /* Bind this instance's transform and material id */
-        int32_t global_index = ctx->view.offset + sorted[i].instance_index;
-        uint64_t transform_offset =
-            (uint64_t)global_index * sizeof(FlecsGpuTransform);
-        uint64_t matid_offset =
-            (uint64_t)global_index * sizeof(FlecsMaterialId);
+        if (!active_ctx) continue;
 
         wgpuRenderPassEncoderSetVertexBuffer(
-            pass, 1, buf->buffers.gpu_transforms,
-            transform_offset, sizeof(FlecsGpuTransform));
-        wgpuRenderPassEncoderSetVertexBuffer(
-            pass, 2, buf->buffers.gpu_material_ids,
-            matid_offset, sizeof(FlecsMaterialId));
+            pass, 1, tctx->buffers.buffers.gpu_visible_slots,
+            (uint64_t)i * sizeof(uint32_t), sizeof(uint32_t));
 
         wgpuRenderPassEncoderDrawIndexed(
-            pass, ctx->mesh.index_count, 1, 0, 0, 0);
+            pass, active_ctx->mesh.index_count, 1, 0, 0, 0);
     }
 
     ecs_os_free(sorted);
 
-done:
     FLECS_TRACY_ZONE_END;
 }
 
@@ -360,10 +387,6 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
         .shader = shader,
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-        .instance_types = {
-            ecs_id(FlecsGpuTransform),
-            ecs_id(FlecsMaterialId)
-        },
         .depth_test = WGPUCompareFunction_Less,
         .cull_mode = WGPUCullMode_None,
         .blend = {
@@ -380,6 +403,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
         },
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
+        .cull_callback = flecsEngine_transparent_mesh_cull,
         .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_transparent_mesh_render,
         .ctx = flecsEngine_transparent_mesh_createCtx(batch),
@@ -422,12 +446,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmission(
         .shader = shader,
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-        .instance_types = {
-            ecs_id(FlecsGpuTransform),
-            ecs_id(FlecsMaterialId)
-        },
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
+        .cull_callback = flecsEngine_mesh_cull,
         .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_mesh_render,
         .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_DEFAULT),
@@ -471,12 +492,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmissionData(
         .shader = shader,
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-        .instance_types = {
-            ecs_id(FlecsGpuTransform),
-            ecs_id(FlecsMaterialId)
-        },
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
+        .cull_callback = flecsEngine_mesh_cull,
         .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_mesh_render,
         .ctx = flecsEngine_mesh_createCtx(

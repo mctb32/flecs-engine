@@ -43,13 +43,14 @@ static void flecsEngine_primitive_extract(
     const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch)
 {
+    (void)view_impl;
     flecsEngine_primitive_ctx_t *pctx = batch->ctx;
     flecsEngine_batch_group_t *ctx = &pctx->group.group;
     flecsEngine_batch_t *buf = ctx->batch;
 
 redo:
     ctx->view.offset = 0;
-    flecsEngine_batch_group_extract(world, engine, view_impl, batch, ctx,
+    flecsEngine_batch_group_extract(world, engine, batch, ctx,
         pctx->group.scale_callback, pctx->group.scale_aabb,
         pctx->group.component_size);
 
@@ -59,6 +60,58 @@ redo:
     }
 
     buf->buffers.count = ctx->view.count;
+}
+
+static void flecsEngine_primitive_cull(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+    flecsEngine_primitive_ctx_t *pctx = batch->ctx;
+    flecsEngine_batch_group_t *ctx = &pctx->group.group;
+    flecsEngine_batch_t *buf = ctx->batch;
+
+    if (!buf->buffers.count) {
+        buf->buffers.visible_count = 0;
+        ctx->view.visible_count = 0;
+        return;
+    }
+
+    flecsEngine_batch_ensureVisibleCapacity(engine, buf, buf->buffers.count);
+    ctx->view.visible_offset = 0;
+    flecsEngine_batch_group_cull(view_impl, ctx);
+    buf->buffers.visible_count = ctx->view.visible_count;
+}
+
+static void flecsEngine_primitive_cullShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
+    const FlecsRenderBatch *batch)
+{
+    (void)world;
+    flecsEngine_primitive_ctx_t *pctx = batch->ctx;
+    flecsEngine_batch_group_t *ctx = &pctx->group.group;
+    flecsEngine_batch_t *buf = ctx->batch;
+
+    if (!buf->buffers.count || !view_impl->cascade_frustum_valid) {
+        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+            buf->buffers.shadow_visible_count[c] = 0;
+            ctx->view.shadow_visible_count[c] = 0;
+        }
+        return;
+    }
+
+    flecsEngine_batch_ensureVisibleCapacity(engine, buf, buf->buffers.count);
+    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+        ctx->view.shadow_visible_offset[c] = 0;
+    }
+    flecsEngine_batch_group_cullShadow(view_impl, ctx);
+    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
+        buf->buffers.shadow_visible_count[c] = ctx->view.shadow_visible_count[c];
+    }
 }
 
 static void flecsEngine_primitive_upload(
@@ -71,42 +124,6 @@ static void flecsEngine_primitive_upload(
     (void)view_impl;
     flecsEngine_primitive_ctx_t *pctx = batch->ctx;
     flecsEngine_batch_upload(engine, &pctx->buffers);
-}
-
-static void flecsEngine_primitive_extractShadow(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatch *batch)
-{
-    flecsEngine_primitive_ctx_t *pctx = batch->ctx;
-    flecsEngine_batch_group_t *ctx = &pctx->group.group;
-    flecsEngine_batch_t *buf = ctx->batch;
-
-redo_shadow:
-    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
-        ctx->view.shadow_offset[c] = 0;
-    }
-    flecsEngine_batch_group_extractShadow(world, engine, view_impl, batch, ctx,
-        pctx->group.scale_callback, pctx->group.component_size);
-
-    {
-        int32_t max_shadow = 0;
-        for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
-            if (ctx->view.shadow_count[c] > max_shadow) {
-                max_shadow = ctx->view.shadow_count[c];
-            }
-        }
-        if (max_shadow > buf->buffers.shadow_capacity) {
-            flecsEngine_batch_ensureShadowCapacity(
-                engine, buf, max_shadow);
-            goto redo_shadow;
-        }
-    }
-
-    for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
-        buf->buffers.shadow_count[c] = ctx->view.shadow_count[c];
-    }
 }
 
 static void flecsEngine_primitive_uploadShadow(
@@ -134,6 +151,8 @@ static void flecsEngine_primitive_render(
     flecsEngine_primitive_ctx_t *pctx = batch->ctx;
     flecsEngine_batch_bindMaterialGroup(
         (FlecsEngineImpl*)engine, pass, &pctx->buffers);
+    flecsEngine_batch_bindInstanceGroup(
+        (FlecsEngineImpl*)engine, pass, &pctx->buffers);
 
     flecsEngine_batch_group_draw(engine, pass, &pctx->group.group);
 }
@@ -148,6 +167,8 @@ static void flecsEngine_primitive_renderShadow(
     (void)world;
 
     flecsEngine_primitive_ctx_t *pctx = batch->ctx;
+    flecsEngine_batch_bindInstanceGroupShadow(
+        (FlecsEngineImpl*)engine, pass, &pctx->buffers);
     flecsEngine_batch_group_drawShadow(engine, view_impl, pass, &pctx->group.group);
 }
 
@@ -335,12 +356,9 @@ static ecs_entity_t flecsEngine_createBatch_primitive_materialIndex(
         .shader = shader,
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-        .instance_types = {
-            ecs_id(FlecsGpuTransform),
-            ecs_id(FlecsMaterialId)
-        },
         .extract_callback = flecsEngine_primitive_extract,
-        .shadow_extract_callback = flecsEngine_primitive_extractShadow,
+        .cull_callback = flecsEngine_primitive_cull,
+        .shadow_cull_callback = flecsEngine_primitive_cullShadow,
         .upload_callback = flecsEngine_primitive_upload,
         .shadow_upload_callback = flecsEngine_primitive_uploadShadow,
         .callback = flecsEngine_primitive_render,
@@ -391,12 +409,9 @@ ecs_entity_t flecsEngine_createBatch_primitive(
         .shader = shader,
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-        .instance_types = {
-            ecs_id(FlecsGpuTransform),
-            ecs_id(FlecsMaterialId)
-        },
         .extract_callback = flecsEngine_primitive_extract,
-        .shadow_extract_callback = flecsEngine_primitive_extractShadow,
+        .cull_callback = flecsEngine_primitive_cull,
+        .shadow_cull_callback = flecsEngine_primitive_cullShadow,
         .upload_callback = flecsEngine_primitive_upload,
         .shadow_upload_callback = flecsEngine_primitive_uploadShadow,
         .callback = flecsEngine_primitive_render,

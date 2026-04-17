@@ -14,7 +14,11 @@ void flecsEngine_renderView_renderAll(
     WGPUTextureView view_texture,
     WGPUCommandEncoder encoder);
 
-void flecsEngine_renderView_extractShadowsAll(
+void flecsEngine_renderView_cullAll(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine);
+
+void flecsEngine_renderView_cullShadowsAll(
     ecs_world_t *world,
     FlecsEngineImpl *engine);
 

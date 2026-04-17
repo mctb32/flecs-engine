@@ -6,7 +6,6 @@
 
 typedef struct {
     FlecsMesh3Impl mesh;
-    WGPUBuffer instance_transform;
     bool initialized;
 } flecs_engine_skybox_ctx_t;
 
@@ -20,6 +19,7 @@ static void flecsEngine_skybox_ensureInitialized(
     const FlecsEngineImpl *engine,
     flecs_engine_skybox_ctx_t *ctx)
 {
+    (void)engine;
     if (ctx->initialized) {
         return;
     }
@@ -30,21 +30,6 @@ static void flecsEngine_skybox_ensureInitialized(
         ctx->mesh = *mesh;
     }
 
-    /* Scale-2 identity: positions the [-0.5, 0.5] quad at [-1, 1] NDC xy. */
-    FlecsGpuTransform t = {
-        .c0 = { 2.0f, 0.0f, 0.0f },
-        .c1 = { 0.0f, 2.0f, 0.0f },
-        .c2 = { 0.0f, 0.0f, 1.0f },
-        .c3 = { 0.0f, 0.0f, 0.0f }
-    };
-    ctx->instance_transform = wgpuDeviceCreateBuffer(engine->device,
-        &(WGPUBufferDescriptor){
-            .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst,
-            .size = sizeof(FlecsGpuTransform)
-        });
-    wgpuQueueWriteBuffer(engine->queue, ctx->instance_transform, 0,
-        &t, sizeof(FlecsGpuTransform));
-
     ctx->initialized = true;
 }
 
@@ -52,9 +37,6 @@ static void flecsEngine_skybox_deleteCtx(
     void *arg)
 {
     flecs_engine_skybox_ctx_t *ctx = arg;
-    if (ctx->instance_transform) {
-        wgpuBufferRelease(ctx->instance_transform);
-    }
     ecs_os_free(ctx);
 }
 
@@ -77,8 +59,6 @@ static void flecsEngine_skybox_renderCallback(
 
     wgpuRenderPassEncoderSetVertexBuffer(
         pass, 0, ctx->mesh.vertex_uv_buffer, 0, WGPU_WHOLE_SIZE);
-    wgpuRenderPassEncoderSetVertexBuffer(
-        pass, 1, ctx->instance_transform, 0, sizeof(FlecsGpuTransform));
     wgpuRenderPassEncoderSetIndexBuffer(
         pass, ctx->mesh.index_buffer, WGPUIndexFormat_Uint32, 0,
         WGPU_WHOLE_SIZE);
@@ -95,9 +75,6 @@ void FlecsOnAddSkyBoxBatch(
         ecs_set(it->world, batch, FlecsRenderBatch, {
             .shader = shader,
             .vertex_type = ecs_id(FlecsGpuVertexLitUv),
-            .instance_types = {
-                ecs_id(FlecsGpuTransform)
-            },
             .depth_test = WGPUCompareFunction_LessEqual,
             .cull_mode = WGPUCullMode_None,
             .depth_write = false,

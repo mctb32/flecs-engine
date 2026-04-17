@@ -31,19 +31,26 @@ typedef struct {
     FlecsGpuTransform *cpu_transforms;
     FlecsMaterialId *cpu_material_ids;
     FlecsGpuMaterial *cpu_materials;
-    FlecsGpuTransform *cpu_shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    FlecsAABB *cpu_aabb;
+
+    uint32_t *cpu_visible_slots;
+    uint32_t *cpu_shadow_visible_slots[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
 
     WGPUBuffer gpu_transforms;
     WGPUBuffer gpu_material_ids;
     WGPUBuffer gpu_materials;
     WGPUBindGroup gpu_material_bind_group;
-    WGPUBuffer gpu_shadow_transforms[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    
+    WGPUBindGroup gpu_instance_bind_group;
+
+    WGPUBuffer gpu_visible_slots;
+    WGPUBuffer gpu_shadow_visible_slots[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+
     int32_t count;
     int32_t capacity;
 
-    int32_t shadow_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    int32_t shadow_capacity;
+    int32_t visible_count;
+    int32_t shadow_visible_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    int32_t visible_capacity;
 } flecsEngine_batch_buffers_t;
 
 /* Batch: render data for all entities matching the batch query. */
@@ -57,8 +64,11 @@ typedef struct {
     int32_t count;
     int32_t offset;
 
-    int32_t shadow_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    int32_t shadow_offset[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    int32_t visible_count;
+    int32_t visible_offset;
+
+    int32_t shadow_visible_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    int32_t shadow_visible_offset[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
 } flecsEngine_batch_view_t;
 
 /* Batch group: each batch can have multiple batch groups, where a group is
@@ -95,7 +105,7 @@ void flecsEngine_batch_ensureCapacity(
     flecsEngine_batch_t *buf,
     int32_t count);
 
-void flecsEngine_batch_ensureShadowCapacity(
+void flecsEngine_batch_ensureVisibleCapacity(
     const FlecsEngineImpl *engine,
     flecsEngine_batch_t *buf,
     int32_t count);
@@ -103,21 +113,22 @@ void flecsEngine_batch_ensureShadowCapacity(
 void flecsEngine_batch_group_extract(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch,
     flecsEngine_batch_group_t *ctx,
     flecsEngine_primitive_scale_t scale_callback,
     flecsEngine_primitive_scale_aabb_t scale_aabb,
     ecs_size_t component_size);
 
-void flecsEngine_batch_group_extractShadow(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
+void flecsEngine_batch_group_cull(
     const FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatch *batch,
-    flecsEngine_batch_group_t *ctx,
-    flecsEngine_primitive_scale_t scale,
-    ecs_size_t scale_size);
+    flecsEngine_batch_group_t *ctx);
+
+void flecsEngine_batch_group_cullShadow(
+    const FlecsRenderViewImpl *view_impl,
+    flecsEngine_batch_group_t *ctx);
+
+void flecsEngine_batch_group_cullIdentity(
+    flecsEngine_batch_group_t *ctx);
 
 void flecsEngine_batch_group_draw(
     const FlecsEngineImpl *engine,
@@ -131,6 +142,16 @@ void flecsEngine_batch_group_drawShadow(
     const flecsEngine_batch_group_t *ctx);
 
 void flecsEngine_batch_bindMaterialGroup(
+    FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_t *buf);
+
+void flecsEngine_batch_bindInstanceGroup(
+    FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_t *buf);
+
+void flecsEngine_batch_bindInstanceGroupShadow(
     FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_t *buf);
@@ -195,7 +216,25 @@ void flecsEngine_mesh_extract(
     const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch);
 
+void flecsEngine_mesh_cull(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
+    const FlecsRenderBatch *batch);
+
+void flecsEngine_mesh_cullShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
+    const FlecsRenderBatch *batch);
+
 void flecsEngine_mesh_upload(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
+    const FlecsRenderBatch *batch);
+
+void flecsEngine_mesh_uploadShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
@@ -206,18 +245,6 @@ void flecsEngine_mesh_render(
     const FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
     const WGPURenderPassEncoder pass,
-    const FlecsRenderBatch *batch);
-
-void flecsEngine_mesh_extractShadow(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatch *batch);
-
-void flecsEngine_mesh_uploadShadow(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch);
 
 void flecsEngine_mesh_renderShadow(

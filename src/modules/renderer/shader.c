@@ -123,6 +123,8 @@ static bool flecsEngine_shader_compile(
     shader_impl->uses_textures = flecsEngine_shader_usesTextures(shader);
     shader_impl->uses_material_buffer =
         flecsEngine_shader_usesMaterialBuffer(shader);
+    shader_impl->uses_instance_buffer =
+        flecsEngine_shader_usesInstanceBuffer(shader);
 
     return true;
 }

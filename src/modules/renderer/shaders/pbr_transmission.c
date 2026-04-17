@@ -9,6 +9,7 @@
 #include "common/ibl_bindings_wgsl.h"
 #include "common/gpu_material_wgsl.h"
 #include "common/pbr_textures_wgsl.h"
+#include "common/gpu_transform_wgsl.h"
 
 /* PBR shader with transmission support. Mirrors pbr.c's structure (reads
  * per-instance material from the storage buffer at @group(2) @binding(0)
@@ -24,6 +25,7 @@ static const char *kShaderSource =
     FLECS_ENGINE_SHADER_COMMON_CLUSTER_WGSL
     FLECS_ENGINE_SHADER_COMMON_PBR_TEXTURES_WGSL
     FLECS_ENGINE_SHADER_COMMON_GPU_MATERIAL_WGSL
+    FLECS_ENGINE_SHADER_COMMON_GPU_TRANSFORM_WGSL
 
     "@group(0) @binding(3) var opaque_snapshot : texture_2d<f32>;\n"
 
@@ -32,11 +34,7 @@ static const char *kShaderSource =
     "  @location(1) nrm : vec3<f32>,\n"
     "  @location(2) uv : vec2<f32>,\n"
     "  @location(3) tan : vec4<f32>,\n"
-    "  @location(4) m0 : vec3<f32>,\n"
-    "  @location(5) m1 : vec3<f32>,\n"
-    "  @location(6) m2 : vec3<f32>,\n"
-    "  @location(7) m3 : vec3<f32>,\n"
-    "  @location(8) material_id : u32\n"
+    "  @location(4) slot : u32\n"
     "};\n"
 
     "struct VertexOutput {\n"
@@ -54,23 +52,22 @@ static const char *kShaderSource =
 
     "@vertex fn vs_main(input : VertexInput) -> VertexOutput {\n"
     "  var out : VertexOutput;\n"
+    "  let t = instance_transforms[input.slot];\n"
+    "  let m0 = t.c0.xyz;\n"
+    "  let m1 = t.c1.xyz;\n"
+    "  let m2 = t.c2.xyz;\n"
+    "  let m3 = t.c3.xyz;\n"
     "  let vertex = buildPbrVertexState(\n"
-    "    input.pos,\n"
-    "    input.nrm,\n"
-    "    input.m0,\n"
-    "    input.m1,\n"
-    "    input.m2,\n"
-    "    input.m3);\n"
+    "    input.pos, input.nrm, m0, m1, m2, m3);\n"
     "  out.pos = vertex.clip_pos;\n"
     "  out.normal = vertex.world_normal;\n"
     "  out.world_pos = vertex.world_pos;\n"
     "  out.uv = input.uv;\n"
-    "  let model_3x3 = mat3x3<f32>(input.m0, input.m1, input.m2);\n"
+    "  let model_3x3 = mat3x3<f32>(m0, m1, m2);\n"
     "  out.tangent = model_3x3 * input.tan.xyz;\n"
     "  out.bitangent_sign = input.tan.w;\n"
-    "  out.material_id = input.material_id;\n"
-    "  out.model_scale = vec3<f32>(\n"
-    "    length(input.m0), length(input.m1), length(input.m2));\n"
+    "  out.material_id = instance_material_ids[input.slot];\n"
+    "  out.model_scale = vec3<f32>(length(m0), length(m1), length(m2));\n"
     "  return out;\n"
     "}\n"
 

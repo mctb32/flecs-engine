@@ -33,6 +33,19 @@ WGPUBindGroup flecsEngine_materialBind_ensure(
 void flecsEngine_materialBind_release(
     FlecsEngineImpl *impl);
 
+WGPUBindGroupLayout flecsEngine_instanceBind_ensureLayout(
+    FlecsEngineImpl *impl);
+
+WGPUBindGroup flecsEngine_instanceBind_createGroup(
+    const FlecsEngineImpl *engine,
+    WGPUBuffer transforms,
+    uint64_t transforms_size,
+    WGPUBuffer material_ids,
+    uint64_t material_ids_size);
+
+void flecsEngine_instanceBind_release(
+    FlecsEngineImpl *impl);
+
 void flecsEngine_material_ensureBuffer(
     FlecsEngineImpl *impl);
 
