@@ -316,7 +316,7 @@ int main(
   const char *scene_filename = options.scene_path
     ? options.scene_path
     // : "etc/assets/scenes/bistro.flecs";
-    // : "etc/assets/scenes/kenney_city.flecs";
+     : "etc/assets/scenes/kenney_city.flecs";
     // : "etc/assets/scenes/sponza.flecs";
     // : "etc/assets/scenes/a_beautiful_game.flecs";
     // : "etc/assets/scenes/flight_helmet.flecs";
@@ -324,7 +324,7 @@ int main(
     // : "etc/assets/scenes/city.flecs";
     // : "etc/assets/scenes/museum.flecs";
     // : "etc/assets/scenes/zero_day.flecs";
-    : "etc/assets/scenes/cube.flecs";
+    // : "etc/assets/scenes/cube.flecs";
     // : "etc/assets/scenes/empty.flecs";
 
   ecs_entity_t s = ecs_script(world, {

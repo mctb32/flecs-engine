@@ -6,7 +6,9 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(FLECS_ENGINE_TRACY "Enable Tracy profiler integration" OFF)
+option(FLECS_ENGINE_TRACY "Enable Tracy profiler integration" ON)
+set(FLECS_ENGINE_TRACY_TAG "v0.13.1" CACHE STRING
+  "Tracy git tag to fetch when profiler integration is enabled")
 
 # Release build: highest optimization + link-time optimization
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -91,6 +93,20 @@ FetchContent_Declare(
   EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(cgltf)
+
+# -- Tracy (optional profiling client) --
+if(FLECS_ENGINE_TRACY AND NOT EMSCRIPTEN)
+  set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+  FetchContent_Declare(
+    tracy
+    GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+    GIT_TAG ${FLECS_ENGINE_TRACY_TAG}
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE
+    EXCLUDE_FROM_ALL
+  )
+  FetchContent_MakeAvailable(tracy)
+endif()
 
 # -- Sources --
 if(EMSCRIPTEN)
@@ -220,7 +236,6 @@ target_include_directories(flecs_engine PRIVATE
 )
 
 if(FLECS_ENGINE_TRACY AND NOT EMSCRIPTEN)
-  find_package(Tracy REQUIRED)
   target_link_libraries(flecs_engine PRIVATE Tracy::TracyClient)
   target_compile_definitions(flecs_engine PRIVATE TRACY_ENABLE FLECS_ENGINE_TRACY)
 endif()
