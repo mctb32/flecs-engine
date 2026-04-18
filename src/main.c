@@ -141,7 +141,7 @@ void initEngine(
       .bias = 0.0001
     },
     .ambient_intensity = 0.2f,
-    .screen_size_threshold = 5.0
+    .screen_px_threshold = 5.0
   };
 
   FlecsRenderBatchSet batch_set = {};

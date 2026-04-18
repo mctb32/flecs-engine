@@ -65,7 +65,9 @@ ECS_STRUCT(FlecsRenderView, {
                                 * and takes precedence over `hdri` */
     ecs_entity_t hdri;
     ecs_f32_t ambient_intensity;
-    ecs_f32_t screen_size_threshold;
+    ecs_f32_t screen_px_threshold;  /* min projected bounding-sphere diameter
+                                      * in pixels; instances smaller than this
+                                      * are culled. 0 disables. */
     ecs_bool_t depth_prepass;
     flecs_engine_shadow_params_t shadow;
     ecs_vec_t effects;

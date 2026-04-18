@@ -24,7 +24,7 @@ ECS_CTOR(FlecsRenderView, ptr, {
     ptr->shadow.map_size = FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT;
     ptr->shadow.bias = 0.0005f;
     ptr->shadow.max_range = 100.0f;
-    ptr->screen_size_threshold = 0.0f;
+    ptr->screen_px_threshold = 0.0f;
     ptr->depth_prepass = false;
 })
 
@@ -42,7 +42,7 @@ ECS_COPY(FlecsRenderView, dst, src, {
     dst->hdri = src->hdri;
     dst->ambient_intensity = src->ambient_intensity;
     dst->shadow = src->shadow;
-    dst->screen_size_threshold = src->screen_size_threshold;
+    dst->screen_px_threshold = src->screen_px_threshold;
     dst->depth_prepass = src->depth_prepass;
     dst->effects = ecs_vec_copy_t(NULL, &src->effects, flecs_render_view_effect_t);
 })
@@ -1070,7 +1070,7 @@ static void flecsEngine_renderView_cull(
     }
 
     impl->screen_cull_valid = false;
-    if (view->screen_size_threshold > 0.0f && view->camera) {
+    if (view->screen_px_threshold > 0.0f && view->camera) {
         const FlecsCamera *cam = ecs_get(
             world, view->camera, FlecsCamera);
         if (cam && !cam->orthographic && cam->fov > 0.0f) {
@@ -1081,7 +1081,7 @@ static void flecsEngine_renderView_cull(
                 float vh = (float)surface->actual_height;
                 float f = vh / half_tan;
                 impl->screen_cull_factor = f * f;
-                impl->screen_cull_threshold = view->screen_size_threshold;
+                impl->screen_cull_threshold = view->screen_px_threshold;
                 impl->screen_cull_valid = true;
             }
         }
@@ -1200,7 +1200,7 @@ void flecsEngine_renderView_register(
             { .name = "atmosphere", .type = ecs_id(ecs_entity_t) },
             { .name = "hdri", .type = ecs_id(ecs_entity_t) },
             { .name = "ambient_intensity", .type = ecs_id(ecs_f32_t) },
-            { .name = "screen_size_threshold", .type = ecs_id(ecs_f32_t) },
+            { .name = "screen_px_threshold", .type = ecs_id(ecs_f32_t) },
             { .name = "depth_prepass", .type = ecs_id(ecs_bool_t) },
             { .name = "shadow", .type = ecs_id(flecs_engine_shadow_params_t) },
             { .name = "effects", .type = vec_view_effect }

@@ -101,15 +101,20 @@ bool flecsEngine_testScreenSize(
     float hy = (world_max[1] - world_min[1]) * 0.5f;
     float hz = (world_max[2] - world_min[2]) * 0.5f;
 
-    float r_sq = hx * hx + hy * hy + hz * hz;
+    /* Use the max axis half-extent instead of bounding-sphere radius — tighter
+     * and more intuitive (a 1m cube has max=0.5, not √0.75≈0.866). */
+    float m = hx > hy ? hx : hy;
+    if (hz > m) m = hz;
+    float r_sq = m * m;
 
     float dx = cx - camera_pos[0];
     float dy = cy - camera_pos[1];
     float dz = cz - camera_pos[2];
     float d_sq = dx * dx + dy * dy + dz * dz;
 
-    /* Cull when r_sq * factor < threshold * d_sq  (avoids division). */
-    return r_sq * screen_cull_factor >= threshold * d_sq;
+    /* `threshold` is the minimum projected diameter in pixels. Squared on
+     * both sides lets us avoid a sqrt. */
+    return r_sq * screen_cull_factor >= threshold * threshold * d_sq;
 }
 
 bool flecsEngine_testAABBFrustum(
