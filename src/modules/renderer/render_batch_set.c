@@ -83,58 +83,6 @@ void flecsEngine_renderBatchSet_extract(
     }
 }
 
-void flecsEngine_renderBatchSet_cull(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatchSet *batch_set)
-{
-    int32_t count = ecs_vec_count(&batch_set->batches);
-    ecs_entity_t *batches = ecs_vec_first(&batch_set->batches);
-
-    for (int32_t i = 0; i < count; i ++) {
-        ecs_entity_t batch_entity = batches[i];
-        if (!batch_entity) {
-            continue;
-        }
-
-        const FlecsRenderBatchSet *nested = ecs_get(
-            world, batch_entity, FlecsRenderBatchSet);
-        if (nested) {
-            flecsEngine_renderBatchSet_cull(world, engine, view_impl, nested);
-            continue;
-        }
-
-        flecsEngine_renderBatch_cull(world, engine, view_impl, batch_entity);
-    }
-}
-
-void flecsEngine_renderBatchSet_cullShadow(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatchSet *batch_set)
-{
-    int32_t count = ecs_vec_count(&batch_set->batches);
-    ecs_entity_t *batches = ecs_vec_first(&batch_set->batches);
-
-    for (int32_t i = 0; i < count; i ++) {
-        ecs_entity_t batch_entity = batches[i];
-        if (!batch_entity) {
-            continue;
-        }
-
-        const FlecsRenderBatchSet *nested = ecs_get(
-            world, batch_entity, FlecsRenderBatchSet);
-        if (nested) {
-            flecsEngine_renderBatchSet_cullShadow(world, engine, view_impl, nested);
-            continue;
-        }
-
-        flecsEngine_renderBatch_cullShadow(world, engine, view_impl, batch_entity);
-    }
-}
-
 void flecsEngine_renderBatchSet_upload(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
@@ -158,32 +106,6 @@ void flecsEngine_renderBatchSet_upload(
         }
 
         flecsEngine_renderBatch_upload(world, engine, view_impl, batch_entity);
-    }
-}
-
-void flecsEngine_renderBatchSet_uploadShadow(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatchSet *batch_set)
-{
-    int32_t count = ecs_vec_count(&batch_set->batches);
-    ecs_entity_t *batches = ecs_vec_first(&batch_set->batches);
-
-    for (int32_t i = 0; i < count; i ++) {
-        ecs_entity_t batch_entity = batches[i];
-        if (!batch_entity) {
-            continue;
-        }
-
-        const FlecsRenderBatchSet *nested = ecs_get(
-            world, batch_entity, FlecsRenderBatchSet);
-        if (nested) {
-            flecsEngine_renderBatchSet_uploadShadow(world, engine, view_impl, nested);
-            continue;
-        }
-
-        flecsEngine_renderBatch_uploadShadow(world, engine, view_impl, batch_entity);
     }
 }
 

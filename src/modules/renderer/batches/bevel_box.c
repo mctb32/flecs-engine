@@ -1,6 +1,8 @@
 #include "../renderer.h"
 #include "../shaders/shaders.h"
 #include "../../geometry3/geometry3.h"
+#include "../gpu_cull.h"
+#include "common/common.h"
 #include "batches.h"
 #include "flecs_engine.h"
 
@@ -301,42 +303,17 @@ static void flecsEngine_bevel_box_extract(
     buf->buffers.count = total;
 }
 
-static void flecsEngine_bevel_box_cull(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatch *batch)
+static void flecsEngine_bevel_box_prepareGroup(
+    flecsEngine_bevel_box_batch_t *ctx,
+    flecsEngine_batch_group_t *g,
+    int32_t *group_idx)
 {
-    (void)world;
-    (void)view_impl;
-    flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
-    flecsEngine_batch_t *buf = &ctx->buffers;
-
-    if (!buf->buffers.count) {
-        buf->buffers.visible_count = 0;
+    if (!g->view.count) {
+        g->view.group_idx = -1;
         return;
     }
-
-    flecsEngine_batch_ensureVisibleCapacity(engine, buf, buf->buffers.count);
-
-    int32_t total = 0;
-    ctx->quad_batch.view.visible_offset = total;
-    flecsEngine_batch_group_cullIdentity(&ctx->quad_batch);
-    total += ctx->quad_batch.view.visible_count;
-
-    for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
-        for (int32_t sm = 0; sm < 2; sm ++) {
-            ctx->bevel_batches[s][sm].view.visible_offset = total;
-            flecsEngine_batch_group_cullIdentity(&ctx->bevel_batches[s][sm]);
-            total += ctx->bevel_batches[s][sm].view.visible_count;
-
-            ctx->corner_batches[s][sm].view.visible_offset = total;
-            flecsEngine_batch_group_cullIdentity(&ctx->corner_batches[s][sm]);
-            total += ctx->corner_batches[s][sm].view.visible_count;
-        }
-    }
-
-    buf->buffers.visible_count = total;
+    g->view.group_idx = (*group_idx) ++;
+    flecsEngine_batch_group_prepareArgs(g);
 }
 
 static void flecsEngine_bevel_box_upload(
@@ -348,7 +325,37 @@ static void flecsEngine_bevel_box_upload(
     (void)world;
     (void)view_impl;
     flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
-    flecsEngine_batch_upload(engine, &ctx->buffers);
+    flecsEngine_batch_t *buf = &ctx->buffers;
+
+    /* Count groups and assign indices. Must happen after extract so
+     * view.count is stable. */
+    int32_t group_idx = 0;
+    int32_t max_groups = 1 + FLECS_BEVEL_BOX_MAX_SEGMENTS * 4;
+    flecsEngine_batch_ensureGroupCapacity(buf, max_groups);
+    buf->buffers.group_count = 0;
+
+    /* First pass: count so prepareArgs gets correct group_count. */
+    int32_t counted = 0;
+    if (ctx->quad_batch.view.count) counted ++;
+    for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
+        if (ctx->bevel_batches[s][0].view.count) counted ++;
+        if (ctx->bevel_batches[s][1].view.count) counted ++;
+        if (ctx->corner_batches[s][0].view.count) counted ++;
+        if (ctx->corner_batches[s][1].view.count) counted ++;
+    }
+    buf->buffers.group_count = counted;
+
+    flecsEngine_bevel_box_prepareGroup(ctx, &ctx->quad_batch, &group_idx);
+    for (int32_t s = 1; s <= FLECS_BEVEL_BOX_MAX_SEGMENTS; s ++) {
+        for (int32_t sm = 0; sm < 2; sm ++) {
+            flecsEngine_bevel_box_prepareGroup(
+                ctx, &ctx->bevel_batches[s][sm], &group_idx);
+            flecsEngine_bevel_box_prepareGroup(
+                ctx, &ctx->corner_batches[s][sm], &group_idx);
+        }
+    }
+
+    flecsEngine_batch_upload(engine, buf);
 }
 
 static void flecsEngine_bevel_box_render(
@@ -374,6 +381,13 @@ static void flecsEngine_bevel_box_render(
         flecsEngine_batch_group_draw(engine, pass, &ctx->corner_batches[s][0]);
         flecsEngine_batch_group_draw(engine, pass, &ctx->corner_batches[s][1]);
     }
+}
+
+static void* flecsEngine_bevel_box_getCullBuf(
+    const FlecsRenderBatch *batch)
+{
+    flecsEngine_bevel_box_batch_t *ctx = batch->ctx;
+    return &ctx->buffers;
 }
 
 static void flecsEngine_bevel_box_free(void *ptr)
@@ -447,10 +461,11 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes(
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .extract_callback = flecsEngine_bevel_box_extract,
-        .cull_callback = flecsEngine_bevel_box_cull,
         .upload_callback = flecsEngine_bevel_box_upload,
         .callback = flecsEngine_bevel_box_render,
-        .ctx = flecsEngine_bevel_box_createCtx(world, FLECS_BATCH_OWNS_MATERIAL),
+        .get_cull_buf = flecsEngine_bevel_box_getCullBuf,
+        .ctx = flecsEngine_bevel_box_createCtx(world,
+            FLECS_BATCH_OWNS_MATERIAL | FLECS_BATCH_NO_GPU_CULL),
         .free_ctx = flecsEngine_bevel_box_free
     });
 
@@ -482,10 +497,10 @@ ecs_entity_t flecsEngine_createBatch_bevel_boxes_materialIndex(
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .extract_callback = flecsEngine_bevel_box_extract,
-        .cull_callback = flecsEngine_bevel_box_cull,
         .upload_callback = flecsEngine_bevel_box_upload,
         .callback = flecsEngine_bevel_box_render,
-        .ctx = flecsEngine_bevel_box_createCtx(world, FLECS_BATCH_DEFAULT),
+        .get_cull_buf = flecsEngine_bevel_box_getCullBuf,
+        .ctx = flecsEngine_bevel_box_createCtx(world, FLECS_BATCH_NO_GPU_CULL),
         .free_ctx = flecsEngine_bevel_box_free
     });
 

@@ -16,6 +16,13 @@ typedef struct {
 } flecsEngine_depthPrepass_t;
 
 typedef struct {
+    WGPUShaderModule shader_module;
+    WGPUComputePipeline pipeline;
+    WGPUBindGroupLayout view_bind_layout;
+    WGPUBindGroupLayout batch_bind_layout;
+} flecsEngine_gpuCull_t;
+
+typedef struct {
     FlecsGpuLight *cpu_lights;
     int32_t light_count;
     int32_t light_capacity;
@@ -158,9 +165,10 @@ typedef struct {
     flecsEngine_materials_t materials;
     flecsEngine_textures_t textures;
     flecsEngine_pipelines_t pipelines;
+    flecsEngine_gpuCull_t gpu_cull;
+    flecsEngine_gpuTiming_t gpu_timing;
 
     flecsEngine_default_attr_cache_t *default_attr_cache;
-    flecsEngine_gpuTiming_t gpu_timing;
 } FlecsEngineImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);

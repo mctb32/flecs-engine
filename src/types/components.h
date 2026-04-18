@@ -174,6 +174,10 @@ struct FlecsRenderViewImpl {
     WGPUBindGroup scene_bind_group;
     ecs_entity_t scene_bind_hdri;
     uint32_t scene_bind_version;
+
+    /* GPU cull per-view uniforms (frustum + cascade planes + camera pos). */
+    WGPUBuffer cull_view_uniform_buffer;
+    WGPUBindGroup cull_view_bind_group;
 };
 typedef struct FlecsRenderViewImpl FlecsRenderViewImpl;
 

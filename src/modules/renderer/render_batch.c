@@ -589,42 +589,6 @@ void flecsEngine_renderBatch_extract(
     FLECS_TRACY_ZONE_END;
 }
 
-void flecsEngine_renderBatch_cull(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    ecs_entity_t batch_entity)
-{
-    FLECS_TRACY_ZONE_BEGIN("BatchCull");
-    const FlecsRenderBatch *batch = ecs_get(
-        world, batch_entity, FlecsRenderBatch);
-    if (!batch || !batch->cull_callback) {
-        FLECS_TRACY_ZONE_END;
-        return;
-    }
-
-    batch->cull_callback(world, engine, view_impl, batch);
-    FLECS_TRACY_ZONE_END;
-}
-
-void flecsEngine_renderBatch_cullShadow(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    ecs_entity_t batch_entity)
-{
-    FLECS_TRACY_ZONE_BEGIN("BatchCullShadow");
-    const FlecsRenderBatch *batch = ecs_get(
-        world, batch_entity, FlecsRenderBatch);
-    if (!batch || !batch->shadow_cull_callback) {
-        FLECS_TRACY_ZONE_END;
-        return;
-    }
-
-    batch->shadow_cull_callback(world, engine, view_impl, batch);
-    FLECS_TRACY_ZONE_END;
-}
-
 void flecsEngine_renderBatch_upload(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
@@ -640,24 +604,6 @@ void flecsEngine_renderBatch_upload(
     }
 
     batch->upload_callback(world, engine, view_impl, batch);
-    FLECS_TRACY_ZONE_END;
-}
-
-void flecsEngine_renderBatch_uploadShadow(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    ecs_entity_t batch_entity)
-{
-    FLECS_TRACY_ZONE_BEGIN("BatchUploadShadowCallback");
-    const FlecsRenderBatch *batch = ecs_get(
-        world, batch_entity, FlecsRenderBatch);
-    if (!batch || !batch->shadow_upload_callback) {
-        FLECS_TRACY_ZONE_END;
-        return;
-    }
-
-    batch->shadow_upload_callback(world, engine, view_impl, batch);
     FLECS_TRACY_ZONE_END;
 }
 

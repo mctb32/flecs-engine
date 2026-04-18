@@ -16,6 +16,9 @@ typedef void (*flecs_render_batch_extract_callback)(
     const FlecsRenderViewImpl *view_impl,
     const struct FlecsRenderBatch *batch);
 
+typedef void* (*flecs_render_batch_get_buf_fn)(
+    const struct FlecsRenderBatch *batch);
+
 // Render entities matching a query with specified shader
 ECS_STRUCT(FlecsRenderBatch, {
     ecs_entity_t shader;
@@ -27,13 +30,11 @@ ECS_STRUCT(FlecsRenderBatch, {
     bool depth_write;
 ECS_PRIVATE
     flecs_render_batch_extract_callback extract_callback;
-    flecs_render_batch_extract_callback cull_callback;
-    flecs_render_batch_extract_callback shadow_cull_callback;
     flecs_render_batch_extract_callback upload_callback;
-    flecs_render_batch_extract_callback shadow_upload_callback;
     flecs_render_batch_callback callback;
     flecs_render_batch_callback shadow_callback;
     flecs_render_batch_callback depth_prepass_callback;
+    flecs_render_batch_get_buf_fn get_cull_buf;
     void *ctx;
     void (*free_ctx)(void *ctx);
     bool render_after_snapshot;
@@ -61,25 +62,7 @@ void flecsEngine_renderBatch_extract(
     FlecsRenderViewImpl *view_impl,
     ecs_entity_t batch_entity);
 
-void flecsEngine_renderBatch_cull(
-    ecs_world_t *world,
-    FlecsEngineImpl *impl,
-    FlecsRenderViewImpl *view_impl,
-    ecs_entity_t batch_entity);
-
-void flecsEngine_renderBatch_cullShadow(
-    ecs_world_t *world,
-    FlecsEngineImpl *impl,
-    FlecsRenderViewImpl *view_impl,
-    ecs_entity_t batch_entity);
-
 void flecsEngine_renderBatch_upload(
-    ecs_world_t *world,
-    FlecsEngineImpl *impl,
-    FlecsRenderViewImpl *view_impl,
-    ecs_entity_t batch_entity);
-
-void flecsEngine_renderBatch_uploadShadow(
     ecs_world_t *world,
     FlecsEngineImpl *impl,
     FlecsRenderViewImpl *view_impl,
@@ -102,25 +85,7 @@ void flecsEngine_renderBatchSet_extract(
     FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatchSet *batch_set);
 
-void flecsEngine_renderBatchSet_cull(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatchSet *batch_set);
-
-void flecsEngine_renderBatchSet_cullShadow(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatchSet *batch_set);
-
 void flecsEngine_renderBatchSet_upload(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatchSet *batch_set);
-
-void flecsEngine_renderBatchSet_uploadShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
     FlecsRenderViewImpl *view_impl,

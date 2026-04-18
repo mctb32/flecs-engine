@@ -33,13 +33,11 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .extract_callback = flecsEngine_mesh_extract,
-        .cull_callback = flecsEngine_mesh_cull,
-        .shadow_cull_callback = flecsEngine_mesh_cullShadow,
         .upload_callback = flecsEngine_mesh_upload,
-        .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .depth_prepass_callback = flecsEngine_mesh_renderDepthPrepass,
+        .get_cull_buf = flecsEngine_mesh_getCullBuf,
         .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_DEFAULT),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
@@ -80,13 +78,11 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .extract_callback = flecsEngine_mesh_extract,
-        .cull_callback = flecsEngine_mesh_cull,
-        .shadow_cull_callback = flecsEngine_mesh_cullShadow,
         .upload_callback = flecsEngine_mesh_upload,
-        .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .depth_prepass_callback = flecsEngine_mesh_renderDepthPrepass,
+        .get_cull_buf = flecsEngine_mesh_getCullBuf,
         .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_OWNS_MATERIAL),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
@@ -127,13 +123,11 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
         .query = q,
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .extract_callback = flecsEngine_mesh_extract,
-        .cull_callback = flecsEngine_mesh_cull,
-        .shadow_cull_callback = flecsEngine_mesh_cullShadow,
         .upload_callback = flecsEngine_mesh_upload,
-        .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .depth_prepass_callback = flecsEngine_mesh_renderDepthPrepass,
+        .get_cull_buf = flecsEngine_mesh_getCullBuf,
         .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_DEFAULT),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
@@ -175,7 +169,7 @@ static flecsEngine_transparent_mesh_ctx_t* flecsEngine_transparent_mesh_createCt
     flecsEngine_transparent_mesh_ctx_t *ctx =
         ecs_os_calloc_t(flecsEngine_transparent_mesh_ctx_t);
     flecsEngine_batch_init(&ctx->buffers,
-        FLECS_BATCH_DEFAULT);
+        FLECS_BATCH_NO_GPU_CULL);
     ctx->self_entity = self_entity;
     return ctx;
 }
@@ -187,47 +181,11 @@ static void flecsEngine_transparent_mesh_deleteCtx(void *ptr)
     ecs_os_free(ctx);
 }
 
-static void flecsEngine_transparent_mesh_cull(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
+static void* flecsEngine_transparent_mesh_getCullBuf(
     const FlecsRenderBatch *batch)
 {
-    (void)world;
-    (void)view_impl;
-
     flecsEngine_transparent_mesh_ctx_t *tctx = batch->ctx;
-    flecsEngine_batch_t *shared = &tctx->buffers;
-    if (!shared->buffers.count) {
-        shared->buffers.visible_count = 0;
-        return;
-    }
-
-    flecsEngine_batch_ensureVisibleCapacity(
-        engine, shared, shared->buffers.count);
-
-    int32_t total = 0;
-    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
-    if (groups) {
-        ecs_map_iter_t git = ecs_map_iter(groups);
-        while (ecs_map_next(&git)) {
-            uint64_t group_id = ecs_map_key(&git);
-            if (!group_id) continue;
-
-            flecsEngine_batch_group_t *ctx =
-                ecs_query_get_group_ctx(batch->query, group_id);
-            if (!ctx) continue;
-
-            ctx->view.visible_offset = total;
-            if (ctx->view.count) {
-                flecsEngine_batch_group_cullIdentity(ctx);
-            } else {
-                ctx->view.visible_count = 0;
-            }
-            total += ctx->view.visible_count;
-        }
-    }
-    shared->buffers.visible_count = total;
+    return &tctx->buffers;
 }
 
 static void flecsEngine_transparent_mesh_render(
@@ -255,8 +213,8 @@ static void flecsEngine_transparent_mesh_render(
         if (!group_id) continue;
         flecsEngine_batch_group_t *ctx =
             ecs_query_get_group_ctx(batch->query, group_id);
-        if (!ctx || !ctx->view.visible_count) continue;
-        total_instances += ctx->view.visible_count;
+        if (!ctx || !ctx->view.count) continue;
+        total_instances += ctx->view.count;
     }
 
     if (!total_instances) {
@@ -279,11 +237,10 @@ static void flecsEngine_transparent_mesh_render(
 
         flecsEngine_batch_group_t *ctx =
             ecs_query_get_group_ctx(batch->query, group_id);
-        if (!ctx || !ctx->view.visible_count) continue;
+        if (!ctx || !ctx->view.count) continue;
 
-        for (int32_t j = 0; j < ctx->view.visible_count; j ++) {
-            uint32_t slot = tctx->buffers.buffers.cpu_visible_slots[
-                ctx->view.visible_offset + j];
+        for (int32_t j = 0; j < ctx->view.count; j ++) {
+            uint32_t slot = (uint32_t)(ctx->view.offset + j);
             const FlecsGpuTransform *t =
                 &tctx->buffers.buffers.cpu_transforms[slot];
             float dx = t->c3.x - cam_x;
@@ -301,14 +258,15 @@ static void flecsEngine_transparent_mesh_render(
         sizeof(flecsEngine_sorted_instance_t),
         flecsEngine_sortInstanceByDistance);
 
+    uint32_t *sorted_slots = ecs_os_malloc_n(uint32_t, total_instances);
     for (int32_t i = 0; i < total_instances; i ++) {
-        tctx->buffers.buffers.cpu_visible_slots[i] =
-            (uint32_t)sorted[i].instance_index;
+        sorted_slots[i] = (uint32_t)sorted[i].instance_index;
     }
     wgpuQueueWriteBuffer(engine->queue,
         tctx->buffers.buffers.gpu_visible_slots, 0,
-        tctx->buffers.buffers.cpu_visible_slots,
+        sorted_slots,
         (uint64_t)total_instances * sizeof(uint32_t));
+    ecs_os_free(sorted_slots);
 
     const FlecsRenderBatchImpl *self_impl =
         ecs_get(world, tctx->self_entity, FlecsRenderBatchImpl);
@@ -406,9 +364,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_transparent(
         },
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
-        .cull_callback = flecsEngine_transparent_mesh_cull,
         .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_transparent_mesh_render,
+        .get_cull_buf = flecsEngine_transparent_mesh_getCullBuf,
         .ctx = flecsEngine_transparent_mesh_createCtx(batch),
         .free_ctx = flecsEngine_transparent_mesh_deleteCtx,
         .render_after_snapshot = true
@@ -451,9 +409,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmission(
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
-        .cull_callback = flecsEngine_mesh_cull,
         .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_mesh_render,
+        .get_cull_buf = flecsEngine_mesh_getCullBuf,
         .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_DEFAULT),
         .free_ctx = flecsEngine_mesh_deleteCtx,
         .render_after_snapshot = true,
@@ -497,9 +455,9 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmissionData(
         .vertex_type = ecs_id(FlecsGpuVertexLitUv),
         .depth_write = false,
         .extract_callback = flecsEngine_mesh_extract,
-        .cull_callback = flecsEngine_mesh_cull,
         .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_mesh_render,
+        .get_cull_buf = flecsEngine_mesh_getCullBuf,
         .ctx = flecsEngine_mesh_createCtx(
             FLECS_BATCH_DEFAULT |
             FLECS_BATCH_OWNS_MATERIAL |

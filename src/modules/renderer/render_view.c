@@ -3,6 +3,7 @@
 #include "renderer.h"
 #include "../atmosphere/atmosphere.h"
 #include "frustum_cull.h"
+#include "gpu_cull.h"
 #include "gpu_timing.h"
 #include "../../tracy_hooks.h"
 #include "flecs_engine.h"
@@ -295,6 +296,7 @@ static void flecsEngine_renderView_releaseImpl(
     flecsEngine_shadow_cleanupView(impl);
     flecsEngine_cluster_cleanupView(impl);
     flecsEngine_transmission_releaseView(impl);
+    flecsEngine_gpuCull_finiView(impl);
 
     FLECS_WGPU_RELEASE(impl->scene_bind_group, wgpuBindGroupRelease);
     FLECS_WGPU_RELEASE(impl->frame_uniform_buffer, wgpuBufferRelease);
@@ -887,6 +889,12 @@ static void flecsEngine_renderView_render(
         return;
     }
 
+    if (flecsEngine_gpuCull_initView(engine, impl)) {
+        ecs_err("failed to create gpu cull view resources");
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
     bool have_atmosphere = view->atmosphere != 0;
     if (have_atmosphere) {
         FLECS_TRACY_ZONE_BEGIN_N(atm_ensure_zone, "AtmosEnsureImpl");
@@ -908,6 +916,20 @@ static void flecsEngine_renderView_render(
         flecsEngine_renderView_releaseSceneTarget(impl);
     }
 
+    if (!view->shadow.enabled) {
+        for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
+            memset(impl->shadow.current_light_vp[i], 0, sizeof(mat4));
+            impl->shadow.cascade_splits[i] = 0.0f;
+        }
+    }
+
+    /* Compute cull runs before any render pass that reads the cull outputs
+     * (shadow and main). It writes cascade + main visible_slots + indirect
+     * args in a single dispatch per batch. */
+    flecsEngine_gpuCull_writeViewUniforms(engine, impl);
+    flecsEngine_gpuCull_dispatchAll(
+        world, engine, impl, view_entity, encoder);
+
     if (view->shadow.enabled) {
         if (flecsEngine_shadow_ensureViewSize(
             engine, impl, (uint32_t)view->shadow.map_size))
@@ -917,11 +939,6 @@ static void flecsEngine_renderView_render(
 
         flecsEngine_renderView_renderShadow(
             world, view_entity, engine, view, impl, encoder);
-    } else {
-        for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-            memset(impl->shadow.current_light_vp[i], 0, sizeof(mat4));
-            impl->shadow.cascade_splits[i] = 0.0f;
-        }
     }
 
     /* Ensure per-view cluster buffers exist before building. */
@@ -1009,21 +1026,6 @@ void flecsEngine_renderView_extractAll(
     }
 }
 
-static void flecsEngine_renderView_cullBatches(
-    ecs_world_t *world,
-    ecs_entity_t view_entity,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl)
-{
-    FLECS_TRACY_ZONE_BEGIN("CullBatches");
-    const FlecsRenderBatchSet *batch_set = ecs_get(
-        world, view_entity, FlecsRenderBatchSet);
-    ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
-
-    flecsEngine_renderBatchSet_cull(world, engine, view_impl, batch_set);
-    FLECS_TRACY_ZONE_END;
-}
-
 static void flecsEngine_renderView_cull(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
@@ -1087,8 +1089,7 @@ static void flecsEngine_renderView_cull(
         }
     }
 
-    flecsEngine_renderView_cullBatches(world, view_entity, engine, impl);
-
+    (void)view_entity;
     FLECS_TRACY_ZONE_END;
 }
 

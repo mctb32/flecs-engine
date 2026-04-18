@@ -6,6 +6,7 @@
 #include "../../../geometry3/geometry3.h"
 #include "../../../../tracy_hooks.h"
 #include "../../frustum_cull.h"
+#include "../../gpu_cull.h"
 #include "../batches.h"
 #include "flecs_engine.h"
 
@@ -15,6 +16,11 @@ typedef enum {
     FLECS_BATCH_DEFAULT = 0,
     FLECS_BATCH_OWNS_MATERIAL = 1 << 0,
     FLECS_BATCH_OWNS_TRANSMISSION = 1 << 1,
+    /* Skip GPU compute cull. prepareArgs pre-fills instance_count with the
+     * full source count (no culling, no atomic increments). Used by batches
+     * that render every instance unconditionally (e.g. bevel boxes) or that
+     * manage their own visible_slots / draw loop (e.g. transparent sort). */
+    FLECS_BATCH_NO_GPU_CULL = 1 << 2,
 } flecsEngine_batch_flags_t;
 
 typedef void (*flecsEngine_primitive_scale_t)(
@@ -31,10 +37,11 @@ typedef struct {
     FlecsGpuTransform *cpu_transforms;
     FlecsMaterialId *cpu_material_ids;
     FlecsGpuMaterial *cpu_materials;
-    FlecsAABB *cpu_aabb;
+    flecsEngine_gpuAabb_t *cpu_aabb;
+    uint32_t *cpu_slot_to_group;
 
-    uint32_t *cpu_visible_slots;
-    uint32_t *cpu_shadow_visible_slots[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    flecsEngine_gpuCullGroupInfo_t *cpu_group_info;
+    flecsEngine_gpuDrawArgs_t *cpu_indirect_args;
 
     WGPUBuffer gpu_transforms;
     WGPUBuffer gpu_material_ids;
@@ -42,15 +49,19 @@ typedef struct {
     WGPUBindGroup gpu_material_bind_group;
     WGPUBindGroup gpu_instance_bind_group;
 
-    WGPUBuffer gpu_visible_slots;
-    WGPUBuffer gpu_shadow_visible_slots[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    WGPUBuffer gpu_aabb;
+    WGPUBuffer gpu_slot_to_group;
+    WGPUBuffer gpu_group_info;
+    WGPUBuffer gpu_indirect_args;
+    WGPUBuffer gpu_visible_slots;        /* 5 * capacity slots: main + 4 cascades */
+    WGPUBuffer gpu_batch_info;           /* uniform: count, capacity, group_count */
+    WGPUBindGroup gpu_cull_bind_group;   /* cached group 1 for compute cull */
 
     int32_t count;
     int32_t capacity;
 
-    int32_t visible_count;
-    int32_t shadow_visible_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    int32_t visible_capacity;
+    int32_t group_count;
+    int32_t group_capacity;
 } flecsEngine_batch_buffers_t;
 
 /* Batch: render data for all entities matching the batch query. */
@@ -59,16 +70,13 @@ typedef struct {
     ecs_flags32_t flags;
 } flecsEngine_batch_t;
 
-/* View on batch buffers */
+/* View on batch buffers. The source slice [offset, offset+count) in the batch
+ * buffers belongs to this group. GPU cull writes visible slot indices into a
+ * per-view slice of gpu_visible_slots, packed via atomic from src_offset. */
 typedef struct {
     int32_t count;
     int32_t offset;
-
-    int32_t visible_count;
-    int32_t visible_offset;
-
-    int32_t shadow_visible_count[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
-    int32_t shadow_visible_offset[FLECS_ENGINE_SHADOW_CASCADE_COUNT];
+    int32_t group_idx;
 } flecsEngine_batch_view_t;
 
 /* Batch group: each batch can have multiple batch groups, where a group is
@@ -105,10 +113,9 @@ void flecsEngine_batch_ensureCapacity(
     flecsEngine_batch_t *buf,
     int32_t count);
 
-void flecsEngine_batch_ensureVisibleCapacity(
-    const FlecsEngineImpl *engine,
+void flecsEngine_batch_ensureGroupCapacity(
     flecsEngine_batch_t *buf,
-    int32_t count);
+    int32_t group_count);
 
 void flecsEngine_batch_group_extract(
     const ecs_world_t *world,
@@ -119,15 +126,9 @@ void flecsEngine_batch_group_extract(
     flecsEngine_primitive_scale_aabb_t scale_aabb,
     ecs_size_t component_size);
 
-void flecsEngine_batch_group_cull(
-    const FlecsRenderViewImpl *view_impl,
-    flecsEngine_batch_group_t *ctx);
-
-void flecsEngine_batch_group_cullShadow(
-    const FlecsRenderViewImpl *view_impl,
-    flecsEngine_batch_group_t *ctx);
-
-void flecsEngine_batch_group_cullIdentity(
+/* Fill per-group GPU data: slot_to_group entries, group_info, and zero the
+ * per-view atomic counters in the indirect args. No AABB test runs on CPU. */
+void flecsEngine_batch_group_prepareArgs(
     flecsEngine_batch_group_t *ctx);
 
 void flecsEngine_batch_group_draw(
@@ -145,6 +146,17 @@ void flecsEngine_batch_group_drawDepthPrepass(
     const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_group_t *ctx);
+
+/* Ensure compute-cull bind group is built for this batch. Returns NULL if
+ * inputs are missing. */
+WGPUBindGroup flecsEngine_batch_ensureCullBindGroup(
+    FlecsEngineImpl *engine,
+    flecsEngine_batch_t *buf);
+
+/* Accessor for the single shared buffer owned by a batch. Used by gpu_cull
+ * dispatch to iterate batches without knowing their concrete ctx type. */
+flecsEngine_batch_t* flecsEngine_batch_getCullBuf(
+    const FlecsRenderBatch *batch);
 
 void flecsEngine_batch_bindMaterialGroup(
     FlecsEngineImpl *engine,
@@ -177,10 +189,6 @@ void flecsEngine_batch_group_delete(
     void *ptr);
 
 void flecsEngine_batch_upload(
-    const FlecsEngineImpl *engine,
-    const flecsEngine_batch_t *buf);
-
-void flecsEngine_batch_uploadShadow(
     const FlecsEngineImpl *engine,
     const flecsEngine_batch_t *buf);
 
@@ -221,29 +229,21 @@ void flecsEngine_mesh_extract(
     const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch);
 
-void flecsEngine_mesh_cull(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatch *batch);
-
-void flecsEngine_mesh_cullShadow(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatch *batch);
-
 void flecsEngine_mesh_upload(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
     const FlecsRenderBatch *batch);
 
-void flecsEngine_mesh_uploadShadow(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
+void* flecsEngine_mesh_getCullBuf(
     const FlecsRenderBatch *batch);
+
+/* Upload identity visible_slots to gpu_visible_slots main-view slice. Used
+ * by NO_GPU_CULL batches whose draw path relies on visible_slots as the
+ * instance index source. */
+void flecsEngine_batch_writeIdentityVisible(
+    const FlecsEngineImpl *engine,
+    const flecsEngine_batch_t *buf);
 
 void flecsEngine_mesh_render(
     const ecs_world_t *world,

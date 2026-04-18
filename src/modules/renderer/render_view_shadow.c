@@ -4,49 +4,13 @@
 #include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
-static void flecsEngine_renderView_cullShadowBatches(
-    ecs_world_t *world,
-    ecs_entity_t view_entity,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const FlecsRenderView *view)
-{
-    (void)view;
-    FLECS_TRACY_ZONE_BEGIN("CullShadowBatches");
-    const FlecsRenderBatchSet *batch_set = ecs_get(
-        world, view_entity, FlecsRenderBatchSet);
-    ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
-
-    flecsEngine_renderBatchSet_cullShadow(world, engine, view_impl, batch_set);
-    FLECS_TRACY_ZONE_END;
-}
-
-static void flecsEngine_renderView_uploadShadowBatches(
-    ecs_world_t *world,
-    ecs_entity_t view_entity,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const FlecsRenderView *view)
-{
-    (void)view;
-    FLECS_TRACY_ZONE_BEGIN("UploadShadowBatches");
-    const FlecsRenderBatchSet *batch_set = ecs_get(
-        world, view_entity, FlecsRenderBatchSet);
-    ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
-
-    flecsEngine_renderBatchSet_uploadShadow(world, engine, view_impl, batch_set);
-    FLECS_TRACY_ZONE_END;
-}
-
-static void flecsEngine_renderView_cullShadow(
+static void flecsEngine_renderView_computeCascades(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
-    ecs_entity_t view_entity,
     const FlecsRenderView *view,
     FlecsRenderViewImpl *view_impl)
 {
-    FLECS_TRACY_ZONE_BEGIN("CullShadowView");
-
+    (void)engine;
     view_impl->cascade_frustum_valid = false;
     uint32_t shadow_map_size = (uint32_t)view->shadow.map_size;
     if (!shadow_map_size) {
@@ -67,45 +31,31 @@ static void flecsEngine_renderView_cullShadow(
         }
         view_impl->cascade_frustum_valid = true;
     }
-
-    flecsEngine_renderView_cullShadowBatches(
-        world, view_entity, engine, view_impl, view);
-
-    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderView_cullShadowsAll(
     ecs_world_t *world,
     FlecsEngineImpl *engine)
 {
+    FLECS_TRACY_ZONE_BEGIN("ComputeCascades");
     ecs_iter_t it = ecs_query_iter(world, engine->view_query);
     while (ecs_query_next(&it)) {
         FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
         FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
         for (int32_t i = 0; i < it.count; i ++) {
-            flecsEngine_renderView_cullShadow(
-                world,
-                engine,
-                it.entities[i],
-                &views[i],
-                &viewImpls[i]);
+            flecsEngine_renderView_computeCascades(
+                world, engine, &views[i], &viewImpls[i]);
         }
     }
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_renderView_uploadShadowsAll(
     ecs_world_t *world,
     FlecsEngineImpl *engine)
 {
-    ecs_iter_t it = ecs_query_iter(world, engine->view_query);
-    while (ecs_query_next(&it)) {
-        FlecsRenderView *views = ecs_field(&it, FlecsRenderView, 0);
-        FlecsRenderViewImpl *viewImpls = ecs_field(&it, FlecsRenderViewImpl, 1);
-        for (int32_t i = 0; i < it.count; i ++) {
-            flecsEngine_renderView_uploadShadowBatches(
-                world, it.entities[i], engine, &viewImpls[i], &views[i]);
-        }
-    }
+    (void)world;
+    (void)engine;
 }
 
 void flecsEngine_renderView_renderShadow(
