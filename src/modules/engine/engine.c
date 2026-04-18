@@ -97,8 +97,8 @@ int flecsEngine_init(
         .default_attr_cache = flecsEngine_defaultAttrCache_create()
     };
 
-    impl.instance = flecsEngine_createInstance();
-    if (!impl.instance) {
+    engine.instance = flecsEngine_createInstance();
+    if (!engine.instance) {
         ecs_err("Failed to create wgpu instance\n");
         goto error;
     }

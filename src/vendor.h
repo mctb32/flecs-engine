@@ -16,6 +16,9 @@
     #include <webgpu.h>
   #endif
 #ifdef _WIN32
+  #ifdef interface
+    #undef interface
+  #endif
   #undef near
   #undef far
 #endif
