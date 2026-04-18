@@ -29,6 +29,7 @@ ECS_MOVE(FlecsRenderEffect, dst, src, {
 static void flecsEngine_renderEffect_release(
     FlecsRenderEffectImpl *ptr)
 {
+    flecsEngine_bindGroup_release(&ptr->bind_group);
     FLECS_WGPU_RELEASE(ptr->input_sampler, wgpuSamplerRelease);
     FLECS_WGPU_RELEASE(ptr->pipeline_surface, wgpuRenderPipelineRelease);
     FLECS_WGPU_RELEASE(ptr->pipeline_hdr, wgpuRenderPipelineRelease);
@@ -60,7 +61,7 @@ void flecsEngine_renderEffect_render(
     const WGPURenderPassEncoder pass,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
-    const FlecsRenderEffectImpl *impl,
+    FlecsRenderEffectImpl *impl,
     WGPUTextureView input_view,
     WGPUTextureFormat output_format)
 {
@@ -89,14 +90,9 @@ void flecsEngine_renderEffect_render(
     ecs_assert(entry_count > 0, ECS_INTERNAL_ERROR, NULL);
     ecs_assert(entry_count <= 8, ECS_INTERNAL_ERROR, NULL);
 
-    WGPUBindGroupDescriptor bind_group_desc = {
-        .layout = impl->bind_layout,
-        .entryCount = entry_count,
-        .entries = entries
-    };
-
-    WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
-        engine->device, &bind_group_desc);
+    WGPUBindGroup bind_group = flecsEngine_bindGroup_ensure(
+        &impl->bind_group, engine->device, impl->bind_layout,
+        entries, entry_count);
     ecs_assert(bind_group != NULL, ECS_INTERNAL_ERROR, NULL);
 
     WGPURenderPipeline pipeline =
@@ -108,8 +104,6 @@ void flecsEngine_renderEffect_render(
     wgpuRenderPassEncoderSetPipeline(pass, pipeline);
     wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
     wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-
-    wgpuBindGroupRelease(bind_group);
 }
 
 static int32_t flecsEngine_resolveEffectInput(
@@ -260,21 +254,27 @@ void flecsEngine_renderView_renderEffects(
         WGPUTextureView upscale_input =
             viewImpl->effect_target_views[last_enabled + 1];
 
-        WGPUBindGroupEntry entries[2] = {
-            { .binding = 0, .textureView = upscale_input },
-            { .binding = 1, .sampler = engine->pipelines.passthrough_sampler }
-        };
-        WGPUBindGroup bg = wgpuDeviceCreateBindGroup(engine->device,
-            &(WGPUBindGroupDescriptor){
-                .layout = engine->pipelines.passthrough_bind_layout,
-                .entryCount = 2,
-                .entries = entries
-            });
+        if (!viewImpl->upscale_bind_group ||
+            viewImpl->upscale_bind_input_view != upscale_input)
+        {
+            FLECS_WGPU_RELEASE(viewImpl->upscale_bind_group, wgpuBindGroupRelease);
+            WGPUBindGroupEntry entries[2] = {
+                { .binding = 0, .textureView = upscale_input },
+                { .binding = 1, .sampler = engine->pipelines.passthrough_sampler }
+            };
+            viewImpl->upscale_bind_group = wgpuDeviceCreateBindGroup(engine->device,
+                &(WGPUBindGroupDescriptor){
+                    .layout = engine->pipelines.passthrough_bind_layout,
+                    .entryCount = 2,
+                    .entries = entries
+                });
+            viewImpl->upscale_bind_input_view = upscale_input;
+        }
 
         flecsEngine_fullscreenPass(
             encoder, view_texture, WGPULoadOp_Load, (WGPUColor){0, 0, 0, 1},
-            engine->pipelines.passthrough_pipeline, bg);
-        wgpuBindGroupRelease(bg);
+            engine->pipelines.passthrough_pipeline,
+            viewImpl->upscale_bind_group);
     }
     FLECS_TRACY_ZONE_END;
 }

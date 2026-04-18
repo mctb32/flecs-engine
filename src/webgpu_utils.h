@@ -46,4 +46,22 @@ WGPUBuffer flecsEngine_createUniformBuffer(
 #define FLECS_WGPU_RELEASE(field, releaseFn) \
     do { if ((field)) { (releaseFn)(field); (field) = NULL; } } while (0)
 
+#define FLECS_ENGINE_BIND_GROUP_MAX_ENTRIES 8
+
+typedef struct {
+    WGPUBindGroup handle;
+    WGPUBindGroupEntry entries[FLECS_ENGINE_BIND_GROUP_MAX_ENTRIES];
+    uint32_t entry_count;
+} flecsEngine_bind_group_t;
+
+WGPUBindGroup flecsEngine_bindGroup_ensure(
+    flecsEngine_bind_group_t *bg,
+    WGPUDevice device,
+    WGPUBindGroupLayout layout,
+    const WGPUBindGroupEntry *entries,
+    uint32_t count);
+
+void flecsEngine_bindGroup_release(
+    flecsEngine_bind_group_t *bg);
+
 #endif

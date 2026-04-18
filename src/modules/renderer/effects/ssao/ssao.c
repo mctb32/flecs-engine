@@ -254,6 +254,7 @@ static ecs_entity_t flecsEngine_ssao_shader(
 static void flecsEngine_ssao_releaseBlurTexture(
     FlecsSSAOImpl *impl)
 {
+    flecsEngine_bindGroup_release(&impl->blur_bind_group);
     FLECS_WGPU_RELEASE(impl->blur_intermediate_view, wgpuTextureViewRelease);
     FLECS_WGPU_RELEASE(impl->blur_intermediate_texture, wgpuTextureRelease);
     impl->blur_texture_width = 0;
@@ -666,14 +667,9 @@ static bool flecsEngine_ssao_render(
             { .binding = 4, .textureView = input_view }
         };
 
-        WGPUBindGroupDescriptor bind_desc = {
-            .layout = impl->blur_bind_layout,
-            .entryCount = 5,
-            .entries = blur_entries
-        };
-
-        WGPUBindGroup blur_bind_group = wgpuDeviceCreateBindGroup(
-            engine->device, &bind_desc);
+        WGPUBindGroup blur_bind_group = flecsEngine_bindGroup_ensure(
+            &impl->blur_bind_group, engine->device, impl->blur_bind_layout,
+            blur_entries, 5);
         if (!blur_bind_group) {
             return false;
         }
@@ -686,7 +682,6 @@ static bool flecsEngine_ssao_render(
         flecsEngine_fullscreenPass(
             encoder, output_view, output_load_op, (WGPUColor){0},
             blur_pipeline, blur_bind_group);
-        wgpuBindGroupRelease(blur_bind_group);
     }
 
     return true;

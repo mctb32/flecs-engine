@@ -3,6 +3,7 @@
 
 #include "flecs_engine.h"
 #include "../vendor.h"
+#include "../webgpu_utils.h"
 #include "engine_state.h"
 
 struct FlecsSurfaceImpl {
@@ -96,6 +97,7 @@ typedef struct {
     WGPUTexture texture;
     WGPUTextureView view;
     WGPUTextureView *mip_views;
+    WGPUBindGroup *mip_bind_groups;
     uint32_t mip_count;
     uint32_t width;
     uint32_t height;
@@ -134,6 +136,10 @@ struct FlecsRenderViewImpl {
     WGPUTexture scene_target_texture;
     WGPUTextureView scene_target_view;
     WGPUBindGroup passthrough_bind_group;
+    WGPUBindGroup upscale_bind_group;
+    WGPUTextureView upscale_bind_input_view;
+    WGPUBindGroup depth_resolve_bind_group;
+    WGPUTextureView depth_resolve_bind_view;
 
     /* Per-view frame uniform buffer (contains camera MVP, light VP,
      * cascade splits, camera position, etc.). */
@@ -191,6 +197,7 @@ typedef struct {
     WGPURenderPipeline pipeline_surface;
     WGPURenderPipeline pipeline_hdr;
     WGPUSampler input_sampler;
+    flecsEngine_bind_group_t bind_group;
 } FlecsRenderEffectImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderEffectImpl);
@@ -218,6 +225,7 @@ typedef struct {
     WGPUBindGroupLayout blur_bind_layout;
     WGPURenderPipeline blur_pipeline_surface;
     WGPURenderPipeline blur_pipeline_hdr;
+    flecsEngine_bind_group_t blur_bind_group;
 } FlecsSSAOImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsSSAOImpl);
@@ -245,6 +253,9 @@ typedef struct {
     uint32_t texture_width;
     uint32_t texture_height;
     WGPUTextureFormat texture_format;
+    WGPUBindGroup *mip_bind_groups;
+    WGPUBindGroup input_bind_group;
+    WGPUTextureView input_bind_view;
 } FlecsBloomImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsBloomImpl);
@@ -316,6 +327,8 @@ typedef struct {
     WGPUBindGroup trans_bind_group;
     WGPUBindGroup ms_bind_group;
     WGPUBindGroup skyview_bind_group;
+
+    flecsEngine_bind_group_t compose_bind_group;
 
     /* Aerial LUT compute pipeline — one dispatch writes all 32x32x32 voxels. */
     WGPUBindGroupLayout aerial_compute_layout;

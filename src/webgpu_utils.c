@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "private.h"
 
 WGPUShaderModule flecsEngine_createShaderModule(
@@ -145,6 +147,47 @@ WGPUBuffer flecsEngine_createUniformBuffer(
         .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
         .size = size
     });
+}
+
+WGPUBindGroup flecsEngine_bindGroup_ensure(
+    flecsEngine_bind_group_t *bg,
+    WGPUDevice device,
+    WGPUBindGroupLayout layout,
+    const WGPUBindGroupEntry *entries,
+    uint32_t count)
+{
+    ecs_assert(count <= FLECS_ENGINE_BIND_GROUP_MAX_ENTRIES,
+        ECS_INVALID_PARAMETER, NULL);
+
+    if (bg->handle &&
+        bg->entry_count == count &&
+        memcmp(bg->entries, entries,
+            count * sizeof(WGPUBindGroupEntry)) == 0)
+    {
+        return bg->handle;
+    }
+
+    FLECS_WGPU_RELEASE(bg->handle, wgpuBindGroupRelease);
+    bg->handle = wgpuDeviceCreateBindGroup(device,
+        &(WGPUBindGroupDescriptor){
+            .layout = layout,
+            .entryCount = count,
+            .entries = entries
+        });
+    if (bg->handle) {
+        memcpy(bg->entries, entries, count * sizeof(WGPUBindGroupEntry));
+        bg->entry_count = count;
+    } else {
+        bg->entry_count = 0;
+    }
+    return bg->handle;
+}
+
+void flecsEngine_bindGroup_release(
+    flecsEngine_bind_group_t *bg)
+{
+    FLECS_WGPU_RELEASE(bg->handle, wgpuBindGroupRelease);
+    bg->entry_count = 0;
 }
 
 bool flecsEngine_fullscreenPass(

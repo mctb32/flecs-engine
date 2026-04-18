@@ -36,6 +36,14 @@ static void flecsEngine_transmission_releaseTexture(
     FlecsRenderViewImpl *view_impl)
 {
     flecs_view_opaque_snapshot_t *s = &view_impl->opaque_snapshot;
+    if (s->mip_bind_groups) {
+        for (uint32_t i = 0; i < s->mip_count; i ++) {
+            FLECS_WGPU_RELEASE(s->mip_bind_groups[i], wgpuBindGroupRelease);
+        }
+        ecs_os_free(s->mip_bind_groups);
+        s->mip_bind_groups = NULL;
+    }
+
     flecsEngine_mipPyramid_release(
         &s->texture,
         &s->mip_views,
@@ -152,6 +160,23 @@ static bool flecsEngine_transmission_createTexture(
         return false;
     }
 
+    s->mip_bind_groups = ecs_os_calloc_n(WGPUBindGroup, mip_count);
+    for (uint32_t i = 1; i < mip_count; i ++) {
+        WGPUBindGroupEntry entries[2] = {
+            { .binding = 0, .textureView = s->mip_views[i - 1] },
+            { .binding = 1, .sampler = engine->pipelines.opaque_snapshot_sampler }
+        };
+        s->mip_bind_groups[i] = wgpuDeviceCreateBindGroup(
+            engine->device, &(WGPUBindGroupDescriptor){
+                .layout = engine->pipelines.opaque_snapshot_downsample_layout,
+                .entryCount = 2,
+                .entries = entries
+            });
+        if (!s->mip_bind_groups[i]) {
+            return false;
+        }
+    }
+
     s->width = width;
     s->height = height;
     s->mip_count = mip_count;
@@ -167,30 +192,13 @@ static void flecsEngine_transmission_downsampleMip(
     uint32_t dst_mip)
 {
     const flecs_view_opaque_snapshot_t *s = &view_impl->opaque_snapshot;
-    WGPUBindGroupEntry bind_entries[2] = {
-        {
-            .binding = 0,
-            .textureView = s->mip_views[dst_mip - 1]
-        },
-        {
-            .binding = 1,
-            .sampler = engine->pipelines.opaque_snapshot_sampler
-        }
-    };
-    WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(
-        engine->device, &(WGPUBindGroupDescriptor){
-            .layout = engine->pipelines.opaque_snapshot_downsample_layout,
-            .entryCount = 2,
-            .entries = bind_entries
-        });
+    WGPUBindGroup bind_group = s->mip_bind_groups[dst_mip];
     if (!bind_group) {
         return;
     }
-
     flecsEngine_fullscreenPass(
         encoder, s->mip_views[dst_mip], WGPULoadOp_Clear, (WGPUColor){0},
         engine->pipelines.opaque_snapshot_downsample_pipeline, bind_group);
-    wgpuBindGroupRelease(bind_group);
 }
 
 void flecsEngine_transmission_updateSnapshot(

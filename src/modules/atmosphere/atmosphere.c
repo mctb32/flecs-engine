@@ -557,6 +557,7 @@ static void flecsEngine_atmos_releaseResources(FlecsAtmosphereImpl *a)
 {
     flecsEngine_atmos_releaseTextures(a);
 
+    flecsEngine_bindGroup_release(&a->compose_bind_group);
     FLECS_WGPU_RELEASE(a->trans_bind_group, wgpuBindGroupRelease);
     FLECS_WGPU_RELEASE(a->ms_bind_group, wgpuBindGroupRelease);
     FLECS_WGPU_RELEASE(a->skyview_bind_group, wgpuBindGroupRelease);
@@ -1304,7 +1305,7 @@ static bool flecsEngine_atmos_runAerial(
 static bool flecsEngine_atmos_runCompose(
     const FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
-    const FlecsAtmosphereImpl *a,
+    FlecsAtmosphereImpl *a,
     WGPUCommandEncoder encoder,
     WGPUTextureView input_view,
     WGPUTextureView output_view,
@@ -1327,13 +1328,12 @@ static bool flecsEngine_atmos_runCompose(
         { .binding = 6, .textureView = a->aerial_view },
         { .binding = 7, .sampler = a->clamp_sampler }
     };
-    WGPUBindGroupDescriptor bg_desc = {
-        .layout = a->compose_layout,
-        .entryCount = 8,
-        .entries = entries
-    };
-    WGPUBindGroup bg = wgpuDeviceCreateBindGroup(engine->device, &bg_desc);
-    if (!bg) { FLECS_TRACY_ZONE_END; return false; }
+    WGPUBindGroup bg = flecsEngine_bindGroup_ensure(
+        &a->compose_bind_group, engine->device, a->compose_layout, entries, 8);
+    if (!bg) {
+        FLECS_TRACY_ZONE_END;
+        return false;
+    }
 
     WGPURenderPipeline pipeline =
         output_format == flecsEngine_getViewTargetFormat(engine)
@@ -1342,7 +1342,6 @@ static bool flecsEngine_atmos_runCompose(
 
     bool ok = flecsEngine_fullscreenPass(
         encoder, output_view, output_load_op, (WGPUColor){0}, pipeline, bg);
-    wgpuBindGroupRelease(bg);
     FLECS_TRACY_ZONE_END;
     return ok;
 }
@@ -1433,7 +1432,7 @@ bool flecsEngine_atmosphere_renderCompose(
     WGPUTextureFormat output_format,
     WGPULoadOp output_load_op)
 {
-    const FlecsAtmosphereImpl *a = ecs_get(
+    FlecsAtmosphereImpl *a = ecs_get_mut(
         world, atmosphere_entity, FlecsAtmosphereImpl);
     if (!a) return false;
     return flecsEngine_atmos_runCompose(

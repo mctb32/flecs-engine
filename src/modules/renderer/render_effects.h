@@ -57,7 +57,7 @@ int flecsEngine_initDepthResolve(
 
 void flecsEngine_depthResolve(
     const FlecsEngineImpl *impl,
-    const FlecsRenderViewImpl *view_impl,
+    FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder);
 
 void flecsEngine_renderEffect_register(
@@ -85,7 +85,7 @@ void flecsEngine_renderEffect_render(
     const WGPURenderPassEncoder pass,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
-    const FlecsRenderEffectImpl *effect_impl,
+    FlecsRenderEffectImpl *effect_impl,
     WGPUTextureView input_view,
     WGPUTextureFormat output_format);
 

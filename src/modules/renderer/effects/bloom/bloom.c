@@ -183,6 +183,16 @@ static void flecsEngine_bloom_computeTextureSize(
 static void flecsEngine_bloom_releaseTexture(
     FlecsBloomImpl *bloom)
 {
+    if (bloom->mip_bind_groups) {
+        for (uint32_t i = 0; i < bloom->mip_count; i ++) {
+            FLECS_WGPU_RELEASE(bloom->mip_bind_groups[i], wgpuBindGroupRelease);
+        }
+        ecs_os_free(bloom->mip_bind_groups);
+        bloom->mip_bind_groups = NULL;
+    }
+    FLECS_WGPU_RELEASE(bloom->input_bind_group, wgpuBindGroupRelease);
+    bloom->input_bind_view = NULL;
+
     flecsEngine_mipPyramid_release(
         &bloom->texture, &bloom->mip_views, bloom->mip_count);
 
@@ -216,6 +226,29 @@ ECS_MOVE(FlecsBloomImpl, dst, src, {
     ecs_os_zeromem(src);
 })
 
+static WGPUBindGroup flecsEngine_bloom_createSourceBindGroup(
+    const FlecsEngineImpl *engine,
+    const FlecsBloomImpl *bloom,
+    WGPUTextureView source_view)
+{
+    WGPUBindGroupEntry entries[3] = {
+        { .binding = 0, .textureView = source_view },
+        { .binding = 1, .sampler = bloom->sampler },
+        {
+            .binding = 2,
+            .buffer = bloom->uniform_buffer,
+            .offset = 0,
+            .size = sizeof(FlecsBloomUniform)
+        }
+    };
+    return wgpuDeviceCreateBindGroup(engine->device,
+        &(WGPUBindGroupDescriptor){
+            .layout = bloom->bind_layout,
+            .entryCount = 3,
+            .entries = entries
+        });
+}
+
 static bool flecsEngine_bloom_createTexture(
     const FlecsEngineImpl *engine,
     FlecsBloomImpl *bloom,
@@ -236,6 +269,15 @@ static bool flecsEngine_bloom_createTexture(
     bloom->texture_width = width;
     bloom->texture_height = height;
     bloom->texture_format = format;
+
+    bloom->mip_bind_groups = ecs_os_calloc_n(WGPUBindGroup, mip_count);
+    for (uint32_t i = 0; i < mip_count; i ++) {
+        bloom->mip_bind_groups[i] = flecsEngine_bloom_createSourceBindGroup(
+            engine, bloom, bloom->mip_views[i]);
+        if (!bloom->mip_bind_groups[i]) {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -335,42 +377,17 @@ static WGPUBlendState flecsEngine_bloom_getBlendState(void)
 }
 
 static bool flecsEngine_bloom_runPass(
-    const FlecsEngineImpl *engine,
-    const FlecsBloomImpl *bloom,
     WGPUCommandEncoder encoder,
     WGPURenderPipeline pipeline,
-    WGPUTextureView source_view,
+    WGPUBindGroup bind_group,
     WGPUTextureView target_view,
     WGPULoadOp load_op,
     bool use_blend_constant,
     float blend_value)
 {
-    WGPUBindGroupEntry bind_entries[3] = {
-        { .binding = 0, .textureView = source_view },
-        { .binding = 1, .sampler = bloom->sampler },
-        {
-            .binding = 2,
-            .buffer = bloom->uniform_buffer,
-            .offset = 0,
-            .size = sizeof(FlecsBloomUniform)
-        }
-    };
-
-    WGPUBindGroupDescriptor bind_desc = {
-        .layout = bloom->bind_layout,
-        .entryCount = 3,
-        .entries = bind_entries
-    };
-
-    WGPUBindGroup bind_group = wgpuDeviceCreateBindGroup(engine->device, &bind_desc);
-    if (!bind_group) {
-        return false;
-    }
-
     WGPURenderPassEncoder pass = flecsEngine_beginColorPass(
         encoder, target_view, load_op, (WGPUColor){0});
     if (!pass) {
-        wgpuBindGroupRelease(bind_group);
         return false;
     }
 
@@ -388,8 +405,22 @@ static bool flecsEngine_bloom_runPass(
     wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
     wgpuRenderPassEncoderEnd(pass);
     wgpuRenderPassEncoderRelease(pass);
-    wgpuBindGroupRelease(bind_group);
     return true;
+}
+
+static WGPUBindGroup flecsEngine_bloom_ensureInputBindGroup(
+    const FlecsEngineImpl *engine,
+    FlecsBloomImpl *bloom,
+    WGPUTextureView input_view)
+{
+    if (bloom->input_bind_group && bloom->input_bind_view == input_view) {
+        return bloom->input_bind_group;
+    }
+    FLECS_WGPU_RELEASE(bloom->input_bind_group, wgpuBindGroupRelease);
+    bloom->input_bind_group = flecsEngine_bloom_createSourceBindGroup(
+        engine, bloom, input_view);
+    bloom->input_bind_view = input_view;
+    return bloom->input_bind_group;
 }
 
 static float flecsEngine_bloom_computeBlendFactor(
@@ -583,7 +614,7 @@ static bool flecsEngine_bloom_renderPassthrough(
     const FlecsRenderViewImpl *view_impl,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
-    const FlecsRenderEffectImpl *effect_impl,
+    FlecsRenderEffectImpl *effect_impl,
     WGPUCommandEncoder encoder,
     WGPUTextureView input_view,
     WGPUTextureView output_view,
@@ -660,12 +691,16 @@ static bool flecsEngine_bloom_render(
         &uniform,
         sizeof(uniform));
 
+    WGPUBindGroup input_bg = flecsEngine_bloom_ensureInputBindGroup(
+        engine, impl, input_view);
+    if (!input_bg) {
+        return false;
+    }
+
     if (!flecsEngine_bloom_runPass(
-        engine,
-        impl,
         encoder,
         impl->downsample_first_pipeline,
-        input_view,
+        input_bg,
         impl->mip_views[0],
         WGPULoadOp_Clear,
         false,
@@ -676,11 +711,9 @@ static bool flecsEngine_bloom_render(
 
     for (uint32_t mip = 1; mip < impl->mip_count; mip ++) {
         if (!flecsEngine_bloom_runPass(
-            engine,
-            impl,
             encoder,
             impl->downsample_pipeline,
-            impl->mip_views[mip - 1],
+            impl->mip_bind_groups[mip - 1],
             impl->mip_views[mip],
             WGPULoadOp_Clear,
             false,
@@ -695,11 +728,9 @@ static bool flecsEngine_bloom_render(
         float blend = flecsEngine_bloom_computeBlendFactor(
             bloom, mip, max_mip);
         if (!flecsEngine_bloom_runPass(
-            engine,
-            impl,
             encoder,
             impl->upsample_pipeline,
-            impl->mip_views[mip],
+            impl->mip_bind_groups[mip],
             impl->mip_views[mip - 1u],
             WGPULoadOp_Load,
             true,
@@ -734,11 +765,9 @@ static bool flecsEngine_bloom_render(
     }
 
     return flecsEngine_bloom_runPass(
-        engine,
-        impl,
         encoder,
         final_pipeline,
-        impl->mip_views[0],
+        impl->mip_bind_groups[0],
         output_view,
         WGPULoadOp_Load,
         true,

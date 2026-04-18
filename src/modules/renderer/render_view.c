@@ -129,6 +129,8 @@ static int flecsEngine_renderView_ensureDepthResources(
 static void flecsEngine_renderView_releaseMsaaResources(
     FlecsRenderViewImpl *impl)
 {
+    FLECS_WGPU_RELEASE(impl->depth_resolve_bind_group, wgpuBindGroupRelease);
+    impl->depth_resolve_bind_view = NULL;
     FLECS_WGPU_RELEASE(impl->msaa_color_texture_view, wgpuTextureViewRelease);
     FLECS_WGPU_RELEASE(impl->msaa_color_texture, wgpuTextureRelease);
     FLECS_WGPU_RELEASE(impl->msaa_depth_texture_view, wgpuTextureViewRelease);
@@ -271,6 +273,8 @@ static void flecsEngine_renderView_releaseTargets(
     }
 
     FLECS_WGPU_RELEASE(impl->passthrough_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(impl->upscale_bind_group, wgpuBindGroupRelease);
+    impl->upscale_bind_input_view = NULL;
     FLECS_WGPU_RELEASE(impl->scene_target_view, wgpuTextureViewRelease);
     FLECS_WGPU_RELEASE(impl->scene_target_texture, wgpuTextureRelease);
 
