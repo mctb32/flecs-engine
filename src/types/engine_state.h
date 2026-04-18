@@ -12,6 +12,10 @@ typedef struct {
 } flecsEngine_shadow_t;
 
 typedef struct {
+    WGPUShaderModule shader_module;
+} flecsEngine_depthPrepass_t;
+
+typedef struct {
     FlecsGpuLight *cpu_lights;
     int32_t light_count;
     int32_t light_capacity;
@@ -96,6 +100,37 @@ typedef struct {
     ecs_size_t emissive_count;
 } flecsEngine_default_attr_cache_t;
 
+#define FLECS_GPU_TIMING_MAX_PAIRS 16
+#define FLECS_GPU_TIMING_RING 3
+
+typedef enum {
+    FLECS_GPU_TIMING_IDLE = 0,
+    FLECS_GPU_TIMING_PENDING,
+    FLECS_GPU_TIMING_READY
+} flecsEngine_gpuTimingState_t;
+
+typedef struct {
+    char name[40];
+} flecsEngine_gpuTimingPair_t;
+
+typedef struct {
+    flecsEngine_gpuTimingState_t state;
+    int pair_count;
+    flecsEngine_gpuTimingPair_t pairs[FLECS_GPU_TIMING_MAX_PAIRS];
+    WGPUBuffer readback_buffer;
+    uint64_t frame_id;
+} flecsEngine_gpuTimingSlot_t;
+
+typedef struct {
+    bool enabled;
+    WGPUQuerySet query_set;
+    WGPUBuffer resolve_buffer;
+    flecsEngine_gpuTimingSlot_t slots[FLECS_GPU_TIMING_RING];
+    int cur_slot;
+    int next_slot;
+    uint64_t frame_counter;
+} flecsEngine_gpuTiming_t;
+
 typedef struct {
     ecs_entity_t surface;
     ecs_entity_t fallback_hdri;
@@ -118,12 +153,14 @@ typedef struct {
     WGPUBindGroupLayout instance_bind_layout;
 
     flecsEngine_shadow_t shadow;
+    flecsEngine_depthPrepass_t depth_prepass;
     flecsEngine_lighting_t lighting;
     flecsEngine_materials_t materials;
     flecsEngine_textures_t textures;
     flecsEngine_pipelines_t pipelines;
 
     flecsEngine_default_attr_cache_t *default_attr_cache;
+    flecsEngine_gpuTiming_t gpu_timing;
 } FlecsEngineImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsEngineImpl);

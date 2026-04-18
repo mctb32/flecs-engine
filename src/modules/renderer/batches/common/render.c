@@ -78,6 +78,45 @@ void flecsEngine_batch_group_draw(
         pass, ctx->mesh.index_count, visible, 0, 0, 0);
 }
 
+void flecsEngine_batch_group_drawDepthPrepass(
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_group_t *ctx)
+{
+    (void)engine;
+
+    int32_t visible = ctx->view.visible_count;
+    if (!visible) {
+        return;
+    }
+
+    const flecsEngine_batch_t *buf = ctx->batch;
+    if (!buf || !buf->buffers.gpu_visible_slots) {
+        return;
+    }
+
+    if (!ctx->mesh.vertex_buffer || !ctx->mesh.index_buffer ||
+        !ctx->mesh.index_count)
+    {
+        return;
+    }
+
+    uint64_t slot_offset =
+        (uint64_t)ctx->view.visible_offset * sizeof(uint32_t);
+    uint64_t slot_size = (uint64_t)visible * sizeof(uint32_t);
+
+    wgpuRenderPassEncoderSetVertexBuffer(
+        pass, 0, ctx->mesh.vertex_buffer, 0, WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderSetVertexBuffer(
+        pass, 1, buf->buffers.gpu_visible_slots, slot_offset, slot_size);
+
+    wgpuRenderPassEncoderSetIndexBuffer(
+        pass, ctx->mesh.index_buffer, WGPUIndexFormat_Uint32, 0,
+        WGPU_WHOLE_SIZE);
+    wgpuRenderPassEncoderDrawIndexed(
+        pass, ctx->mesh.index_count, visible, 0, 0, 0);
+}
+
 void flecsEngine_batch_group_drawShadow(
     const FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,

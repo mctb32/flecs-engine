@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "batches/batches.h"
+#include "gpu_timing.h"
 #include "../engine/engine.h"
 #include "../../tracy_hooks.h"
 
@@ -51,6 +52,8 @@ void flecsEngine_renderer_cleanup(
     FLECS_WGPU_RELEASE(impl->pipelines.passthrough_sampler, wgpuSamplerRelease);
     FLECS_WGPU_RELEASE(impl->pipelines.depth_resolve_pipeline, wgpuRenderPipelineRelease);
     FLECS_WGPU_RELEASE(impl->pipelines.depth_resolve_bind_layout, wgpuBindGroupLayoutRelease);
+    flecsEngine_depthPrepass_fini(impl);
+    flecsEngine_gpuTiming_fini(impl);
 }
 
 static void flecsEngine_rebuildBatchPipelines(
@@ -163,6 +166,12 @@ int flecsEngine_initRenderer(
         goto error;
     }
 
+    if (flecsEngine_depthPrepass_init(impl)) {
+        goto error;
+    }
+
+    flecsEngine_gpuTiming_init(impl);
+
     return 0;
 error:
     return -1;
@@ -270,13 +279,13 @@ static void FlecsEngineRender(
         impl->surface,
         surface->width,
         surface->height,
-        surface->resolution_scale,
-        surface->sample_count);
+        surface->resolution_scale);
 
     /* Per-view depth/MSAA targets are allocated during flecsEngine_renderView_render.
      * When sample_count changes, rebuild batch pipelines before rendering views. */
     {
-        int32_t cur_sc = surface->sample_count < 2 ? 0 : surface->sample_count;
+        int32_t sc = flecsEngine_surface_sampleCount(surface);
+        int32_t cur_sc = sc < 2 ? 0 : sc;
         if (surf->prev_sample_count != cur_sc) {
             FLECS_TRACY_ZONE_BEGIN_N(__rb, "RebuildBatchPipelines");
             flecsEngine_rebuildBatchPipelines(it->world);
@@ -312,6 +321,9 @@ static void FlecsEngineRender(
         goto cleanup;
     }
 
+    flecsEngine_gpuTiming_logIfReady(impl);
+    flecsEngine_gpuTiming_beginFrame(impl);
+
     // Sync materials
     FLECS_TRACY_ZONE_BEGIN_N(__matu, "MaterialUploadBuffer");
     flecsEngine_material_uploadBuffer(it->world, impl);
@@ -337,6 +349,8 @@ static void FlecsEngineRender(
         goto cleanup;
     }
 
+    flecsEngine_gpuTiming_endFrame(impl, encoder);
+
     WGPUCommandBufferDescriptor cmd_desc = {0};
     FLECS_TRACY_ZONE_BEGIN_N(__finish, "EncoderFinish");
     cmd = wgpuCommandEncoderFinish(encoder, &cmd_desc);
@@ -349,6 +363,7 @@ static void FlecsEngineRender(
 
     FLECS_TRACY_ZONE_BEGIN_N(__submit, "SubmitFrame");
     wgpuQueueSubmit(impl->queue, 1, &cmd);
+    flecsEngine_gpuTiming_afterSubmit(impl);
 
     if (flecsEngine_surfaceInterface_submitFrame(
         it->world, impl, surf, &frame_target))

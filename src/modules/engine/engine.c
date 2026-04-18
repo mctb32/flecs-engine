@@ -88,8 +88,7 @@ int flecsEngine_init(
         surface_entity,
         width,
         height,
-        config->resolution_scale,
-        config->msaa ? 4 : 1);
+        config->resolution_scale);
 
     FlecsEngineImpl *ptr = ecs_singleton_ensure(world, FlecsEngineImpl);
 

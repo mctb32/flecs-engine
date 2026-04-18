@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "frustum_cull.h"
+#include "gpu_timing.h"
 #include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
@@ -157,10 +158,19 @@ void flecsEngine_renderView_renderShadow(
             .stencilReadOnly = true
         };
 
+        WGPURenderPassTimestampWrites ts_writes;
+        const char *ts_names[FLECS_ENGINE_SHADOW_CASCADE_COUNT] = {
+            "ShadowC0", "ShadowC1", "ShadowC2", "ShadowC3"
+        };
+        int ts_pair = flecsEngine_gpuTiming_allocPair(engine,
+            ts_names[c < FLECS_ENGINE_SHADOW_CASCADE_COUNT ? c : 0]);
+        flecsEngine_gpuTiming_renderPassTimestamps(engine, ts_pair, &ts_writes);
+
         WGPURenderPassDescriptor pass_desc = {
             .colorAttachmentCount = 0,
             .colorAttachments = NULL,
-            .depthStencilAttachment = &depth_attachment
+            .depthStencilAttachment = &depth_attachment,
+            .timestampWrites = ts_pair >= 0 ? &ts_writes : NULL
         };
 
         WGPURenderPassEncoder shadow_pass = wgpuCommandEncoderBeginRenderPass(

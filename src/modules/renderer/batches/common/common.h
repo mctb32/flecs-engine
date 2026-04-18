@@ -141,6 +141,11 @@ void flecsEngine_batch_group_drawShadow(
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_group_t *ctx);
 
+void flecsEngine_batch_group_drawDepthPrepass(
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_group_t *ctx);
+
 void flecsEngine_batch_bindMaterialGroup(
     FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
@@ -248,6 +253,13 @@ void flecsEngine_mesh_render(
     const FlecsRenderBatch *batch);
 
 void flecsEngine_mesh_renderShadow(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
+    const WGPURenderPassEncoder pass,
+    const FlecsRenderBatch *batch);
+
+void flecsEngine_mesh_renderDepthPrepass(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,

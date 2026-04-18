@@ -102,8 +102,10 @@ void flecsEngine_surface_set(
     ecs_entity_t surface_entity,
     int32_t width,
     int32_t height,
-    int32_t resolution_scale,
-    int32_t sample_count);
+    int32_t resolution_scale);
+
+int32_t flecsEngine_surface_sampleCount(
+    const FlecsSurface *surface);
 
 #include "surfaces/window.h"
 #include "surfaces/frame_out.h"

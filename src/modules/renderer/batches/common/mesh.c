@@ -300,6 +300,39 @@ void flecsEngine_mesh_render(
     FLECS_TRACY_ZONE_END;
 }
 
+void flecsEngine_mesh_renderDepthPrepass(
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
+    const WGPURenderPassEncoder pass,
+    const FlecsRenderBatch *batch)
+{
+    FLECS_TRACY_ZONE_BEGIN("MeshRenderDepthPrepass");
+
+    (void)world;
+    (void)view_impl;
+
+    flecsEngine_batch_t *buf = batch->ctx;
+    flecsEngine_batch_bindInstanceGroupShadow(
+        (FlecsEngineImpl*)engine, pass, buf);
+
+    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
+    ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    ecs_map_iter_t git = ecs_map_iter(groups);
+    while (ecs_map_next(&git)) {
+        uint64_t group = ecs_map_key(&git);
+        if (!group) continue;
+
+        flecsEngine_batch_group_t *ctx =
+            ecs_query_get_group_ctx(batch->query, group);
+        ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
+        flecsEngine_batch_group_drawDepthPrepass(engine, pass, ctx);
+    }
+
+    FLECS_TRACY_ZONE_END;
+}
+
 void flecsEngine_mesh_renderShadow(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,

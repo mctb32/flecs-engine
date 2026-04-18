@@ -181,11 +181,12 @@ WGPUDevice flecsEngine_requestDevice(
 
 #ifndef __EMSCRIPTEN__
     WGPUFeatureName required_features[] = {
-        WGPUFeatureName_TextureCompressionBC
+        WGPUFeatureName_TextureCompressionBC,
+        WGPUFeatureName_TimestampQuery
     };
     WGPUDeviceDescriptor desc = {
         .requiredFeatures = required_features,
-        .requiredFeatureCount = 1
+        .requiredFeatureCount = 2
     };
 #else
     WGPUDeviceDescriptor desc = {0};

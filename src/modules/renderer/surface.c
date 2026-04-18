@@ -127,8 +127,7 @@ void flecsEngine_surface_set(
     ecs_entity_t surface_entity,
     int32_t width,
     int32_t height,
-    int32_t resolution_scale,
-    int32_t sample_count)
+    int32_t resolution_scale)
 {
     if (resolution_scale < 1) resolution_scale = 1;
 
@@ -141,9 +140,14 @@ void flecsEngine_surface_set(
     surface->width = width;
     surface->height = height;
     surface->resolution_scale = resolution_scale;
-    surface->sample_count = sample_count;
     surface->actual_width = actual_width;
     surface->actual_height = actual_height;
+}
+
+int32_t flecsEngine_surface_sampleCount(
+    const FlecsSurface *surface)
+{
+    return (surface && surface->msaa) ? 4 : 1;
 }
 
 static void FlecsOnSurfaceSet(

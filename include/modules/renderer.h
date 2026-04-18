@@ -66,6 +66,7 @@ ECS_STRUCT(FlecsRenderView, {
     ecs_entity_t hdri;
     ecs_f32_t ambient_intensity;
     ecs_f32_t screen_size_threshold;
+    ecs_bool_t depth_prepass;
     flecs_engine_shadow_params_t shadow;
     ecs_vec_t effects;
 });

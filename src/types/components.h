@@ -182,6 +182,7 @@ extern ECS_COMPONENT_DECLARE(FlecsRenderViewImpl);
 typedef struct {
     WGPURenderPipeline pipeline_hdr;
     WGPURenderPipeline pipeline_shadow;
+    WGPURenderPipeline pipeline_depth_prepass;
     bool uses_ibl;
     bool uses_shadow;
     bool uses_cluster;

@@ -15,6 +15,7 @@
 #include "render_view.h"
 #include "render_batch.h"
 #include "shadow.h"
+#include "depth_prepass.h"
 #include "ibl.h"
 #include "cluster.h"
 #include "shader.h"

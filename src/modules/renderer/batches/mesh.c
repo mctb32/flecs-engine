@@ -39,6 +39,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
         .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
+        .depth_prepass_callback = flecsEngine_mesh_renderDepthPrepass,
         .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_DEFAULT),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
@@ -85,6 +86,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
         .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
+        .depth_prepass_callback = flecsEngine_mesh_renderDepthPrepass,
         .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_OWNS_MATERIAL),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
@@ -131,6 +133,7 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
         .shadow_upload_callback = flecsEngine_mesh_uploadShadow,
         .callback = flecsEngine_mesh_render,
         .shadow_callback = flecsEngine_mesh_renderShadow,
+        .depth_prepass_callback = flecsEngine_mesh_renderDepthPrepass,
         .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_DEFAULT),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });

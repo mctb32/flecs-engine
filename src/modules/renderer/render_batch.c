@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "renderer.h"
+#include "depth_prepass.h"
 #include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
@@ -63,6 +64,7 @@ static void flecsEngine_renderBatch_releaseImpl(
 {
     FLECS_WGPU_RELEASE(ptr->pipeline_hdr, wgpuRenderPipelineRelease);
     FLECS_WGPU_RELEASE(ptr->pipeline_shadow, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(ptr->pipeline_depth_prepass, wgpuRenderPipelineRelease);
 }
 
 ECS_DTOR(FlecsRenderBatchImpl, ptr, {
@@ -346,6 +348,37 @@ static void flecsEngine_renderBatch_setupShadowPipeline(
         (uint32_t)shadow_vbuf_count);
 }
 
+static void flecsEngine_renderBatch_setupDepthPrepassPipeline(
+    ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    FlecsRenderBatchImpl *impl,
+    uint32_t sample_count)
+{
+    if (!engine->depth_prepass.shader_module) {
+        return;
+    }
+
+    WGPUVertexAttribute vert_attrs[16];
+    WGPUVertexAttribute slot_attr = {0};
+    WGPUVertexBufferLayout vbufs[2] = {0};
+
+    int32_t v_count = flecsEngine_vertexAttrFromType(
+        world, ecs_id(FlecsGpuVertex), vert_attrs, 16, 0);
+
+    vbufs[0] = (WGPUVertexBufferLayout){
+        .arrayStride = flecsEngine_type_sizeof(world, ecs_id(FlecsGpuVertex)),
+        .stepMode = WGPUVertexStepMode_Vertex,
+        .attributeCount = v_count,
+        .attributes = vert_attrs
+    };
+
+    int32_t vbuf_count = flecsEngine_renderBatch_setupInstanceBindings(
+        v_count, vbufs, 1, &slot_attr);
+
+    impl->pipeline_depth_prepass = flecsEngine_depthPrepass_createPipeline(
+        engine, vbufs, (uint32_t)vbuf_count, sample_count);
+}
+
 static void FlecsRenderBatch_on_set(
     ecs_iter_t *it)
 {
@@ -416,7 +449,7 @@ static void FlecsRenderBatch_on_set(
         WGPUCompareFunction depth_test = rb[i].depth_test;
         bool depth_write = rb[i].depth_write;
         if (!depth_test) {
-            depth_test = WGPUCompareFunction_Less;
+            depth_test = WGPUCompareFunction_LessEqual;
             depth_write = true;
         }
 
@@ -432,8 +465,7 @@ static void FlecsRenderBatch_on_set(
 
         const FlecsSurface *surface = ecs_get(
             world, engine->surface, FlecsSurface);
-        uint32_t sample_count = surface->sample_count > 1
-            ? (uint32_t)surface->sample_count : 1;
+        uint32_t sample_count = (uint32_t)flecsEngine_surface_sampleCount(surface);
 
         impl.pipeline_hdr = flecsEngine_renderBatch_createPipeline(
             engine,
@@ -457,6 +489,11 @@ static void FlecsRenderBatch_on_set(
 
         if (!has_blend) {
             flecsEngine_renderBatch_setupShadowPipeline(world, engine, &impl);
+        }
+
+        if (!has_blend && depth_write) {
+            flecsEngine_renderBatch_setupDepthPrepassPipeline(
+                world, engine, &impl, sample_count);
         }
 
         ecs_set_ptr(world, e, FlecsRenderBatchImpl, &impl);
@@ -505,29 +542,33 @@ void flecsEngine_renderBatch_render(
         }
     }
 
-    {
-        ecs_entity_t hdri = view->atmosphere
-            ? view->atmosphere
-            : (view->hdri ? view->hdri : engine->fallback_hdri);
-
-        FlecsHdriImpl *ibl = ecs_get_mut(world, hdri, FlecsHdriImpl);
-        ecs_assert(ibl != NULL, ECS_INTERNAL_ERROR, NULL);
-
-        /* Rebuild the view's scene bind group if the HDRI changed, the
-         * version stamp is stale, or it hasn't been built yet. */
-        if (!view_impl->scene_bind_group ||
-            view_impl->scene_bind_hdri != hdri ||
-            view_impl->scene_bind_version != engine->scene_bind_version)
-        {
-            flecsEngine_globals_createBindGroup(engine, view_impl, hdri, ibl);
-        }
-
-        wgpuRenderPassEncoderSetBindGroup(
-            pass, 0, view_impl->scene_bind_group, 0, NULL);
-    }
+    flecsEngine_renderView_ensureSceneBindGroup(world, engine, view_impl, view);
+    wgpuRenderPassEncoderSetBindGroup(
+        pass, 0, view_impl->scene_bind_group, 0, NULL);
 
     batch->callback(world, engine, view_impl, pass, batch);
     FLECS_TRACY_ZONE_END;
+}
+
+void flecsEngine_renderView_ensureSceneBindGroup(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
+    const FlecsRenderView *view)
+{
+    ecs_entity_t hdri = view->atmosphere
+        ? view->atmosphere
+        : (view->hdri ? view->hdri : engine->fallback_hdri);
+
+    FlecsHdriImpl *ibl = ecs_get_mut(world, hdri, FlecsHdriImpl);
+    ecs_assert(ibl != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    if (!view_impl->scene_bind_group ||
+        view_impl->scene_bind_hdri != hdri ||
+        view_impl->scene_bind_version != engine->scene_bind_version)
+    {
+        flecsEngine_globals_createBindGroup(engine, view_impl, hdri, ibl);
+    }
 }
 
 void flecsEngine_renderBatch_extract(
@@ -652,6 +693,40 @@ void flecsEngine_renderBatch_renderShadow(
     if (batch->shadow_callback) {
         batch->shadow_callback(world, engine, view_impl, pass, batch);
     }
+    FLECS_TRACY_ZONE_END;
+}
+
+void flecsEngine_renderBatch_renderDepthPrepass(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    FlecsRenderViewImpl *view_impl,
+    const WGPURenderPassEncoder pass,
+    ecs_entity_t batch_entity)
+{
+    FLECS_TRACY_ZONE_BEGIN("BatchDepthPrepass");
+    const FlecsRenderBatch *batch = ecs_get(
+        world, batch_entity, FlecsRenderBatch);
+    const FlecsRenderBatchImpl *impl = ecs_get(
+        world, batch_entity, FlecsRenderBatchImpl);
+    if (!batch || !impl || !impl->pipeline_depth_prepass ||
+        !batch->depth_prepass_callback)
+    {
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
+    WGPURenderPipeline pipeline = impl->pipeline_depth_prepass;
+    if (pipeline != view_impl->last_pipeline) {
+        wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+        view_impl->last_pipeline = pipeline;
+    }
+
+    if (view_impl->scene_bind_group) {
+        wgpuRenderPassEncoderSetBindGroup(
+            pass, 0, view_impl->scene_bind_group, 0, NULL);
+    }
+
+    batch->depth_prepass_callback(world, engine, view_impl, pass, batch);
     FLECS_TRACY_ZONE_END;
 }
 

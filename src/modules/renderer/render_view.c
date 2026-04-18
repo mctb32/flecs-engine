@@ -3,6 +3,7 @@
 #include "renderer.h"
 #include "../atmosphere/atmosphere.h"
 #include "frustum_cull.h"
+#include "gpu_timing.h"
 #include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
@@ -24,6 +25,7 @@ ECS_CTOR(FlecsRenderView, ptr, {
     ptr->shadow.bias = 0.0005f;
     ptr->shadow.max_range = 100.0f;
     ptr->screen_size_threshold = 0.0f;
+    ptr->depth_prepass = false;
 })
 
 ECS_MOVE(FlecsRenderView, dst, src, {
@@ -41,6 +43,7 @@ ECS_COPY(FlecsRenderView, dst, src, {
     dst->ambient_intensity = src->ambient_intensity;
     dst->shadow = src->shadow;
     dst->screen_size_threshold = src->screen_size_threshold;
+    dst->depth_prepass = src->depth_prepass;
     dst->effects = ecs_vec_copy_t(NULL, &src->effects, flecs_render_view_effect_t);
 })
 
@@ -158,7 +161,7 @@ static int flecsEngine_renderView_ensureMsaaResources(
     FlecsRenderViewImpl *impl)
 {
     const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
-    int32_t sc = surface->sample_count;
+    int32_t sc = flecsEngine_surface_sampleCount(surface);
     if (sc < 2) {
         if (impl->msaa_color_texture) {
             flecsEngine_renderView_releaseMsaaResources(impl);
@@ -607,18 +610,20 @@ static int flecsEngine_renderView_ensureTargets(
 
 static WGPURenderPassEncoder flecsEngine_renderView_beginPass(
     const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
     const FlecsRenderView *view,
     const FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder,
     WGPUTextureView color_view,
     WGPULoadOp color_load_op,
-    WGPULoadOp depth_load_op)
+    WGPULoadOp depth_load_op,
+    const char *ts_name)
 {
     (void)view;
 
     const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
-    bool msaa = surface->sample_count > 1 && view_impl->msaa_color_texture_view;
+    bool msaa = flecsEngine_surface_sampleCount(surface) > 1
+        && view_impl->msaa_color_texture_view;
 
     WGPURenderPassColorAttachment color_attachment = {
         .view = msaa ? view_impl->msaa_color_texture_view : color_view,
@@ -641,10 +646,16 @@ static WGPURenderPassEncoder flecsEngine_renderView_beginPass(
         .stencilReadOnly = true
     };
 
+    WGPURenderPassTimestampWrites ts_writes;
+    int ts_pair = ts_name
+        ? flecsEngine_gpuTiming_allocPair(engine, ts_name) : -1;
+    flecsEngine_gpuTiming_renderPassTimestamps(engine, ts_pair, &ts_writes);
+
     WGPURenderPassDescriptor pass_desc = {
         .colorAttachmentCount = 1,
         .colorAttachments = &color_attachment,
-        .depthStencilAttachment = &depth_attachment
+        .depthStencilAttachment = &depth_attachment,
+        .timestampWrites = ts_pair >= 0 ? &ts_writes : NULL
     };
 
     return wgpuCommandEncoderBeginRenderPass(encoder, &pass_desc);
@@ -684,6 +695,59 @@ static void flecsEngine_renderView_uploadBatches(
     FLECS_TRACY_ZONE_END;
 }
 
+static void flecsEngine_renderView_runDepthPrepass(
+    ecs_world_t *world,
+    FlecsEngineImpl *engine,
+    const FlecsRenderView *view,
+    FlecsRenderViewImpl *viewImpl,
+    const FlecsRenderBatchSet *batch_set,
+    WGPUCommandEncoder encoder)
+{
+    flecsEngine_renderView_ensureSceneBindGroup(
+        world, engine, viewImpl, view);
+    if (!viewImpl->scene_bind_group) {
+        return;
+    }
+
+    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
+    bool msaa = flecsEngine_surface_sampleCount(surface) > 1
+        && viewImpl->msaa_depth_texture_view;
+
+    WGPURenderPassDepthStencilAttachment depth_attachment = {
+        .view = msaa ? viewImpl->msaa_depth_texture_view
+                     : viewImpl->depth_texture_view,
+        .depthLoadOp = WGPULoadOp_Clear,
+        .depthStoreOp = WGPUStoreOp_Store,
+        .depthClearValue = 1.0f,
+        .depthReadOnly = false,
+        .stencilLoadOp = WGPULoadOp_Undefined,
+        .stencilStoreOp = WGPUStoreOp_Undefined,
+        .stencilClearValue = 0,
+        .stencilReadOnly = true
+    };
+
+    WGPURenderPassTimestampWrites ts_writes;
+    int ts_pair = flecsEngine_gpuTiming_allocPair(engine, "DepthPrepass");
+    flecsEngine_gpuTiming_renderPassTimestamps(engine, ts_pair, &ts_writes);
+
+    WGPURenderPassDescriptor pass_desc = {
+        .colorAttachmentCount = 0,
+        .colorAttachments = NULL,
+        .depthStencilAttachment = &depth_attachment,
+        .timestampWrites = ts_pair >= 0 ? &ts_writes : NULL
+    };
+
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
+        encoder, &pass_desc);
+    viewImpl->last_pipeline = NULL;
+
+    flecsEngine_renderBatchSet_renderDepthPrepass(
+        world, engine, viewImpl, batch_set, pass);
+
+    wgpuRenderPassEncoderEnd(pass);
+    wgpuRenderPassEncoderRelease(pass);
+}
+
 static void flecsEngine_renderView_renderBatches(
     ecs_world_t *world,
     ecs_entity_t view_entity,
@@ -707,12 +771,19 @@ static void flecsEngine_renderView_renderBatches(
     bool has_transmission = flecsEngine_renderBatchSet_hasTransmission(
         world, engine, batch_set);
 
+    if (view->depth_prepass) {
+        flecsEngine_renderView_runDepthPrepass(
+            world, engine, view, viewImpl, batch_set, encoder);
+    }
+    WGPULoadOp depth_load = view->depth_prepass
+        ? WGPULoadOp_Load : WGPULoadOp_Clear;
+
     if (has_transmission) {
         /* Pass 1: render opaque batches (render_after_snapshot = false) */
         {
             WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
                 world, engine, view, viewImpl, encoder, batch_target,
-                WGPULoadOp_Clear, WGPULoadOp_Clear);
+                WGPULoadOp_Clear, depth_load, "MainOpaque");
             viewImpl->last_pipeline = NULL;
 
             flecsEngine_renderBatchSet_render(
@@ -738,7 +809,7 @@ static void flecsEngine_renderView_renderBatches(
         {
             WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
                 world, engine, view, viewImpl, encoder, batch_target,
-                WGPULoadOp_Load, WGPULoadOp_Load);
+                WGPULoadOp_Load, WGPULoadOp_Load, "MainPostSnap");
             viewImpl->last_pipeline = NULL;
 
             flecsEngine_renderBatchSet_render(
@@ -751,7 +822,7 @@ static void flecsEngine_renderView_renderBatches(
         /* No transmissive materials — single pass, no snapshot needed */
         WGPURenderPassEncoder pass = flecsEngine_renderView_beginPass(
             world, engine, view, viewImpl, encoder, batch_target,
-            WGPULoadOp_Clear, WGPULoadOp_Clear);
+            WGPULoadOp_Clear, depth_load, "Main");
         viewImpl->last_pipeline = NULL;
 
         flecsEngine_renderBatchSet_render(
@@ -880,7 +951,7 @@ static void flecsEngine_renderView_render(
     flecsEngine_renderView_renderBatches(
         world, view_entity, engine, view, impl, encoder);
 
-    if (surface->sample_count > 1) {
+    if (flecsEngine_surface_sampleCount(surface) > 1) {
         flecsEngine_depthResolve(engine, impl, encoder);
     }
 
@@ -1130,6 +1201,7 @@ void flecsEngine_renderView_register(
             { .name = "hdri", .type = ecs_id(ecs_entity_t) },
             { .name = "ambient_intensity", .type = ecs_id(ecs_f32_t) },
             { .name = "screen_size_threshold", .type = ecs_id(ecs_f32_t) },
+            { .name = "depth_prepass", .type = ecs_id(ecs_bool_t) },
             { .name = "shadow", .type = ecs_id(flecs_engine_shadow_params_t) },
             { .name = "effects", .type = vec_view_effect }
         }

@@ -94,8 +94,7 @@ static int flecsEngine_window_prepareFrame(
             engine->surface,
             width,
             height,
-            surface->resolution_scale,
-            surface->sample_count);
+            surface->resolution_scale);
 
         flecsEngine_reconfigureSurface(engine, impl);
     }
