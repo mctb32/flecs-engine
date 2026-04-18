@@ -70,10 +70,7 @@ WGPUBindGroup flecsEngine_materialBind_ensure(
         return impl->materials.bind_group;
     }
 
-    if (impl->materials.bind_group) {
-        wgpuBindGroupRelease(impl->materials.bind_group);
-        impl->materials.bind_group = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->materials.bind_group, wgpuBindGroupRelease);
 
     uint64_t size =
         (uint64_t)impl->materials.buffer_capacity * sizeof(FlecsGpuMaterial);
@@ -88,13 +85,7 @@ WGPUBindGroup flecsEngine_materialBind_ensure(
 void flecsEngine_materialBind_release(
     FlecsEngineImpl *impl)
 {
-    if (impl->materials.bind_group) {
-        wgpuBindGroupRelease(impl->materials.bind_group);
-        impl->materials.bind_group = NULL;
-    }
-    if (impl->materials.bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->materials.bind_layout);
-        impl->materials.bind_layout = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->materials.bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(impl->materials.bind_layout, wgpuBindGroupLayoutRelease);
     impl->materials.bind_version = 0;
 }

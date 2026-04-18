@@ -70,10 +70,7 @@ static ecs_entity_t flecsEngine_sunShafts_shader(
 static void flecsEngine_sunShafts_releaseResources(
     FlecsSunShaftsImpl *impl)
 {
-    if (impl->uniform_buffer) {
-        wgpuBufferRelease(impl->uniform_buffer);
-        impl->uniform_buffer = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->uniform_buffer, wgpuBufferRelease);
 }
 
 ECS_DTOR(FlecsSunShaftsImpl, ptr, {
@@ -179,12 +176,8 @@ static bool flecsEngine_sunShafts_setup(
 
     FlecsSunShaftsImpl shafts_impl = {0};
 
-    WGPUBufferDescriptor uniform_desc = {
-        .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-        .size = sizeof(FlecsSunShaftsUniform)
-    };
-
-    shafts_impl.uniform_buffer = wgpuDeviceCreateBuffer(engine->device, &uniform_desc);
+    shafts_impl.uniform_buffer = flecsEngine_createUniformBuffer(
+        engine->device, sizeof(FlecsSunShaftsUniform));
     if (!shafts_impl.uniform_buffer) {
         return false;
     }

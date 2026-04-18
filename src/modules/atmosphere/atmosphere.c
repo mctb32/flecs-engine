@@ -542,127 +542,49 @@ static const char *kComposeShaderSource =
 
 static void flecsEngine_atmos_releaseTextures(FlecsAtmosphereImpl *a)
 {
-    if (a->aerial_storage_view) {
-        wgpuTextureViewRelease(a->aerial_storage_view);
-        a->aerial_storage_view = NULL;
-    }
-    if (a->aerial_view) { wgpuTextureViewRelease(a->aerial_view); a->aerial_view = NULL; }
-    if (a->aerial_texture) { wgpuTextureRelease(a->aerial_texture); a->aerial_texture = NULL; }
-    if (a->skyview_view) { wgpuTextureViewRelease(a->skyview_view); a->skyview_view = NULL; }
-    if (a->skyview_texture) { wgpuTextureRelease(a->skyview_texture); a->skyview_texture = NULL; }
-    if (a->ms_view) { wgpuTextureViewRelease(a->ms_view); a->ms_view = NULL; }
-    if (a->ms_texture) { wgpuTextureRelease(a->ms_texture); a->ms_texture = NULL; }
-    if (a->trans_view) { wgpuTextureViewRelease(a->trans_view); a->trans_view = NULL; }
-    if (a->trans_texture) { wgpuTextureRelease(a->trans_texture); a->trans_texture = NULL; }
+    FLECS_WGPU_RELEASE(a->aerial_storage_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(a->aerial_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(a->aerial_texture, wgpuTextureRelease);
+    FLECS_WGPU_RELEASE(a->skyview_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(a->skyview_texture, wgpuTextureRelease);
+    FLECS_WGPU_RELEASE(a->ms_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(a->ms_texture, wgpuTextureRelease);
+    FLECS_WGPU_RELEASE(a->trans_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(a->trans_texture, wgpuTextureRelease);
 }
 
 static void flecsEngine_atmos_releaseResources(FlecsAtmosphereImpl *a)
 {
     flecsEngine_atmos_releaseTextures(a);
 
-    if (a->trans_bind_group) {
-        wgpuBindGroupRelease(a->trans_bind_group);
-        a->trans_bind_group = NULL;
-    }
-    if (a->ms_bind_group) {
-        wgpuBindGroupRelease(a->ms_bind_group);
-        a->ms_bind_group = NULL;
-    }
-    if (a->skyview_bind_group) {
-        wgpuBindGroupRelease(a->skyview_bind_group);
-        a->skyview_bind_group = NULL;
-    }
-    if (a->aerial_compute_bind_group) {
-        wgpuBindGroupRelease(a->aerial_compute_bind_group);
-        a->aerial_compute_bind_group = NULL;
-    }
-    if (a->cube_face_bind_group) {
-        wgpuBindGroupRelease(a->cube_face_bind_group);
-        a->cube_face_bind_group = NULL;
-    }
+    FLECS_WGPU_RELEASE(a->trans_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(a->ms_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(a->skyview_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(a->aerial_compute_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(a->cube_face_bind_group, wgpuBindGroupRelease);
     for (uint32_t m = 0; m < 8; m++) {
-        if (a->cube_ds_bind_groups[m]) {
-            wgpuBindGroupRelease(a->cube_ds_bind_groups[m]);
-            a->cube_ds_bind_groups[m] = NULL;
-        }
-        if (a->cube_mip_storage_views[m]) {
-            wgpuTextureViewRelease(a->cube_mip_storage_views[m]);
-            a->cube_mip_storage_views[m] = NULL;
-        }
-        if (a->cube_mip_read_views[m]) {
-            wgpuTextureViewRelease(a->cube_mip_read_views[m]);
-            a->cube_mip_read_views[m] = NULL;
-        }
+        FLECS_WGPU_RELEASE(a->cube_ds_bind_groups[m], wgpuBindGroupRelease);
+        FLECS_WGPU_RELEASE(a->cube_mip_storage_views[m], wgpuTextureViewRelease);
+        FLECS_WGPU_RELEASE(a->cube_mip_read_views[m], wgpuTextureViewRelease);
     }
     a->cube_mip_count = 0;
-    if (a->cube_ds_pipeline) {
-        wgpuComputePipelineRelease(a->cube_ds_pipeline);
-        a->cube_ds_pipeline = NULL;
-    }
-    if (a->cube_ds_layout) {
-        wgpuBindGroupLayoutRelease(a->cube_ds_layout);
-        a->cube_ds_layout = NULL;
-    }
-    if (a->cube_face_pipeline) {
-        wgpuComputePipelineRelease(a->cube_face_pipeline);
-        a->cube_face_pipeline = NULL;
-    }
-    if (a->cube_face_layout) {
-        wgpuBindGroupLayoutRelease(a->cube_face_layout);
-        a->cube_face_layout = NULL;
-    }
-    if (a->aerial_compute_pipeline) {
-        wgpuComputePipelineRelease(a->aerial_compute_pipeline);
-        a->aerial_compute_pipeline = NULL;
-    }
-    if (a->aerial_compute_layout) {
-        wgpuBindGroupLayoutRelease(a->aerial_compute_layout);
-        a->aerial_compute_layout = NULL;
-    }
-    if (a->compose_pipeline_surface) {
-        wgpuRenderPipelineRelease(a->compose_pipeline_surface);
-        a->compose_pipeline_surface = NULL;
-    }
-    if (a->compose_pipeline_hdr) {
-        wgpuRenderPipelineRelease(a->compose_pipeline_hdr);
-        a->compose_pipeline_hdr = NULL;
-    }
-    if (a->skyview_pipeline) {
-        wgpuRenderPipelineRelease(a->skyview_pipeline);
-        a->skyview_pipeline = NULL;
-    }
-    if (a->ms_pipeline) {
-        wgpuRenderPipelineRelease(a->ms_pipeline);
-        a->ms_pipeline = NULL;
-    }
-    if (a->trans_pipeline) {
-        wgpuRenderPipelineRelease(a->trans_pipeline);
-        a->trans_pipeline = NULL;
-    }
-    if (a->compose_layout) {
-        wgpuBindGroupLayoutRelease(a->compose_layout);
-        a->compose_layout = NULL;
-    }
-    if (a->skyview_layout) {
-        wgpuBindGroupLayoutRelease(a->skyview_layout);
-        a->skyview_layout = NULL;
-    }
-    if (a->ms_layout) {
-        wgpuBindGroupLayoutRelease(a->ms_layout);
-        a->ms_layout = NULL;
-    }
-    if (a->trans_layout) {
-        wgpuBindGroupLayoutRelease(a->trans_layout);
-        a->trans_layout = NULL;
-    }
-    if (a->clamp_sampler) {
-        wgpuSamplerRelease(a->clamp_sampler);
-        a->clamp_sampler = NULL;
-    }
-    if (a->uniform_buffer) {
-        wgpuBufferRelease(a->uniform_buffer);
-        a->uniform_buffer = NULL;
-    }
+    FLECS_WGPU_RELEASE(a->cube_ds_pipeline, wgpuComputePipelineRelease);
+    FLECS_WGPU_RELEASE(a->cube_ds_layout, wgpuBindGroupLayoutRelease);
+    FLECS_WGPU_RELEASE(a->cube_face_pipeline, wgpuComputePipelineRelease);
+    FLECS_WGPU_RELEASE(a->cube_face_layout, wgpuBindGroupLayoutRelease);
+    FLECS_WGPU_RELEASE(a->aerial_compute_pipeline, wgpuComputePipelineRelease);
+    FLECS_WGPU_RELEASE(a->aerial_compute_layout, wgpuBindGroupLayoutRelease);
+    FLECS_WGPU_RELEASE(a->compose_pipeline_surface, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(a->compose_pipeline_hdr, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(a->skyview_pipeline, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(a->ms_pipeline, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(a->trans_pipeline, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(a->compose_layout, wgpuBindGroupLayoutRelease);
+    FLECS_WGPU_RELEASE(a->skyview_layout, wgpuBindGroupLayoutRelease);
+    FLECS_WGPU_RELEASE(a->ms_layout, wgpuBindGroupLayoutRelease);
+    FLECS_WGPU_RELEASE(a->trans_layout, wgpuBindGroupLayoutRelease);
+    FLECS_WGPU_RELEASE(a->clamp_sampler, wgpuSamplerRelease);
+    FLECS_WGPU_RELEASE(a->uniform_buffer, wgpuBufferRelease);
 }
 
 ECS_DTOR(FlecsAtmosphereImpl, ptr, {
@@ -924,68 +846,15 @@ static WGPURenderPipeline flecsEngine_atmos_createPipeline(
     const char *fragment_entry,
     WGPUTextureFormat color_format)
 {
-    WGPUPipelineLayoutDescriptor pl_desc = {
-        .bindGroupLayoutCount = 1,
-        .bindGroupLayouts = &bind_layout
-    };
-    WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(engine->device, &pl_desc);
-    if (!pl) return NULL;
-
     WGPUColorTargetState color_target = {
         .format = color_format,
-        .blend = NULL,
         .writeMask = WGPUColorWriteMask_All
     };
-    WGPUVertexState vs = {
-        .module = module,
-        .entryPoint = WGPU_STR(vertex_entry)
-    };
-    WGPUFragmentState fs = {
-        .module = module,
-        .entryPoint = WGPU_STR(fragment_entry),
-        .targetCount = 1,
-        .targets = &color_target
-    };
-    WGPURenderPipelineDescriptor desc = {
-        .layout = pl,
-        .vertex = vs,
-        .fragment = &fs,
-        .primitive = {
-            .topology = WGPUPrimitiveTopology_TriangleList,
-            .cullMode = WGPUCullMode_None,
-            .frontFace = WGPUFrontFace_CCW
-        },
-        .multisample = WGPU_MULTISAMPLE_DEFAULT
-    };
-    WGPURenderPipeline p = wgpuDeviceCreateRenderPipeline(engine->device, &desc);
-    wgpuPipelineLayoutRelease(pl);
-    return p;
+    return flecsEngine_createFullscreenPipeline(
+        engine, module, bind_layout,
+        vertex_entry, fragment_entry, &color_target, NULL);
 }
 
-static WGPUComputePipeline flecsEngine_atmos_createComputePipeline(
-    const FlecsEngineImpl *engine,
-    WGPUShaderModule module,
-    WGPUBindGroupLayout bind_layout,
-    const char *entry)
-{
-    WGPUPipelineLayoutDescriptor pl_desc = {
-        .bindGroupLayoutCount = 1,
-        .bindGroupLayouts = &bind_layout
-    };
-    WGPUPipelineLayout pl = wgpuDeviceCreatePipelineLayout(engine->device, &pl_desc);
-    if (!pl) return NULL;
-
-    WGPUComputePipelineDescriptor desc = {
-        .layout = pl,
-        .compute = {
-            .module = module,
-            .entryPoint = WGPU_STR(entry)
-        }
-    };
-    WGPUComputePipeline p = wgpuDeviceCreateComputePipeline(engine->device, &desc);
-    wgpuPipelineLayoutRelease(pl);
-    return p;
-}
 
 typedef enum {
     ATMOS_BIND_UNIFORM,
@@ -1122,25 +991,11 @@ bool flecsEngine_atmosphere_ensureImpl(
 
     FlecsAtmosphereImpl a = {0};
 
-    WGPUBufferDescriptor uniform_desc = {
-        .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-        .size = sizeof(FlecsAtmosphereUniform)
-    };
-    a.uniform_buffer = wgpuDeviceCreateBuffer(engine->device, &uniform_desc);
+    a.uniform_buffer = flecsEngine_createUniformBuffer(
+        engine->device, sizeof(FlecsAtmosphereUniform));
     if (!a.uniform_buffer) { ecs_err("atmos: uniform_buffer create failed"); flecsEngine_atmos_releaseResources(&a); return false; }
 
-    WGPUSamplerDescriptor samp_desc = {
-        .addressModeU = WGPUAddressMode_ClampToEdge,
-        .addressModeV = WGPUAddressMode_ClampToEdge,
-        .addressModeW = WGPUAddressMode_ClampToEdge,
-        .magFilter = WGPUFilterMode_Linear,
-        .minFilter = WGPUFilterMode_Linear,
-        .mipmapFilter = WGPUMipmapFilterMode_Linear,
-        .lodMinClamp = 0.0f,
-        .lodMaxClamp = 32.0f,
-        .maxAnisotropy = 1
-    };
-    a.clamp_sampler = wgpuDeviceCreateSampler(engine->device, &samp_desc);
+    a.clamp_sampler = flecsEngine_createLinearClampSampler(engine->device);
     if (!a.clamp_sampler) { ecs_err("atmos setup failed at %s:%d", __FILE__, __LINE__); flecsEngine_atmos_releaseResources(&a); return false; }
 
     if (!flecsEngine_atmos_createSimpleTexture(engine,
@@ -1199,11 +1054,11 @@ bool flecsEngine_atmosphere_ensureImpl(
     a.skyview_pipeline = flecsEngine_atmos_createPipeline(
         engine, sv_mod, a.skyview_layout, "vs_main", "fs_main", FLECS_ATMOS_FORMAT);
 
-    a.aerial_compute_pipeline = flecsEngine_atmos_createComputePipeline(
+    a.aerial_compute_pipeline = flecsEngine_createComputePipeline(
         engine, ap_mod, a.aerial_compute_layout, "cs_main");
-    a.cube_face_pipeline = flecsEngine_atmos_createComputePipeline(
+    a.cube_face_pipeline = flecsEngine_createComputePipeline(
         engine, cf_mod, a.cube_face_layout, "cs_main");
-    a.cube_ds_pipeline = flecsEngine_atmos_createComputePipeline(
+    a.cube_ds_pipeline = flecsEngine_createComputePipeline(
         engine, ds_mod, a.cube_ds_layout, "cs_main");
 
     WGPUTextureFormat hdr_format = flecsEngine_getHdrFormat(engine);
@@ -1376,25 +1231,9 @@ static bool flecsEngine_atmos_runPassBG(
     WGPUBindGroup bind_group,
     WGPUTextureView target_view)
 {
-    WGPURenderPassColorAttachment color = {
-        .view = target_view,
-        WGPU_DEPTH_SLICE
-        .loadOp = WGPULoadOp_Clear,
-        .storeOp = WGPUStoreOp_Store,
-        .clearValue = (WGPUColor){0}
-    };
-    WGPURenderPassDescriptor desc = {
-        .colorAttachmentCount = 1,
-        .colorAttachments = &color
-    };
-    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &desc);
-    if (!pass) return false;
-    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-    wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
-    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(pass);
-    wgpuRenderPassEncoderRelease(pass);
-    return true;
+    return flecsEngine_fullscreenPass(
+        encoder, target_view, WGPULoadOp_Clear, (WGPUColor){0},
+        pipeline, bind_group);
 }
 
 static bool flecsEngine_atmos_runTrans(
@@ -1501,27 +1340,11 @@ static bool flecsEngine_atmos_runCompose(
             ? a->compose_pipeline_surface
             : a->compose_pipeline_hdr;
 
-    WGPURenderPassColorAttachment color = {
-        .view = output_view,
-        WGPU_DEPTH_SLICE
-        .loadOp = output_load_op,
-        .storeOp = WGPUStoreOp_Store,
-        .clearValue = (WGPUColor){0}
-    };
-    WGPURenderPassDescriptor desc = {
-        .colorAttachmentCount = 1,
-        .colorAttachments = &color
-    };
-    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &desc);
-    if (!pass) { wgpuBindGroupRelease(bg); FLECS_TRACY_ZONE_END; return false; }
-    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-    wgpuRenderPassEncoderSetBindGroup(pass, 0, bg, 0, NULL);
-    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(pass);
-    wgpuRenderPassEncoderRelease(pass);
+    bool ok = flecsEngine_fullscreenPass(
+        encoder, output_view, output_load_op, (WGPUColor){0}, pipeline, bg);
     wgpuBindGroupRelease(bg);
     FLECS_TRACY_ZONE_END;
-    return true;
+    return ok;
 }
 
 bool flecsEngine_atmosphere_renderLuts(

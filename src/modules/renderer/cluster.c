@@ -79,12 +79,8 @@ int flecsEngine_cluster_initView(
     cl->cpu_cluster_indices = ecs_os_calloc_n(uint32_t, init_indices);
     cl->cluster_index_capacity = init_indices;
 
-    WGPUBufferDescriptor info_desc = {
-        .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-        .size = sizeof(FlecsClusterInfo)
-    };
-    cl->cluster_info_buffer = wgpuDeviceCreateBuffer(
-        engine->device, &info_desc);
+    cl->cluster_info_buffer = flecsEngine_createUniformBuffer(
+        engine->device, sizeof(FlecsClusterInfo));
 
     WGPUBufferDescriptor grid_desc = {
         .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
@@ -115,18 +111,9 @@ void flecsEngine_cluster_cleanupView(
     FlecsRenderViewImpl *view_impl)
 {
     flecs_view_cluster_t *cl = &view_impl->cluster;
-    if (cl->cluster_index_buffer) {
-        wgpuBufferRelease(cl->cluster_index_buffer);
-        cl->cluster_index_buffer = NULL;
-    }
-    if (cl->cluster_grid_buffer) {
-        wgpuBufferRelease(cl->cluster_grid_buffer);
-        cl->cluster_grid_buffer = NULL;
-    }
-    if (cl->cluster_info_buffer) {
-        wgpuBufferRelease(cl->cluster_info_buffer);
-        cl->cluster_info_buffer = NULL;
-    }
+    FLECS_WGPU_RELEASE(cl->cluster_index_buffer, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(cl->cluster_grid_buffer, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(cl->cluster_info_buffer, wgpuBufferRelease);
     if (cl->cpu_cluster_indices) {
         ecs_os_free(cl->cpu_cluster_indices);
         cl->cpu_cluster_indices = NULL;

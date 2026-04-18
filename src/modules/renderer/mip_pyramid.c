@@ -90,18 +90,3 @@ void flecsEngine_mipPyramid_release(
     }
 }
 
-WGPUSampler flecsEngine_mipPyramid_createFilteredSampler(
-    WGPUDevice device)
-{
-    return wgpuDeviceCreateSampler(device, &(WGPUSamplerDescriptor){
-        .addressModeU = WGPUAddressMode_ClampToEdge,
-        .addressModeV = WGPUAddressMode_ClampToEdge,
-        .addressModeW = WGPUAddressMode_ClampToEdge,
-        .magFilter = WGPUFilterMode_Linear,
-        .minFilter = WGPUFilterMode_Linear,
-        .mipmapFilter = WGPUMipmapFilterMode_Linear,
-        .lodMinClamp = 0.0f,
-        .lodMaxClamp = 32.0f,
-        .maxAnisotropy = 1
-    });
-}

@@ -59,10 +59,7 @@ void flecsEngine_textureArray_release(
         bk->height = 0;
         bk->is_bc7 = false;
     }
-    if (impl->textures.array_bind_group) {
-        wgpuBindGroupRelease(impl->textures.array_bind_group);
-        impl->textures.array_bind_group = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->textures.array_bind_group, wgpuBindGroupRelease);
 }
 
 typedef struct {

@@ -51,25 +51,10 @@ static void flecsEngine_cleanup(
 
     ecs_delete_with(world, ecs_id(FlecsRenderBatch));
 
-    if (impl->queue) {
-        wgpuQueueRelease(impl->queue);
-        impl->queue = NULL;
-    }
-
-    if (impl->device) {
-        wgpuDeviceRelease(impl->device);
-        impl->device = NULL;
-    }
-
-    if (impl->adapter) {
-        wgpuAdapterRelease(impl->adapter);
-        impl->adapter = NULL;
-    }
-
-    if (impl->instance) {
-        wgpuInstanceRelease(impl->instance);
-        impl->instance = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->queue, wgpuQueueRelease);
+    FLECS_WGPU_RELEASE(impl->device, wgpuDeviceRelease);
+    FLECS_WGPU_RELEASE(impl->adapter, wgpuAdapterRelease);
+    FLECS_WGPU_RELEASE(impl->instance, wgpuInstanceRelease);
 
     if (terminate_runtime) {
         flecsEngine_terminateGlfw();

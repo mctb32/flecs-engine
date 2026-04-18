@@ -18,18 +18,8 @@ int flecsEngine_initPassthrough(
         return -1;
     }
 
-    impl->pipelines.passthrough_sampler = wgpuDeviceCreateSampler(impl->device,
-        &(WGPUSamplerDescriptor){
-            .addressModeU = WGPUAddressMode_ClampToEdge,
-            .addressModeV = WGPUAddressMode_ClampToEdge,
-            .addressModeW = WGPUAddressMode_ClampToEdge,
-            .magFilter = WGPUFilterMode_Linear,
-            .minFilter = WGPUFilterMode_Linear,
-            .mipmapFilter = WGPUMipmapFilterMode_Linear,
-            .lodMinClamp = 0.0f,
-            .lodMaxClamp = 32.0f,
-            .maxAnisotropy = 1
-        });
+    impl->pipelines.passthrough_sampler =
+        flecsEngine_createLinearClampSampler(impl->device);
     if (!impl->pipelines.passthrough_sampler) {
         wgpuShaderModuleRelease(module);
         return -1;
@@ -67,7 +57,8 @@ int flecsEngine_initPassthrough(
     };
 
     impl->pipelines.passthrough_pipeline = flecsEngine_createFullscreenPipeline(
-        impl, module, impl->pipelines.passthrough_bind_layout, &color_target, NULL);
+        impl, module, impl->pipelines.passthrough_bind_layout,
+        NULL, NULL, &color_target, NULL);
 
     wgpuShaderModuleRelease(module);
 

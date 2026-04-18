@@ -29,25 +29,10 @@ ECS_MOVE(FlecsRenderEffect, dst, src, {
 static void flecsEngine_renderEffect_release(
     FlecsRenderEffectImpl *ptr)
 {
-    if (ptr->input_sampler) {
-        wgpuSamplerRelease(ptr->input_sampler);
-        ptr->input_sampler = NULL;
-    }
-
-    if (ptr->pipeline_surface) {
-        wgpuRenderPipelineRelease(ptr->pipeline_surface);
-        ptr->pipeline_surface = NULL;
-    }
-
-    if (ptr->pipeline_hdr) {
-        wgpuRenderPipelineRelease(ptr->pipeline_hdr);
-        ptr->pipeline_hdr = NULL;
-    }
-
-    if (ptr->bind_layout) {
-        wgpuBindGroupLayoutRelease(ptr->bind_layout);
-        ptr->bind_layout = NULL;
-    }
+    FLECS_WGPU_RELEASE(ptr->input_sampler, wgpuSamplerRelease);
+    FLECS_WGPU_RELEASE(ptr->pipeline_surface, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(ptr->pipeline_hdr, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(ptr->bind_layout, wgpuBindGroupLayoutRelease);
 }
 
 ECS_DTOR(FlecsRenderEffectImpl, ptr, {
@@ -64,45 +49,8 @@ static bool flecsEngine_renderEffect_createInputSampler(
     const FlecsEngineImpl *engine,
     FlecsRenderEffectImpl *impl)
 {
-    WGPUSamplerDescriptor sampler_desc = {
-        .addressModeU = WGPUAddressMode_ClampToEdge,
-        .addressModeV = WGPUAddressMode_ClampToEdge,
-        .addressModeW = WGPUAddressMode_ClampToEdge,
-        .magFilter = WGPUFilterMode_Linear,
-        .minFilter = WGPUFilterMode_Linear,
-        .mipmapFilter = WGPUMipmapFilterMode_Linear,
-        .lodMinClamp = 0.0f,
-        .lodMaxClamp = 32.0f,
-        .maxAnisotropy = 1
-    };
-
-    impl->input_sampler = wgpuDeviceCreateSampler(engine->device, &sampler_desc);
+    impl->input_sampler = flecsEngine_createLinearClampSampler(engine->device);
     return impl->input_sampler != NULL;
-}
-
-static WGPURenderPassEncoder flecsEngine_renderEffect_beginPass(
-    const FlecsEngineImpl *impl,
-    const FlecsRenderView *view,
-    WGPUCommandEncoder encoder,
-    WGPUTextureView color_view,
-    WGPULoadOp color_load_op)
-{
-    (void)view;
-
-    WGPURenderPassColorAttachment color_attachment = {
-        .view = color_view,
-        WGPU_DEPTH_SLICE
-        .loadOp = color_load_op,
-        .storeOp = WGPUStoreOp_Store,
-        .clearValue = (WGPUColor){0, 0, 0, 1}
-    };
-
-    WGPURenderPassDescriptor pass_desc = {
-        .colorAttachmentCount = 1,
-        .colorAttachments = &color_attachment
-    };
-
-    return wgpuCommandEncoderBeginRenderPass(encoder, &pass_desc);
 }
 
 void flecsEngine_renderEffect_render(
@@ -218,14 +166,10 @@ void flecsEngine_renderView_renderEffects(
                 });
         }
 
-        WGPURenderPassEncoder pass = flecsEngine_renderEffect_beginPass(
-            engine, view, encoder, view_texture, WGPULoadOp_Load);
-        wgpuRenderPassEncoderSetPipeline(pass, engine->pipelines.passthrough_pipeline);
-        wgpuRenderPassEncoderSetBindGroup(pass, 0,
-            viewImpl->passthrough_bind_group, 0, NULL);
-        wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-        wgpuRenderPassEncoderEnd(pass);
-        wgpuRenderPassEncoderRelease(pass);
+        flecsEngine_fullscreenPass(
+            encoder, view_texture, WGPULoadOp_Load, (WGPUColor){0, 0, 0, 1},
+            engine->pipelines.passthrough_pipeline,
+            viewImpl->passthrough_bind_group);
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -291,12 +235,8 @@ void flecsEngine_renderView_renderEffects(
             continue;
         }
 
-        WGPURenderPassEncoder effect_pass = flecsEngine_renderEffect_beginPass(
-            engine,
-            view,
-            encoder,
-            output_view,
-            load_op);
+        WGPURenderPassEncoder effect_pass = flecsEngine_beginColorPass(
+            encoder, output_view, load_op, (WGPUColor){0, 0, 0, 1});
 
         flecsEngine_renderEffect_render(
             world,
@@ -331,13 +271,9 @@ void flecsEngine_renderView_renderEffects(
                 .entries = entries
             });
 
-        WGPURenderPassEncoder pass = flecsEngine_renderEffect_beginPass(
-            engine, view, encoder, view_texture, WGPULoadOp_Load);
-        wgpuRenderPassEncoderSetPipeline(pass, engine->pipelines.passthrough_pipeline);
-        wgpuRenderPassEncoderSetBindGroup(pass, 0, bg, 0, NULL);
-        wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-        wgpuRenderPassEncoderEnd(pass);
-        wgpuRenderPassEncoderRelease(pass);
+        flecsEngine_fullscreenPass(
+            encoder, view_texture, WGPULoadOp_Load, (WGPUColor){0, 0, 0, 1},
+            engine->pipelines.passthrough_pipeline, bg);
         wgpuBindGroupRelease(bg);
     }
     FLECS_TRACY_ZONE_END;
@@ -350,51 +286,15 @@ static WGPURenderPipeline flecsEngine_renderEffect_createPipeline(
     WGPUBindGroupLayout bind_layout,
     WGPUTextureFormat color_format)
 {
-    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-        .bindGroupLayoutCount = 1,
-        .bindGroupLayouts = &bind_layout
-    };
-
-    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-        engine->device, &pipeline_layout_desc);
-    if (!pipeline_layout) {
-        return NULL;
-    }
-
     WGPUColorTargetState color_target = {
         .format = color_format,
         .writeMask = WGPUColorWriteMask_All
     };
 
-    WGPUVertexState vertex_state = {
-        .module = shader_impl->shader_module,
-        .entryPoint = WGPU_STR(shader->vertex_entry ? shader->vertex_entry : "vs_main")
-    };
-
-    WGPUFragmentState fragment_state = {
-        .module = shader_impl->shader_module,
-        .entryPoint = WGPU_STR(shader->fragment_entry ? shader->fragment_entry : "fs_main"),
-        .targetCount = 1,
-        .targets = &color_target
-    };
-
-    WGPURenderPipelineDescriptor pipeline_desc = {
-        .layout = pipeline_layout,
-        .vertex = vertex_state,
-        .fragment = &fragment_state,
-        .primitive = {
-            .topology = WGPUPrimitiveTopology_TriangleList,
-            .cullMode = WGPUCullMode_None,
-            .frontFace = WGPUFrontFace_CCW
-        },
-        .multisample = WGPU_MULTISAMPLE_DEFAULT
-    };
-
-    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
-        engine->device, &pipeline_desc);
-
-    wgpuPipelineLayoutRelease(pipeline_layout);
-    return pipeline;
+    return flecsEngine_createFullscreenPipeline(
+        engine, shader_impl->shader_module, bind_layout,
+        shader->vertex_entry, shader->fragment_entry,
+        &color_target, NULL);
 }
 
 static void FlecsRenderEffect_on_set(

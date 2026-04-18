@@ -61,15 +61,8 @@ static WGPUBindGroup flecsEngine_renderBatch_ensureNoTextureBindGroup(
 static void flecsEngine_renderBatch_releaseImpl(
     FlecsRenderBatchImpl *ptr)
 {
-    if (ptr->pipeline_hdr) {
-        wgpuRenderPipelineRelease(ptr->pipeline_hdr);
-        ptr->pipeline_hdr = NULL;
-    }
-
-    if (ptr->pipeline_shadow) {
-        wgpuRenderPipelineRelease(ptr->pipeline_shadow);
-        ptr->pipeline_shadow = NULL;
-    }
+    FLECS_WGPU_RELEASE(ptr->pipeline_hdr, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(ptr->pipeline_shadow, wgpuRenderPipelineRelease);
 }
 
 ECS_DTOR(FlecsRenderBatchImpl, ptr, {

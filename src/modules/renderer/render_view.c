@@ -129,22 +129,10 @@ static int flecsEngine_renderView_ensureDepthResources(
 static void flecsEngine_renderView_releaseMsaaResources(
     FlecsRenderViewImpl *impl)
 {
-    if (impl->msaa_color_texture_view) {
-        wgpuTextureViewRelease(impl->msaa_color_texture_view);
-        impl->msaa_color_texture_view = NULL;
-    }
-    if (impl->msaa_color_texture) {
-        wgpuTextureRelease(impl->msaa_color_texture);
-        impl->msaa_color_texture = NULL;
-    }
-    if (impl->msaa_depth_texture_view) {
-        wgpuTextureViewRelease(impl->msaa_depth_texture_view);
-        impl->msaa_depth_texture_view = NULL;
-    }
-    if (impl->msaa_depth_texture) {
-        wgpuTextureRelease(impl->msaa_depth_texture);
-        impl->msaa_depth_texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->msaa_color_texture_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(impl->msaa_color_texture, wgpuTextureRelease);
+    FLECS_WGPU_RELEASE(impl->msaa_depth_texture_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(impl->msaa_depth_texture, wgpuTextureRelease);
     impl->msaa_texture_width = 0;
     impl->msaa_texture_height = 0;
     impl->msaa_texture_sample_count = 0;
@@ -156,14 +144,8 @@ static void flecsEngine_renderView_releaseDepth(
 {
     flecsEngine_renderView_releaseMsaaResources(impl);
 
-    if (impl->depth_texture_view) {
-        wgpuTextureViewRelease(impl->depth_texture_view);
-        impl->depth_texture_view = NULL;
-    }
-    if (impl->depth_texture) {
-        wgpuTextureRelease(impl->depth_texture);
-        impl->depth_texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->depth_texture_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(impl->depth_texture, wgpuTextureRelease);
     impl->depth_texture_width = 0;
     impl->depth_texture_height = 0;
 }
@@ -271,13 +253,11 @@ static void flecsEngine_renderView_releaseTargets(
     }
 
     for (int32_t i = 0; i < impl->effect_target_count; i ++) {
-        if (impl->effect_target_views && impl->effect_target_views[i]) {
-            wgpuTextureViewRelease(impl->effect_target_views[i]);
-            impl->effect_target_views[i] = NULL;
+        if (impl->effect_target_views) {
+            FLECS_WGPU_RELEASE(impl->effect_target_views[i], wgpuTextureViewRelease);
         }
-        if (impl->effect_target_textures && impl->effect_target_textures[i]) {
-            wgpuTextureRelease(impl->effect_target_textures[i]);
-            impl->effect_target_textures[i] = NULL;
+        if (impl->effect_target_textures) {
+            FLECS_WGPU_RELEASE(impl->effect_target_textures[i], wgpuTextureRelease);
         }
     }
 
@@ -290,19 +270,9 @@ static void flecsEngine_renderView_releaseTargets(
         impl->effect_target_textures = NULL;
     }
 
-    if (impl->passthrough_bind_group) {
-        wgpuBindGroupRelease(impl->passthrough_bind_group);
-        impl->passthrough_bind_group = NULL;
-    }
-
-    if (impl->scene_target_view) {
-        wgpuTextureViewRelease(impl->scene_target_view);
-        impl->scene_target_view = NULL;
-    }
-    if (impl->scene_target_texture) {
-        wgpuTextureRelease(impl->scene_target_texture);
-        impl->scene_target_texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->passthrough_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(impl->scene_target_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(impl->scene_target_texture, wgpuTextureRelease);
 
     impl->effect_target_count = 0;
     impl->effect_target_width = 0;
@@ -319,15 +289,8 @@ static void flecsEngine_renderView_releaseImpl(
     flecsEngine_cluster_cleanupView(impl);
     flecsEngine_transmission_releaseView(impl);
 
-    if (impl->scene_bind_group) {
-        wgpuBindGroupRelease(impl->scene_bind_group);
-        impl->scene_bind_group = NULL;
-    }
-
-    if (impl->frame_uniform_buffer) {
-        wgpuBufferRelease(impl->frame_uniform_buffer);
-        impl->frame_uniform_buffer = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->scene_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(impl->frame_uniform_buffer, wgpuBufferRelease);
 }
 
 static bool flecsEngine_renderView_ensureSceneTarget(
@@ -344,14 +307,8 @@ static bool flecsEngine_renderView_ensureSceneTarget(
     {
         return true;
     }
-    if (impl->scene_target_view) {
-        wgpuTextureViewRelease(impl->scene_target_view);
-        impl->scene_target_view = NULL;
-    }
-    if (impl->scene_target_texture) {
-        wgpuTextureRelease(impl->scene_target_texture);
-        impl->scene_target_texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->scene_target_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(impl->scene_target_texture, wgpuTextureRelease);
     WGPUTextureDescriptor desc = {
         .usage = WGPUTextureUsage_RenderAttachment
                | WGPUTextureUsage_TextureBinding
@@ -372,14 +329,8 @@ static bool flecsEngine_renderView_ensureSceneTarget(
 static void flecsEngine_renderView_releaseSceneTarget(
     FlecsRenderViewImpl *impl)
 {
-    if (impl->scene_target_view) {
-        wgpuTextureViewRelease(impl->scene_target_view);
-        impl->scene_target_view = NULL;
-    }
-    if (impl->scene_target_texture) {
-        wgpuTextureRelease(impl->scene_target_texture);
-        impl->scene_target_texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->scene_target_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(impl->scene_target_texture, wgpuTextureRelease);
 }
 
 ECS_DTOR(FlecsRenderViewImpl, ptr, {
@@ -542,12 +493,8 @@ static bool flecsEngine_renderView_ensureFrameUniformBuffer(
     if (view_impl->frame_uniform_buffer) {
         return true;
     }
-    view_impl->frame_uniform_buffer = wgpuDeviceCreateBuffer(
-        engine->device,
-        &(WGPUBufferDescriptor){
-            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-            .size = sizeof(FlecsGpuUniforms)
-        });
+    view_impl->frame_uniform_buffer = flecsEngine_createUniformBuffer(
+        engine->device, sizeof(FlecsGpuUniforms));
     return view_impl->frame_uniform_buffer != NULL;
 }
 

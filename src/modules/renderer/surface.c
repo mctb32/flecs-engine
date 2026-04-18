@@ -8,22 +8,13 @@ ECS_COMPONENT_DECLARE(FlecsSurfaceImpl);
 void flecsEngine_surfaceImpl_release(
     FlecsSurfaceImpl *ptr)
 {
-    if (ptr->offscreen_view) {
-        wgpuTextureViewRelease(ptr->offscreen_view);
-        ptr->offscreen_view = NULL;
-    }
-    if (ptr->offscreen_texture) {
-        wgpuTextureRelease(ptr->offscreen_texture);
-        ptr->offscreen_texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(ptr->offscreen_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(ptr->offscreen_texture, wgpuTextureRelease);
     if (ptr->path) {
         ecs_os_free(ptr->path);
         ptr->path = NULL;
     }
-    if (ptr->wgpu_surface) {
-        wgpuSurfaceRelease(ptr->wgpu_surface);
-        ptr->wgpu_surface = NULL;
-    }
+    FLECS_WGPU_RELEASE(ptr->wgpu_surface, wgpuSurfaceRelease);
     if (ptr->window) {
         glfwDestroyWindow(ptr->window);
         ptr->window = NULL;

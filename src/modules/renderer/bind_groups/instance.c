@@ -74,8 +74,5 @@ WGPUBindGroup flecsEngine_instanceBind_createGroup(
 void flecsEngine_instanceBind_release(
     FlecsEngineImpl *impl)
 {
-    if (impl->instance_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->instance_bind_layout);
-        impl->instance_bind_layout = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->instance_bind_layout, wgpuBindGroupLayoutRelease);
 }

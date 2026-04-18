@@ -1,4 +1,5 @@
 #include "platform.h"
+#include "webgpu_utils.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -547,10 +548,7 @@ void flecsEngine_presentSurface(
 void flecsEngine_releaseSwapChain(void)
 {
 #ifdef __EMSCRIPTEN__
-    if (compat_swap_chain) {
-        wgpuSwapChainRelease(compat_swap_chain);
-        compat_swap_chain = NULL;
-    }
+    FLECS_WGPU_RELEASE(compat_swap_chain, wgpuSwapChainRelease);
 #endif
 }
 

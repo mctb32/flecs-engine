@@ -254,16 +254,8 @@ static ecs_entity_t flecsEngine_ssao_shader(
 static void flecsEngine_ssao_releaseBlurTexture(
     FlecsSSAOImpl *impl)
 {
-    if (impl->blur_intermediate_view) {
-        wgpuTextureViewRelease(impl->blur_intermediate_view);
-        impl->blur_intermediate_view = NULL;
-    }
-
-    if (impl->blur_intermediate_texture) {
-        wgpuTextureRelease(impl->blur_intermediate_texture);
-        impl->blur_intermediate_texture = NULL;
-    }
-
+    FLECS_WGPU_RELEASE(impl->blur_intermediate_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(impl->blur_intermediate_texture, wgpuTextureRelease);
     impl->blur_texture_width = 0;
     impl->blur_texture_height = 0;
 }
@@ -271,27 +263,11 @@ static void flecsEngine_ssao_releaseBlurTexture(
 static void flecsEngine_ssao_releaseResources(
     FlecsSSAOImpl *impl)
 {
-    if (impl->uniform_buffer) {
-        wgpuBufferRelease(impl->uniform_buffer);
-        impl->uniform_buffer = NULL;
-    }
-
+    FLECS_WGPU_RELEASE(impl->uniform_buffer, wgpuBufferRelease);
     flecsEngine_ssao_releaseBlurTexture(impl);
-
-    if (impl->blur_pipeline_surface) {
-        wgpuRenderPipelineRelease(impl->blur_pipeline_surface);
-        impl->blur_pipeline_surface = NULL;
-    }
-
-    if (impl->blur_pipeline_hdr) {
-        wgpuRenderPipelineRelease(impl->blur_pipeline_hdr);
-        impl->blur_pipeline_hdr = NULL;
-    }
-
-    if (impl->blur_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->blur_bind_layout);
-        impl->blur_bind_layout = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->blur_pipeline_surface, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(impl->blur_pipeline_hdr, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(impl->blur_bind_layout, wgpuBindGroupLayoutRelease);
 }
 
 ECS_DTOR(FlecsSSAOImpl, ptr, {
@@ -362,50 +338,14 @@ static WGPURenderPipeline flecsEngine_ssao_createBlurPipeline(
     WGPUBindGroupLayout bind_layout,
     WGPUTextureFormat color_format)
 {
-    WGPUPipelineLayoutDescriptor pipeline_layout_desc = {
-        .bindGroupLayoutCount = 1,
-        .bindGroupLayouts = &bind_layout
-    };
-
-    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-        engine->device, &pipeline_layout_desc);
-    if (!pipeline_layout) {
-        return NULL;
-    }
-
     WGPUColorTargetState color_target = {
         .format = color_format,
         .writeMask = WGPUColorWriteMask_All
     };
 
-    WGPUVertexState vertex_state = {
-        .module = shader_module,
-        .entryPoint = WGPU_STR("vs_main")
-    };
-
-    WGPUFragmentState fragment_state = {
-        .module = shader_module,
-        .entryPoint = WGPU_STR("fs_main"),
-        .targetCount = 1,
-        .targets = &color_target
-    };
-
-    WGPURenderPipelineDescriptor pipeline_desc = {
-        .layout = pipeline_layout,
-        .vertex = vertex_state,
-        .fragment = &fragment_state,
-        .primitive = {
-            .topology = WGPUPrimitiveTopology_TriangleList,
-            .cullMode = WGPUCullMode_None,
-            .frontFace = WGPUFrontFace_CCW
-        },
-        .multisample = WGPU_MULTISAMPLE_DEFAULT
-    };
-
-    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
-        engine->device, &pipeline_desc);
-    wgpuPipelineLayoutRelease(pipeline_layout);
-    return pipeline;
+    return flecsEngine_createFullscreenPipeline(
+        engine, shader_module, bind_layout,
+        NULL, NULL, &color_target, NULL);
 }
 
 static bool flecsEngine_ssao_setup(
@@ -426,12 +366,8 @@ static bool flecsEngine_ssao_setup(
 
     FlecsSSAOImpl ssao_impl = {0};
 
-    WGPUBufferDescriptor uniform_desc = {
-        .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-        .size = sizeof(FlecsSSAOUniform)
-    };
-
-    ssao_impl.uniform_buffer = wgpuDeviceCreateBuffer(engine->device, &uniform_desc);
+    ssao_impl.uniform_buffer = flecsEngine_createUniformBuffer(
+        engine->device, sizeof(FlecsSSAOUniform));
     if (!ssao_impl.uniform_buffer) {
         return false;
     }
@@ -661,21 +597,8 @@ static bool flecsEngine_ssao_render(
 
     if (ssao->blur <= 0) {
         /* No blur: render SSAO composited directly to output */
-        WGPURenderPassColorAttachment color_att = {
-            .view = output_view,
-            WGPU_DEPTH_SLICE
-            .loadOp = output_load_op,
-            .storeOp = WGPUStoreOp_Store,
-            .clearValue = (WGPUColor){0}
-        };
-
-        WGPURenderPassDescriptor pass_desc = {
-            .colorAttachmentCount = 1,
-            .colorAttachments = &color_att
-        };
-
-        WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
-            encoder, &pass_desc);
+        WGPURenderPassEncoder pass = flecsEngine_beginColorPass(
+            encoder, output_view, output_load_op, (WGPUColor){0});
         if (!pass) {
             return false;
         }
@@ -712,23 +635,11 @@ static bool flecsEngine_ssao_render(
 
     /* Pass 1: SSAO → intermediate (AO factor only) */
     {
-        WGPURenderPassColorAttachment color_att = {
-            .view = impl->blur_intermediate_view,
-            WGPU_DEPTH_SLICE
-            .loadOp = WGPULoadOp_Clear,
-            .storeOp = WGPUStoreOp_Store,
-            .clearValue = (WGPUColor){ .r = 1, .g = 1, .b = 1, .a = 1 }
-        };
-
-        WGPURenderPassDescriptor pass_desc = {
-            .colorAttachmentCount = 1,
-            .colorAttachments = &color_att
-        };
-
         WGPUTextureFormat hdr_format = flecsEngine_getHdrFormat(engine);
 
-        WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
-            encoder, &pass_desc);
+        WGPURenderPassEncoder pass = flecsEngine_beginColorPass(
+            encoder, impl->blur_intermediate_view, WGPULoadOp_Clear,
+            (WGPUColor){ .r = 1, .g = 1, .b = 1, .a = 1 });
         if (!pass) {
             return false;
         }
@@ -767,36 +678,14 @@ static bool flecsEngine_ssao_render(
             return false;
         }
 
-        WGPURenderPassColorAttachment color_att = {
-            .view = output_view,
-            WGPU_DEPTH_SLICE
-            .loadOp = output_load_op,
-            .storeOp = WGPUStoreOp_Store,
-            .clearValue = (WGPUColor){0}
-        };
-
-        WGPURenderPassDescriptor pass_desc = {
-            .colorAttachmentCount = 1,
-            .colorAttachments = &color_att
-        };
-
-        WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
-            encoder, &pass_desc);
-        if (!pass) {
-            wgpuBindGroupRelease(blur_bind_group);
-            return false;
-        }
-
         WGPURenderPipeline blur_pipeline =
             output_format == flecsEngine_getViewTargetFormat(engine)
                 ? impl->blur_pipeline_surface
                 : impl->blur_pipeline_hdr;
 
-        wgpuRenderPassEncoderSetPipeline(pass, blur_pipeline);
-        wgpuRenderPassEncoderSetBindGroup(pass, 0, blur_bind_group, 0, NULL);
-        wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-        wgpuRenderPassEncoderEnd(pass);
-        wgpuRenderPassEncoderRelease(pass);
+        flecsEngine_fullscreenPass(
+            encoder, output_view, output_load_op, (WGPUColor){0},
+            blur_pipeline, blur_bind_group);
         wgpuBindGroupRelease(blur_bind_group);
     }
 

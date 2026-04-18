@@ -62,18 +62,9 @@ ECS_COPY(FlecsMesh3, dst, src, {
 static void FlecsMesh3Impl_fini(
     FlecsMesh3Impl *ptr)
 {
-    if (ptr->vertex_buffer) {
-        wgpuBufferRelease(ptr->vertex_buffer);
-        ptr->vertex_buffer = NULL;
-    }
-    if (ptr->vertex_uv_buffer) {
-        wgpuBufferRelease(ptr->vertex_uv_buffer);
-        ptr->vertex_uv_buffer = NULL;
-    }
-    if (ptr->index_buffer) {
-        wgpuBufferRelease(ptr->index_buffer);
-        ptr->index_buffer = NULL;
-    }
+    FLECS_WGPU_RELEASE(ptr->vertex_buffer, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(ptr->vertex_uv_buffer, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(ptr->index_buffer, wgpuBufferRelease);
 }
 
 ECS_MOVE(FlecsMesh3Impl, dst, src, {
@@ -242,20 +233,9 @@ static void FlecsMesh3_on_set(
         ecs_entity_t e = it->entities[i];
         FlecsMesh3Impl *mesh_impl = ecs_ensure(world, e, FlecsMesh3Impl);
 
-        if (mesh_impl->vertex_buffer) {
-            wgpuBufferRelease(mesh_impl->vertex_buffer);
-            mesh_impl->vertex_buffer = NULL;
-        }
-
-        if (mesh_impl->vertex_uv_buffer) {
-            wgpuBufferRelease(mesh_impl->vertex_uv_buffer);
-            mesh_impl->vertex_uv_buffer = NULL;
-        }
-
-        if (mesh_impl->index_buffer) {
-            wgpuBufferRelease(mesh_impl->index_buffer);
-            mesh_impl->index_buffer = NULL;
-        }
+        FLECS_WGPU_RELEASE(mesh_impl->vertex_buffer, wgpuBufferRelease);
+        FLECS_WGPU_RELEASE(mesh_impl->vertex_uv_buffer, wgpuBufferRelease);
+        FLECS_WGPU_RELEASE(mesh_impl->index_buffer, wgpuBufferRelease);
 
         int32_t vert_count = ecs_vec_count(&mesh[i].vertices);
         int32_t ind_count = ecs_vec_count(&mesh[i].indices);

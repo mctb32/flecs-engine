@@ -230,74 +230,20 @@ static uint16_t flecsIblFloatToHalf(
     return (uint16_t)(sign | ((uint32_t)exp << 10u) | (mantissa >> 13u));
 }
 
-static WGPUShaderModule flecsIblCreateShaderModule(
-    const FlecsEngineImpl *engine,
-    const char *source)
-{
-    WGPUShaderSourceWGSL wgsl_desc = {
-        .chain = { .sType = WGPUSType_ShaderSourceWGSL },
-        .code = WGPU_SHADER_CODE(source)
-    };
-
-    WGPUShaderModuleDescriptor shader_desc = {
-        .nextInChain = (WGPUChainedStruct*)&wgsl_desc
-    };
-
-    return wgpuDeviceCreateShaderModule(engine->device, &shader_desc);
-}
-
 static WGPURenderPipeline flecsIblCreatePipeline(
     const FlecsEngineImpl *engine,
     WGPUShaderModule shader_module,
-    const WGPUBindGroupLayout *bind_group_layouts,
-    uint32_t bind_group_layout_count,
+    WGPUBindGroupLayout bind_layout,
     const char *fragment_entry,
     WGPUTextureFormat format)
 {
-    WGPUPipelineLayoutDescriptor layout_desc = {
-        .bindGroupLayoutCount = bind_group_layout_count,
-        .bindGroupLayouts = bind_group_layouts
-    };
-
-    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-        engine->device, &layout_desc);
-    if (!pipeline_layout) {
-        return NULL;
-    }
-
     WGPUColorTargetState color_target = {
         .format = format,
         .writeMask = WGPUColorWriteMask_All
     };
-
-    WGPUVertexState vertex_state = {
-        .module = shader_module,
-        .entryPoint = WGPU_STR("vs_main")
-    };
-
-    WGPUFragmentState fragment_state = {
-        .module = shader_module,
-        .entryPoint = WGPU_STR(fragment_entry),
-        .targetCount = 1,
-        .targets = &color_target
-    };
-
-    WGPURenderPipelineDescriptor pipeline_desc = {
-        .layout = pipeline_layout,
-        .vertex = vertex_state,
-        .fragment = &fragment_state,
-        .primitive = {
-            .topology = WGPUPrimitiveTopology_TriangleList,
-            .cullMode = WGPUCullMode_None,
-            .frontFace = WGPUFrontFace_CCW
-        },
-        .multisample = WGPU_MULTISAMPLE_DEFAULT
-    };
-
-    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
-        engine->device, &pipeline_desc);
-    wgpuPipelineLayoutRelease(pipeline_layout);
-    return pipeline;
+    return flecsEngine_createFullscreenPipeline(
+        engine, shader_module, bind_layout,
+        NULL, fragment_entry, &color_target, NULL);
 }
 
 static WGPUTextureView flecsIblCreateCubeView(
@@ -486,33 +432,9 @@ static bool flecsIblDrawFullscreenPass(
     WGPURenderPipeline pipeline,
     WGPUBindGroup bind_group)
 {
-    WGPURenderPassColorAttachment color_attachment = {
-        .view = target_view,
-        WGPU_DEPTH_SLICE
-        .loadOp = WGPULoadOp_Clear,
-        .storeOp = WGPUStoreOp_Store,
-        .clearValue = (WGPUColor){0}
-    };
-
-    WGPURenderPassDescriptor pass_desc = {
-        .colorAttachmentCount = 1,
-        .colorAttachments = &color_attachment
-    };
-
-    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
-        encoder, &pass_desc);
-    if (!pass) {
-        return false;
-    }
-
-    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-    if (bind_group) {
-        wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
-    }
-    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(pass);
-    wgpuRenderPassEncoderRelease(pass);
-    return true;
+    return flecsEngine_fullscreenPass(
+        encoder, target_view, WGPULoadOp_Clear, (WGPUColor){0},
+        pipeline, bind_group);
 }
 
 static bool flecsIblSubmitFullscreenPass(
@@ -565,12 +487,12 @@ bool flecsIblRunPreprocessPasses(
     WGPURenderPipeline irradiance_pipeline = NULL;
     WGPURenderPipeline brdf_pipeline = NULL;
 
-    prefilter_shader = flecsIblCreateShaderModule(
-        engine, kPrefilterShaderSource);
-    irradiance_shader = flecsIblCreateShaderModule(
-        engine, kIrradianceShaderSource);
-    brdf_shader = flecsIblCreateShaderModule(
-        engine, kBrdfLutShaderSource);
+    prefilter_shader = flecsEngine_createShaderModule(
+        engine->device, kPrefilterShaderSource);
+    irradiance_shader = flecsEngine_createShaderModule(
+        engine->device, kIrradianceShaderSource);
+    brdf_shader = flecsEngine_createShaderModule(
+        engine->device, kBrdfLutShaderSource);
     if (!prefilter_shader || !irradiance_shader || !brdf_shader) {
         goto cleanup;
     }
@@ -612,12 +534,8 @@ bool flecsIblRunPreprocessPasses(
         goto cleanup;
     }
 
-    prefilter_uniform_buffer = wgpuDeviceCreateBuffer(
-        engine->device,
-        &(WGPUBufferDescriptor){
-            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-            .size = sizeof(FlecsIblFaceUniform)
-        });
+    prefilter_uniform_buffer = flecsEngine_createUniformBuffer(
+        engine->device, sizeof(FlecsIblFaceUniform));
     if (!prefilter_uniform_buffer) {
         goto cleanup;
     }
@@ -668,12 +586,8 @@ bool flecsIblRunPreprocessPasses(
         goto cleanup;
     }
 
-    brdf_uniform_buffer = wgpuDeviceCreateBuffer(
-        engine->device,
-        &(WGPUBufferDescriptor){
-            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-            .size = sizeof(FlecsIblBrdfUniform)
-        });
+    brdf_uniform_buffer = flecsEngine_createUniformBuffer(
+        engine->device, sizeof(FlecsIblBrdfUniform));
     if (!brdf_uniform_buffer) {
         goto cleanup;
     }
@@ -709,26 +623,14 @@ bool flecsIblRunPreprocessPasses(
     }
 
     prefilter_pipeline = flecsIblCreatePipeline(
-        engine,
-        prefilter_shader,
-        &prefilter_bind_layout,
-        1,
-        "fs_main",
-        WGPUTextureFormat_RGBA16Float);
+        engine, prefilter_shader, prefilter_bind_layout,
+        "fs_main", WGPUTextureFormat_RGBA16Float);
     irradiance_pipeline = flecsIblCreatePipeline(
-        engine,
-        irradiance_shader,
-        &prefilter_bind_layout,
-        1,
-        "fs_main",
-        WGPUTextureFormat_RGBA16Float);
+        engine, irradiance_shader, prefilter_bind_layout,
+        "fs_main", WGPUTextureFormat_RGBA16Float);
     brdf_pipeline = flecsIblCreatePipeline(
-        engine,
-        brdf_shader,
-        &brdf_bind_layout,
-        1,
-        "fs_main",
-        WGPUTextureFormat_RG16Float);
+        engine, brdf_shader, brdf_bind_layout,
+        "fs_main", WGPUTextureFormat_RG16Float);
     if (!prefilter_pipeline || !irradiance_pipeline || !brdf_pipeline) {
         goto cleanup;
     }

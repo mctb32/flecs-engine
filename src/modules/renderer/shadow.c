@@ -91,18 +91,9 @@ int flecsEngine_shadow_initShared(
 void flecsEngine_shadow_cleanupShared(
     FlecsEngineImpl *impl)
 {
-    if (impl->shadow.pass_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->shadow.pass_bind_layout);
-        impl->shadow.pass_bind_layout = NULL;
-    }
-    if (impl->shadow.sampler) {
-        wgpuSamplerRelease(impl->shadow.sampler);
-        impl->shadow.sampler = NULL;
-    }
-    if (impl->shadow.shader_module) {
-        wgpuShaderModuleRelease(impl->shadow.shader_module);
-        impl->shadow.shader_module = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->shadow.pass_bind_layout, wgpuBindGroupLayoutRelease);
+    FLECS_WGPU_RELEASE(impl->shadow.sampler, wgpuSamplerRelease);
+    FLECS_WGPU_RELEASE(impl->shadow.shader_module, wgpuShaderModuleRelease);
 }
 
 int flecsEngine_shadow_initView(
@@ -172,12 +163,8 @@ int flecsEngine_shadow_initView(
     }
 
     for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
-        WGPUBufferDescriptor buf_desc = {
-            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-            .size = sizeof(mat4)
-        };
-
-        s->vp_buffers[i] = wgpuDeviceCreateBuffer(engine->device, &buf_desc);
+        s->vp_buffers[i] = flecsEngine_createUniformBuffer(
+            engine->device, sizeof(mat4));
         if (!s->vp_buffers[i]) {
             ecs_err("failed to create shadow VP buffer %d", i);
             return -1;
@@ -228,14 +215,8 @@ void flecsEngine_shadow_cleanupView(
             s->layer_views[i] = NULL;
         }
     }
-    if (s->texture_view) {
-        wgpuTextureViewRelease(s->texture_view);
-        s->texture_view = NULL;
-    }
-    if (s->texture) {
-        wgpuTextureRelease(s->texture);
-        s->texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(s->texture_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(s->texture, wgpuTextureRelease);
     s->map_size = 0;
 }
 

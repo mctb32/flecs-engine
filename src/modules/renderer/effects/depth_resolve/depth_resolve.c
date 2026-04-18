@@ -52,7 +52,8 @@ int flecsEngine_initDepthResolve(
     };
 
     impl->pipelines.depth_resolve_pipeline = flecsEngine_createFullscreenPipeline(
-        impl, module, impl->pipelines.depth_resolve_bind_layout, NULL, &depth_stencil);
+        impl, module, impl->pipelines.depth_resolve_bind_layout,
+        NULL, NULL, NULL, &depth_stencil);
 
     wgpuShaderModuleRelease(module);
 

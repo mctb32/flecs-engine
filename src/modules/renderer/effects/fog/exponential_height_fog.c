@@ -120,18 +120,9 @@ static ecs_entity_t flecsEngine_heightFog_shader(
 static void flecsEngine_heightFog_releaseResources(
     FlecsHeightFogImpl *impl)
 {
-    if (impl->uniform_buffer) {
-        wgpuBufferRelease(impl->uniform_buffer);
-        impl->uniform_buffer = NULL;
-    }
-    if (impl->fallback_view) {
-        wgpuTextureViewRelease(impl->fallback_view);
-        impl->fallback_view = NULL;
-    }
-    if (impl->fallback_texture) {
-        wgpuTextureRelease(impl->fallback_texture);
-        impl->fallback_texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->uniform_buffer, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(impl->fallback_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(impl->fallback_texture, wgpuTextureRelease);
 }
 
 ECS_DTOR(FlecsHeightFogImpl, ptr, {
@@ -231,12 +222,8 @@ static bool flecsEngine_heightFog_setup(
 
     FlecsHeightFogImpl fog_impl = {0};
 
-    WGPUBufferDescriptor uniform_desc = {
-        .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-        .size = sizeof(FlecsHeightFogUniform)
-    };
-
-    fog_impl.uniform_buffer = wgpuDeviceCreateBuffer(engine->device, &uniform_desc);
+    fog_impl.uniform_buffer = flecsEngine_createUniformBuffer(
+        engine->device, sizeof(FlecsHeightFogUniform));
     if (!fog_impl.uniform_buffer) {
         return false;
     }

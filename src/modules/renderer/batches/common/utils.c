@@ -13,15 +13,9 @@ void flecsEngine_batch_init(
 static void flecsEngine_batch_releaseVisibleGpu(
     flecsEngine_batch_t *buf)
 {
-    if (buf->buffers.gpu_visible_slots) {
-        wgpuBufferRelease(buf->buffers.gpu_visible_slots);
-        buf->buffers.gpu_visible_slots = NULL;
-    }
+    FLECS_WGPU_RELEASE(buf->buffers.gpu_visible_slots, wgpuBufferRelease);
     for (int c = 0; c < FLECS_ENGINE_SHADOW_CASCADE_COUNT; c ++) {
-        if (buf->buffers.gpu_shadow_visible_slots[c]) {
-            wgpuBufferRelease(buf->buffers.gpu_shadow_visible_slots[c]);
-            buf->buffers.gpu_shadow_visible_slots[c] = NULL;
-        }
+        FLECS_WGPU_RELEASE(buf->buffers.gpu_shadow_visible_slots[c], wgpuBufferRelease);
     }
 }
 
@@ -41,26 +35,11 @@ static void flecsEngine_batch_freeVisibleCpu(
 static void flecsEngine_batch_releaseGpu(
     flecsEngine_batch_t *buf)
 {
-    if (buf->buffers.gpu_transforms) {
-        wgpuBufferRelease(buf->buffers.gpu_transforms);
-        buf->buffers.gpu_transforms = NULL;
-    }
-    if (buf->buffers.gpu_material_ids) {
-        wgpuBufferRelease(buf->buffers.gpu_material_ids);
-        buf->buffers.gpu_material_ids = NULL;
-    }
-    if (buf->buffers.gpu_material_bind_group) {
-        wgpuBindGroupRelease(buf->buffers.gpu_material_bind_group);
-        buf->buffers.gpu_material_bind_group = NULL;
-    }
-    if (buf->buffers.gpu_instance_bind_group) {
-        wgpuBindGroupRelease(buf->buffers.gpu_instance_bind_group);
-        buf->buffers.gpu_instance_bind_group = NULL;
-    }
-    if (buf->buffers.gpu_materials) {
-        wgpuBufferRelease(buf->buffers.gpu_materials);
-        buf->buffers.gpu_materials = NULL;
-    }
+    FLECS_WGPU_RELEASE(buf->buffers.gpu_transforms, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(buf->buffers.gpu_material_ids, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(buf->buffers.gpu_material_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(buf->buffers.gpu_instance_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(buf->buffers.gpu_materials, wgpuBufferRelease);
 }
 
 static void flecsEngine_batch_freeCpu(

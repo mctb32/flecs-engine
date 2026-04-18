@@ -25,9 +25,4 @@ void flecsEngine_mipPyramid_release(
     WGPUTextureView **mip_views,
     uint32_t mip_count);
 
-/* Sampler for reading from a mip pyramid: clamp-to-edge, linear min/mag/mip,
- * no anisotropy. Matches both bloom's and transmission's sampler config. */
-WGPUSampler flecsEngine_mipPyramid_createFilteredSampler(
-    WGPUDevice device);
-
 #endif

@@ -54,40 +54,13 @@ void flecsEngine_ibl_releaseRuntimeResources(
         return;
     }
 
-    if (ibl->ibl_sampler) {
-        wgpuSamplerRelease(ibl->ibl_sampler);
-        ibl->ibl_sampler = NULL;
-    }
-
-    if (ibl->ibl_prefiltered_cubemap_view) {
-        wgpuTextureViewRelease(ibl->ibl_prefiltered_cubemap_view);
-        ibl->ibl_prefiltered_cubemap_view = NULL;
-    }
-
-    if (ibl->ibl_prefiltered_cubemap) {
-        wgpuTextureRelease(ibl->ibl_prefiltered_cubemap);
-        ibl->ibl_prefiltered_cubemap = NULL;
-    }
-
-    if (ibl->ibl_irradiance_cubemap_view) {
-        wgpuTextureViewRelease(ibl->ibl_irradiance_cubemap_view);
-        ibl->ibl_irradiance_cubemap_view = NULL;
-    }
-
-    if (ibl->ibl_irradiance_cubemap) {
-        wgpuTextureRelease(ibl->ibl_irradiance_cubemap);
-        ibl->ibl_irradiance_cubemap = NULL;
-    }
-
-    if (ibl->ibl_equirect_texture_view) {
-        wgpuTextureViewRelease(ibl->ibl_equirect_texture_view);
-        ibl->ibl_equirect_texture_view = NULL;
-    }
-
-    if (ibl->ibl_equirect_texture) {
-        wgpuTextureRelease(ibl->ibl_equirect_texture);
-        ibl->ibl_equirect_texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(ibl->ibl_sampler, wgpuSamplerRelease);
+    FLECS_WGPU_RELEASE(ibl->ibl_prefiltered_cubemap_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(ibl->ibl_prefiltered_cubemap, wgpuTextureRelease);
+    FLECS_WGPU_RELEASE(ibl->ibl_irradiance_cubemap_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(ibl->ibl_irradiance_cubemap, wgpuTextureRelease);
+    FLECS_WGPU_RELEASE(ibl->ibl_equirect_texture_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(ibl->ibl_equirect_texture, wgpuTextureRelease);
 
     ibl->ibl_prefilter_mip_count = 0;
 }

@@ -72,14 +72,8 @@ static int flecsEngine_frameOut_createResources(
     uint32_t width,
     uint32_t height)
 {
-    if (impl->offscreen_view) {
-        wgpuTextureViewRelease(impl->offscreen_view);
-        impl->offscreen_view = NULL;
-    }
-    if (impl->offscreen_texture) {
-        wgpuTextureRelease(impl->offscreen_texture);
-        impl->offscreen_texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->offscreen_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(impl->offscreen_texture, wgpuTextureRelease);
 
     WGPUTextureDescriptor color_desc = {
         .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,

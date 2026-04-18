@@ -73,10 +73,7 @@ void flecsEngine_material_ensureBuffer(
 void flecsEngine_material_releaseBuffer(
     FlecsEngineImpl *impl)
 {
-    if (impl->materials.buffer) {
-        wgpuBufferRelease(impl->materials.buffer);
-        impl->materials.buffer = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->materials.buffer, wgpuBufferRelease);
 
     ecs_os_free(impl->materials.cpu_materials);
     impl->materials.cpu_materials = NULL;

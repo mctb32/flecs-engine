@@ -28,10 +28,7 @@ WGPUBuffer flecsEngine_material_getIdIdentityBuffer(
         new_capacity = 64;
     }
 
-    if (engine->materials.id_identity_buffer) {
-        wgpuBufferRelease(engine->materials.id_identity_buffer);
-        engine->materials.id_identity_buffer = NULL;
-    }
+    FLECS_WGPU_RELEASE(engine->materials.id_identity_buffer, wgpuBufferRelease);
 
     engine->materials.id_identity_buffer = wgpuDeviceCreateBuffer(
         engine->device,

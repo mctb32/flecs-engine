@@ -119,10 +119,7 @@ bool flecsEngine_globals_createBindGroup(
     ecs_entity_t hdri_entity,
     FlecsHdriImpl *ibl)
 {
-    if (view_impl->scene_bind_group) {
-        wgpuBindGroupRelease(view_impl->scene_bind_group);
-        view_impl->scene_bind_group = NULL;
-    }
+    FLECS_WGPU_RELEASE(view_impl->scene_bind_group, wgpuBindGroupRelease);
 
     WGPUBindGroupLayout bind_layout = engine->scene_bind_layout;
     if (!bind_layout) {

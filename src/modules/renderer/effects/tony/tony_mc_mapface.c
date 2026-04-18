@@ -41,20 +41,9 @@ static ecs_entity_t flecsEngine_tony_shader(
 static void flecsEngine_tony_releaseResources(
     FlecsTonyImpl *impl)
 {
-    if (impl->tony_lut_sampler) {
-        wgpuSamplerRelease(impl->tony_lut_sampler);
-        impl->tony_lut_sampler = NULL;
-    }
-
-    if (impl->tony_lut_texture_view) {
-        wgpuTextureViewRelease(impl->tony_lut_texture_view);
-        impl->tony_lut_texture_view = NULL;
-    }
-
-    if (impl->tony_lut_texture) {
-        wgpuTextureRelease(impl->tony_lut_texture);
-        impl->tony_lut_texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->tony_lut_sampler, wgpuSamplerRelease);
+    FLECS_WGPU_RELEASE(impl->tony_lut_texture_view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(impl->tony_lut_texture, wgpuTextureRelease);
 }
 
 ECS_DTOR(FlecsTonyImpl, ptr, {
@@ -83,21 +72,9 @@ static bool flecsEngine_tony_setup(
     ecs_assert(entry_count != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(*entry_count == 2, ECS_INVALID_PARAMETER, NULL);
 
-    WGPUSamplerDescriptor sampler_desc = {
-        .addressModeU = WGPUAddressMode_ClampToEdge,
-        .addressModeV = WGPUAddressMode_ClampToEdge,
-        .addressModeW = WGPUAddressMode_ClampToEdge,
-        .magFilter = WGPUFilterMode_Linear,
-        .minFilter = WGPUFilterMode_Linear,
-        .mipmapFilter = WGPUMipmapFilterMode_Linear,
-        .lodMinClamp = 0.0f,
-        .lodMaxClamp = 32.0f,
-        .maxAnisotropy = 1
-    };
-
     FlecsTonyImpl tony = {0};
 
-    tony.tony_lut_sampler = wgpuDeviceCreateSampler(engine->device, &sampler_desc);
+    tony.tony_lut_sampler = flecsEngine_createLinearClampSampler(engine->device);
     if (!tony.tony_lut_sampler) {
         return false;
     }

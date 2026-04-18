@@ -59,63 +59,23 @@ static void flecsEngine_textureArray_ensureBlitPipeline(
             .entryCount = 2
         });
 
-    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-        impl->device, &(WGPUPipelineLayoutDescriptor){
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &impl->textures.blit_bind_layout
-        });
-
-    WGPUShaderSourceWGSL wgsl_src = {
-        .chain = { .sType = WGPUSType_ShaderSourceWGSL },
-        .code = WGPU_STR(kBlitShaderSource)
-    };
-    WGPUShaderModule module = wgpuDeviceCreateShaderModule(
-        impl->device, &(WGPUShaderModuleDescriptor){
-            .nextInChain = &wgsl_src.chain
-        });
+    WGPUShaderModule module = flecsEngine_createShaderModule(
+        impl->device, kBlitShaderSource);
 
     WGPUColorTargetState color_target = {
         .format = FLECS_ENGINE_BUCKET_FORMAT,
         .writeMask = WGPUColorWriteMask_All
     };
 
-    impl->textures.blit_pipeline = wgpuDeviceCreateRenderPipeline(
-        impl->device, &(WGPURenderPipelineDescriptor){
-            .layout = pipeline_layout,
-            .vertex = {
-                .module = module,
-                .entryPoint = WGPU_STR("vs_main")
-            },
-            .fragment = &(WGPUFragmentState){
-                .module = module,
-                .entryPoint = WGPU_STR("fs_main"),
-                .targetCount = 1,
-                .targets = &color_target
-            },
-            .primitive = {
-                .topology = WGPUPrimitiveTopology_TriangleList,
-                .cullMode = WGPUCullMode_None,
-                .frontFace = WGPUFrontFace_CCW
-            },
-            .multisample = WGPU_MULTISAMPLE_DEFAULT
-        });
+    impl->textures.blit_pipeline = flecsEngine_createFullscreenPipeline(
+        impl, module, impl->textures.blit_bind_layout,
+        NULL, NULL, &color_target, NULL);
 
-    wgpuPipelineLayoutRelease(pipeline_layout);
     wgpuShaderModuleRelease(module);
 
     /* Linear-filter, clamp-to-edge sampler used for the blit. */
-    impl->textures.blit_sampler = wgpuDeviceCreateSampler(
-        impl->device, &(WGPUSamplerDescriptor){
-            .addressModeU = WGPUAddressMode_ClampToEdge,
-            .addressModeV = WGPUAddressMode_ClampToEdge,
-            .addressModeW = WGPUAddressMode_ClampToEdge,
-            .magFilter = WGPUFilterMode_Linear,
-            .minFilter = WGPUFilterMode_Linear,
-            .mipmapFilter = WGPUMipmapFilterMode_Linear,
-            .lodMinClamp = 0.0f,
-            .lodMaxClamp = 32.0f,
-            .maxAnisotropy = 1
-        });
+    impl->textures.blit_sampler =
+        flecsEngine_createLinearClampSampler(impl->device);
 }
 
 static void flecsEngine_textureArray_ensureMipGenPipeline(
@@ -141,31 +101,12 @@ static void flecsEngine_textureArray_ensureMipGenPipeline(
             .entryCount = 2
         });
 
-    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
-        impl->device, &(WGPUPipelineLayoutDescriptor){
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &impl->textures.mipgen_bind_layout
-        });
+    WGPUShaderModule module = flecsEngine_createShaderModule(
+        impl->device, kMipGenShaderSource);
 
-    WGPUShaderSourceWGSL wgsl_src = {
-        .chain = { .sType = WGPUSType_ShaderSourceWGSL },
-        .code = WGPU_STR(kMipGenShaderSource)
-    };
-    WGPUShaderModule module = wgpuDeviceCreateShaderModule(
-        impl->device, &(WGPUShaderModuleDescriptor){
-            .nextInChain = &wgsl_src.chain
-        });
+    impl->textures.mipgen_pipeline = flecsEngine_createComputePipeline(
+        impl, module, impl->textures.mipgen_bind_layout, NULL);
 
-    impl->textures.mipgen_pipeline = wgpuDeviceCreateComputePipeline(
-        impl->device, &(WGPUComputePipelineDescriptor){
-            .layout = pipeline_layout,
-            .compute = {
-                .module = module,
-                .entryPoint = WGPU_STR("cs_main")
-            }
-        });
-
-    wgpuPipelineLayoutRelease(pipeline_layout);
     wgpuShaderModuleRelease(module);
 }
 
@@ -188,23 +129,9 @@ static void flecsEngine_textureArray_doBlit(
             .entryCount = 2
         });
 
-    WGPURenderPassColorAttachment color_att = {
-        .view = dst_slice_view,
-        .loadOp = WGPULoadOp_Clear,
-        .storeOp = WGPUStoreOp_Store,
-        .clearValue = { 0, 0, 0, 0 },
-        WGPU_DEPTH_SLICE
-    };
-    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
-        encoder, &(WGPURenderPassDescriptor){
-            .colorAttachmentCount = 1,
-            .colorAttachments = &color_att
-        });
-    wgpuRenderPassEncoderSetPipeline(pass, impl->textures.blit_pipeline);
-    wgpuRenderPassEncoderSetBindGroup(pass, 0, bg, 0, NULL);
-    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(pass);
-    wgpuRenderPassEncoderRelease(pass);
+    flecsEngine_fullscreenPass(
+        encoder, dst_slice_view, WGPULoadOp_Clear, (WGPUColor){0, 0, 0, 0},
+        impl->textures.blit_pipeline, bg);
     wgpuBindGroupRelease(bg);
 }
 
@@ -568,24 +495,9 @@ void flecsEngine_textureArray_copyTextures_bc7(
 void flecsEngine_textureBlit_release(
     FlecsEngineImpl *impl)
 {
-    if (impl->textures.blit_pipeline) {
-        wgpuRenderPipelineRelease(impl->textures.blit_pipeline);
-        impl->textures.blit_pipeline = NULL;
-    }
-    if (impl->textures.blit_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->textures.blit_bind_layout);
-        impl->textures.blit_bind_layout = NULL;
-    }
-    if (impl->textures.blit_sampler) {
-        wgpuSamplerRelease(impl->textures.blit_sampler);
-        impl->textures.blit_sampler = NULL;
-    }
-    if (impl->textures.mipgen_pipeline) {
-        wgpuComputePipelineRelease(impl->textures.mipgen_pipeline);
-        impl->textures.mipgen_pipeline = NULL;
-    }
-    if (impl->textures.mipgen_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->textures.mipgen_bind_layout);
-        impl->textures.mipgen_bind_layout = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->textures.blit_pipeline, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(impl->textures.blit_bind_layout, wgpuBindGroupLayoutRelease);
+    FLECS_WGPU_RELEASE(impl->textures.blit_sampler, wgpuSamplerRelease);
+    FLECS_WGPU_RELEASE(impl->textures.mipgen_pipeline, wgpuComputePipelineRelease);
+    FLECS_WGPU_RELEASE(impl->textures.mipgen_bind_layout, wgpuBindGroupLayoutRelease);
 }

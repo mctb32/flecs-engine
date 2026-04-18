@@ -46,27 +46,11 @@ static void flecsEngine_releaseFrameTarget(
 void flecsEngine_renderer_cleanup(
     FlecsEngineImpl *impl)
 {
-    if (impl->pipelines.passthrough_pipeline) {
-        wgpuRenderPipelineRelease(impl->pipelines.passthrough_pipeline);
-        impl->pipelines.passthrough_pipeline = NULL;
-    }
-    if (impl->pipelines.passthrough_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->pipelines.passthrough_bind_layout);
-        impl->pipelines.passthrough_bind_layout = NULL;
-    }
-    if (impl->pipelines.passthrough_sampler) {
-        wgpuSamplerRelease(impl->pipelines.passthrough_sampler);
-        impl->pipelines.passthrough_sampler = NULL;
-    }
-
-    if (impl->pipelines.depth_resolve_pipeline) {
-        wgpuRenderPipelineRelease(impl->pipelines.depth_resolve_pipeline);
-        impl->pipelines.depth_resolve_pipeline = NULL;
-    }
-    if (impl->pipelines.depth_resolve_bind_layout) {
-        wgpuBindGroupLayoutRelease(impl->pipelines.depth_resolve_bind_layout);
-        impl->pipelines.depth_resolve_bind_layout = NULL;
-    }
+    FLECS_WGPU_RELEASE(impl->pipelines.passthrough_pipeline, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(impl->pipelines.passthrough_bind_layout, wgpuBindGroupLayoutRelease);
+    FLECS_WGPU_RELEASE(impl->pipelines.passthrough_sampler, wgpuSamplerRelease);
+    FLECS_WGPU_RELEASE(impl->pipelines.depth_resolve_pipeline, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(impl->pipelines.depth_resolve_bind_layout, wgpuBindGroupLayoutRelease);
 }
 
 static void flecsEngine_rebuildBatchPipelines(
@@ -395,14 +379,8 @@ cleanup:
 static void flecsEngine_textureImpl_releaseImpl(
     FlecsTextureImpl *ptr)
 {
-    if (ptr->view) {
-        wgpuTextureViewRelease(ptr->view);
-        ptr->view = NULL;
-    }
-    if (ptr->texture) {
-        wgpuTextureRelease(ptr->texture);
-        ptr->texture = NULL;
-    }
+    FLECS_WGPU_RELEASE(ptr->view, wgpuTextureViewRelease);
+    FLECS_WGPU_RELEASE(ptr->texture, wgpuTextureRelease);
 }
 
 ECS_DTOR(FlecsTextureImpl, ptr, {
