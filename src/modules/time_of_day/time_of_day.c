@@ -84,7 +84,6 @@ static void flecsEngine_solarPosition(
 }
 
 static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
-    FLECS_TRACY_ZONE_BEGIN("AdvanceTimeOfDay");
     FlecsTimeOfDay *tod = ecs_field(it, FlecsTimeOfDay, 0);
     float dt = it->delta_time;
     ecs_world_t *world = it->world;
@@ -163,7 +162,6 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
             }
         }
     }
-    FLECS_TRACY_ZONE_END;
 }
 
 void FlecsEngineTime_of_dayImport(

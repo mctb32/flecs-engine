@@ -25,7 +25,6 @@ static
 void CameraControllerSyncRotation(
     ecs_iter_t *it)
 {
-    FLECS_TRACY_ZONE_BEGIN("CamSyncRotation");
     const FlecsPosition3 *p = ecs_field(it, FlecsPosition3, 0);
     const FlecsRotation3 *r = ecs_field(it, FlecsRotation3, 1);
     FlecsLookAt *lookat = ecs_field(it, FlecsLookAt, 2);
@@ -35,14 +34,12 @@ void CameraControllerSyncRotation(
         lookat[i].y = p[i].y + sin(r[i].x);
         lookat[i].z = p[i].z + cos(r[i].y) * cos(r[i].x);
     }
-    FLECS_TRACY_ZONE_END;
 }
 
 static
 void CameraControllerAccelerate(
     ecs_iter_t *it)
 {
-    FLECS_TRACY_ZONE_BEGIN("CamAccelerate");
     const FlecsInput *input = ecs_field(it, FlecsInput, 0);
     const FlecsRotation3 *r = ecs_field(it, FlecsRotation3, 1);
     FlecsVelocity3 *v = ecs_field(it, FlecsVelocity3, 2);
@@ -100,7 +97,6 @@ void CameraControllerAccelerate(
                 / it->delta_time;
         }
     }
-    FLECS_TRACY_ZONE_END;
 }
 
 static
@@ -125,7 +121,6 @@ static
 void CameraControllerDecelerate(
     ecs_iter_t *it)
 {
-    FLECS_TRACY_ZONE_BEGIN("CamDecelerate");
     FlecsVelocity3 *v = ecs_field(it, FlecsVelocity3, 0);
     FlecsAngularVelocity3 *av = ecs_field(it, FlecsAngularVelocity3, 1);
     FlecsRotation3 *r = ecs_field(it, FlecsRotation3, 2);
@@ -161,7 +156,6 @@ void CameraControllerDecelerate(
             if (av[i].x < 0) av[i].x = 0;
         }
     }
-    FLECS_TRACY_ZONE_END;
 }
 
 void FlecsEngineCameraControllerImport(

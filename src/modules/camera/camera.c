@@ -10,7 +10,6 @@ void FlecsEngineCameraControllerImport(
     ecs_world_t *world);
 
 static void FlecsCameraTransform(ecs_iter_t *it) {
-    FLECS_TRACY_ZONE_BEGIN("CameraTransform");
     FlecsCamera *cameras = ecs_field(it, FlecsCamera, 0);
     const FlecsLookAt *lookat = ecs_field(it, FlecsLookAt, 1);
     FlecsCameraImpl *impl = ecs_field(it, FlecsCameraImpl, 2);
@@ -59,7 +58,6 @@ static void FlecsCameraTransform(ecs_iter_t *it) {
         glm_lookat(eye, center, up, impl[i].view);
         glm_mat4_mul(impl[i].proj, impl[i].view, impl[i].mvp);
     }
-    FLECS_TRACY_ZONE_END;
 }
 
 void FlecsEngineCameraImport(

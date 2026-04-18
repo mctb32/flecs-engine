@@ -1369,24 +1369,16 @@ bool flecsEngine_atmosphere_renderLuts(
         engine->queue, a->uniform_buffer, 0, &uniform, sizeof(uniform));
 
     bool ok = false;
-    FLECS_TRACY_ZONE_BEGIN_N(trans_zone, "AtmosLuts.trans");
     ok = flecsEngine_atmos_runTrans(engine, a, encoder);
-    FLECS_TRACY_ZONE_END_N(trans_zone);
     if (!ok) { FLECS_TRACY_ZONE_END; return false; }
 
-    FLECS_TRACY_ZONE_BEGIN_N(ms_zone, "AtmosLuts.ms");
     ok = flecsEngine_atmos_runMS(engine, a, encoder);
-    FLECS_TRACY_ZONE_END_N(ms_zone);
     if (!ok) { FLECS_TRACY_ZONE_END; return false; }
 
-    FLECS_TRACY_ZONE_BEGIN_N(sv_zone, "AtmosLuts.skyview");
     ok = flecsEngine_atmos_runSkyView(engine, a, encoder);
-    FLECS_TRACY_ZONE_END_N(sv_zone);
     if (!ok) { FLECS_TRACY_ZONE_END; return false; }
 
-    FLECS_TRACY_ZONE_BEGIN_N(ap_zone, "AtmosLuts.aerial");
     ok = flecsEngine_atmos_runAerial(engine, a, encoder);
-    FLECS_TRACY_ZONE_END_N(ap_zone);
     FLECS_TRACY_ZONE_END;
     return ok;
 }
@@ -1407,15 +1399,12 @@ bool flecsEngine_atmosphere_renderIbl(
         return false;
     }
 
-    FLECS_TRACY_ZONE_BEGIN_N(faces_zone, "AtmosIbl.faces");
     uint32_t top_size = 128u;
     bool ok = flecsEngine_atmos_runComputePass(
         encoder, a->cube_face_pipeline, a->cube_face_bind_group,
         (top_size + 7) / 8, (top_size + 7) / 8, 6);
-    FLECS_TRACY_ZONE_END_N(faces_zone);
     if (!ok) { FLECS_TRACY_ZONE_END; return false; }
 
-    FLECS_TRACY_ZONE_BEGIN_N(ds_zone, "AtmosIbl.downsample");
     for (uint32_t m = 1; m < a->cube_mip_count; m++) {
         uint32_t size = top_size >> m;
         if (size < 1u) size = 1u;
@@ -1424,12 +1413,10 @@ bool flecsEngine_atmosphere_renderIbl(
         if (!flecsEngine_atmos_runComputePass(encoder,
             a->cube_ds_pipeline, a->cube_ds_bind_groups[m], gx, gy, 6))
         {
-            FLECS_TRACY_ZONE_END_N(ds_zone);
             FLECS_TRACY_ZONE_END;
             return false;
         }
     }
-    FLECS_TRACY_ZONE_END_N(ds_zone);
     (void)world;
     FLECS_TRACY_ZONE_END;
     return true;

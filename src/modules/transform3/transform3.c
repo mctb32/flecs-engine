@@ -247,7 +247,6 @@ static void FlecsTransform3(ecs_iter_t *it) {
 static void FlecsRotationFromLookAt(
     ecs_iter_t *it)
 {
-    FLECS_TRACY_ZONE_BEGIN("RotationFromLookAt");
     const FlecsPosition3 *p = ecs_field(it, FlecsPosition3, 0);
     const FlecsLookAt *lookat = ecs_field(it, FlecsLookAt, 1);
     FlecsRotation3 *r = ecs_field(it, FlecsRotation3, 2);
@@ -267,7 +266,6 @@ static void FlecsRotationFromLookAt(
             r[i].z = 0.0f;
         }
     }
-    FLECS_TRACY_ZONE_END;
 }
 
 void FlecsEngineTransform3Import(
