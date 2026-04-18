@@ -13,6 +13,8 @@ typedef struct {
     float camera_pos[4];
     float screen[4];          /* x=factor, y=threshold, z=_, w=_ */
     uint32_t flags[4];        /* x=main_valid, y=cascade_valid, z=screen_cull_valid, w=_ */
+    float view_proj[16];
+    float hiz_dims[4];
 } flecsEngine_gpuCullViewUniforms_t;
 
 typedef struct {
@@ -47,6 +49,8 @@ static const char *FLECS_ENGINE_GPU_CULL_WGSL =
 "    camera_pos: vec4<f32>,\n"
 "    screen: vec4<f32>,\n"
 "    flags: vec4<u32>,\n"
+"    view_proj: mat4x4<f32>,\n"
+"    hiz_dims: vec4<f32>,\n"
 "};\n"
 "struct BatchInfo {\n"
 "    count: u32,\n"
@@ -56,6 +60,7 @@ static const char *FLECS_ENGINE_GPU_CULL_WGSL =
 "};\n"
 "\n"
 "@group(0) @binding(0) var<uniform> view_data: ViewData;\n"
+"@group(0) @binding(1) var hiz_tex: texture_2d<f32>;\n"
 "\n"
 "@group(1) @binding(0) var<storage, read> aabbs: array<Aabb>;\n"
 "@group(1) @binding(1) var<storage, read> slot_to_group: array<u32>;\n"
@@ -73,6 +78,57 @@ static const char *FLECS_ENGINE_GPU_CULL_WGSL =
 "        if (p.x * px + p.y * py + p.z * pz + p.w < 0.0) { return false; }\n"
 "    }\n"
 "    return true;\n"
+"}\n"
+"\n"
+"fn test_hiz(amin: vec3<f32>, amax: vec3<f32>) -> bool {\n"
+"    let vp = view_data.view_proj;\n"
+"    var min_xy = vec2<f32>(1e30, 1e30);\n"
+"    var max_xy = vec2<f32>(-1e30, -1e30);\n"
+"    var min_z = 1e30;\n"
+"    for (var i: u32 = 0u; i < 8u; i = i + 1u) {\n"
+"        let cx = select(amin.x, amax.x, (i & 1u) != 0u);\n"
+"        let cy = select(amin.y, amax.y, (i & 2u) != 0u);\n"
+"        let cz = select(amin.z, amax.z, (i & 4u) != 0u);\n"
+"        let c = vp * vec4<f32>(cx, cy, cz, 1.0);\n"
+"        if (c.w <= 0.0001) { return true; }\n"
+"        let inv_w = 1.0 / c.w;\n"
+"        let ndc = vec3<f32>(c.x * inv_w, c.y * inv_w, c.z * inv_w);\n"
+"        min_xy = min(min_xy, ndc.xy);\n"
+"        max_xy = max(max_xy, ndc.xy);\n"
+"        min_z = min(min_z, ndc.z);\n"
+"    }\n"
+"    if (min_z <= 0.0) { return true; }\n"
+"    let uv_min = vec2<f32>(\n"
+"        clamp(min_xy.x * 0.5 + 0.5, 0.0, 1.0),\n"
+"        clamp(1.0 - (max_xy.y * 0.5 + 0.5), 0.0, 1.0));\n"
+"    let uv_max = vec2<f32>(\n"
+"        clamp(max_xy.x * 0.5 + 0.5, 0.0, 1.0),\n"
+"        clamp(1.0 - (min_xy.y * 0.5 + 0.5), 0.0, 1.0));\n"
+"    let hiz_w = view_data.hiz_dims.x;\n"
+"    let hiz_h = view_data.hiz_dims.y;\n"
+"    let px0 = uv_min * vec2<f32>(hiz_w, hiz_h);\n"
+"    let px1 = uv_max * vec2<f32>(hiz_w, hiz_h);\n"
+"    let span = max(px1.x - px0.x, px1.y - px0.y);\n"
+"    let lod_f = ceil(log2(max(span, 1.0)));\n"
+"    let mip_count_m1 = max(view_data.hiz_dims.z - 1.0, 0.0);\n"
+"    let lod = u32(clamp(lod_f, 0.0, mip_count_m1));\n"
+"    let denom = f32(1u << lod);\n"
+"    let tx0 = i32(floor(px0.x / denom));\n"
+"    let ty0 = i32(floor(px0.y / denom));\n"
+"    let tx1 = i32(floor(px1.x / denom));\n"
+"    let ty1 = i32(floor(px1.y / denom));\n"
+"    let mip_w = max(i32(hiz_w) >> lod, 1);\n"
+"    let mip_h = max(i32(hiz_h) >> lod, 1);\n"
+"    let cx0 = clamp(tx0, 0, mip_w - 1);\n"
+"    let cy0 = clamp(ty0, 0, mip_h - 1);\n"
+"    let cx1 = clamp(tx1, 0, mip_w - 1);\n"
+"    let cy1 = clamp(ty1, 0, mip_h - 1);\n"
+"    let d0 = textureLoad(hiz_tex, vec2<i32>(cx0, cy0), i32(lod)).r;\n"
+"    let d1 = textureLoad(hiz_tex, vec2<i32>(cx1, cy0), i32(lod)).r;\n"
+"    let d2 = textureLoad(hiz_tex, vec2<i32>(cx0, cy1), i32(lod)).r;\n"
+"    let d3 = textureLoad(hiz_tex, vec2<i32>(cx1, cy1), i32(lod)).r;\n"
+"    let hiz_max = max(max(d0, d1), max(d2, d3));\n"
+"    return min_z <= hiz_max;\n"
 "}\n"
 "\n"
 "var<workgroup> wg_first_g: u32;\n"
@@ -169,6 +225,9 @@ static const char *FLECS_ENGINE_GPU_CULL_WGSL =
 "                pass_main = r_sq * view_data.screen.x >=\n"
 "                    view_data.screen.y * d_sq;\n"
 "            }\n"
+"            if (pass_main && view_data.flags.w != 0u) {\n"
+"                pass_main = test_hiz(amin, amax);\n"
+"            }\n"
 "        }\n"
 "        let info_u = group_info[g_uniform];\n"
 "        append_visible(lid.x, uniform_wg,\n"
@@ -196,18 +255,21 @@ static const char *FLECS_ENGINE_GPU_CULL_WGSL =
 static WGPUBindGroupLayout flecsEngine_gpuCull_createViewLayout(
     WGPUDevice device)
 {
-    WGPUBindGroupLayoutEntry entry = {
-        .binding = 0,
-        .visibility = WGPUShaderStage_Compute,
-        .buffer = {
-            .type = WGPUBufferBindingType_Uniform,
-            .minBindingSize = sizeof(flecsEngine_gpuCullViewUniforms_t)
-        }
+    WGPUBindGroupLayoutEntry entries[2] = {
+        { .binding = 0, .visibility = WGPUShaderStage_Compute,
+          .buffer = {
+              .type = WGPUBufferBindingType_Uniform,
+              .minBindingSize = sizeof(flecsEngine_gpuCullViewUniforms_t) } },
+        { .binding = 1, .visibility = WGPUShaderStage_Compute,
+          .texture = {
+              .sampleType = WGPUTextureSampleType_UnfilterableFloat,
+              .viewDimension = WGPUTextureViewDimension_2D,
+              .multisampled = false } },
     };
     return wgpuDeviceCreateBindGroupLayout(device,
         &(WGPUBindGroupLayoutDescriptor){
-            .entryCount = 1,
-            .entries = &entry
+            .entryCount = 2,
+            .entries = entries
         });
 }
 
@@ -300,35 +362,48 @@ int flecsEngine_gpuCull_initView(
     FlecsEngineImpl *engine,
     FlecsRenderViewImpl *view_impl)
 {
-    if (view_impl->cull_view_uniform_buffer) {
+    if (!view_impl->cull_view_uniform_buffer) {
+        view_impl->cull_view_uniform_buffer = wgpuDeviceCreateBuffer(
+            engine->device, &(WGPUBufferDescriptor){
+                .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                .size = sizeof(flecsEngine_gpuCullViewUniforms_t)
+            });
+        if (!view_impl->cull_view_uniform_buffer) {
+            return -1;
+        }
+    }
+
+    if (view_impl->cull_view_bind_group &&
+        view_impl->cull_view_bind_hiz_version == view_impl->hiz_version &&
+        view_impl->hiz_view_all)
+    {
         return 0;
     }
 
-    view_impl->cull_view_uniform_buffer = wgpuDeviceCreateBuffer(
-        engine->device, &(WGPUBufferDescriptor){
-            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-            .size = sizeof(flecsEngine_gpuCullViewUniforms_t)
-        });
-    if (!view_impl->cull_view_uniform_buffer) {
-        return -1;
+    if (!view_impl->hiz_view_all) {
+        FLECS_WGPU_RELEASE(view_impl->cull_view_bind_group,
+            wgpuBindGroupRelease);
+        return 0;
     }
 
-    WGPUBindGroupEntry entry = {
-        .binding = 0,
-        .buffer = view_impl->cull_view_uniform_buffer,
-        .offset = 0,
-        .size = sizeof(flecsEngine_gpuCullViewUniforms_t)
+    FLECS_WGPU_RELEASE(view_impl->cull_view_bind_group, wgpuBindGroupRelease);
+
+    WGPUBindGroupEntry entries[2] = {
+        { .binding = 0, .buffer = view_impl->cull_view_uniform_buffer,
+          .offset = 0,
+          .size = sizeof(flecsEngine_gpuCullViewUniforms_t) },
+        { .binding = 1, .textureView = view_impl->hiz_view_all },
     };
     view_impl->cull_view_bind_group = wgpuDeviceCreateBindGroup(
         engine->device, &(WGPUBindGroupDescriptor){
             .layout = engine->gpu_cull.view_bind_layout,
-            .entryCount = 1,
-            .entries = &entry
+            .entryCount = 2,
+            .entries = entries
         });
     if (!view_impl->cull_view_bind_group) {
         return -1;
     }
-
+    view_impl->cull_view_bind_hiz_version = view_impl->hiz_version;
     return 0;
 }
 
@@ -337,6 +412,7 @@ void flecsEngine_gpuCull_finiView(
 {
     FLECS_WGPU_RELEASE(view_impl->cull_view_bind_group, wgpuBindGroupRelease);
     FLECS_WGPU_RELEASE(view_impl->cull_view_uniform_buffer, wgpuBufferRelease);
+    view_impl->cull_view_bind_hiz_version = 0;
 }
 
 void flecsEngine_gpuCull_writeViewUniforms(
@@ -369,6 +445,16 @@ void flecsEngine_gpuCull_writeViewUniforms(
     u.flags[0] = view_impl->frustum_valid ? 1u : 0u;
     u.flags[1] = view_impl->cascade_frustum_valid ? 1u : 0u;
     u.flags[2] = view_impl->screen_cull_valid ? 1u : 0u;
+    u.flags[3] = (view_impl->hiz_valid && view_impl->camera_view_proj_valid)
+        ? 1u : 0u;
+
+    if (view_impl->camera_view_proj_valid) {
+        memcpy(u.view_proj, view_impl->camera_view_proj,
+            sizeof(u.view_proj));
+    }
+    u.hiz_dims[0] = (float)view_impl->hiz_width;
+    u.hiz_dims[1] = (float)view_impl->hiz_height;
+    u.hiz_dims[2] = (float)view_impl->hiz_mip_count;
 
     wgpuQueueWriteBuffer(engine->queue,
         view_impl->cull_view_uniform_buffer, 0, &u, sizeof(u));
@@ -382,6 +468,9 @@ void flecsEngine_gpuCull_dispatchBatch(
     flecsEngine_batch_t *buf)
 {
     if (buf->flags & FLECS_BATCH_NO_GPU_CULL) {
+        return;
+    }
+    if (!view_impl->cull_view_bind_group) {
         return;
     }
     int32_t count = buf->buffers.count;

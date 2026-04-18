@@ -4,6 +4,7 @@
 #include "../atmosphere/atmosphere.h"
 #include "frustum_cull.h"
 #include "gpu_cull.h"
+#include "hiz.h"
 #include "gpu_timing.h"
 #include "../../tracy_hooks.h"
 #include "flecs_engine.h"
@@ -77,7 +78,7 @@ static void flecsEngine_renderView_createDepthResources(
             .height = height,
             .depthOrArrayLayers = 1
         },
-        .format = WGPUTextureFormat_Depth24Plus,
+        .format = WGPUTextureFormat_Depth32Float,
         .mipLevelCount = 1,
         .sampleCount = 1
     };
@@ -221,7 +222,7 @@ static int flecsEngine_renderView_ensureMsaaResources(
             .height = height,
             .depthOrArrayLayers = 1
         },
-        .format = WGPUTextureFormat_Depth24Plus,
+        .format = WGPUTextureFormat_Depth32Float,
         .mipLevelCount = 1,
         .sampleCount = (uint32_t)sc
     };
@@ -297,6 +298,7 @@ static void flecsEngine_renderView_releaseImpl(
     flecsEngine_cluster_cleanupView(impl);
     flecsEngine_transmission_releaseView(impl);
     flecsEngine_gpuCull_finiView(impl);
+    flecsEngine_hiz_finiView(NULL, impl);
 
     FLECS_WGPU_RELEASE(impl->scene_bind_group, wgpuBindGroupRelease);
     FLECS_WGPU_RELEASE(impl->frame_uniform_buffer, wgpuBufferRelease);
@@ -889,6 +891,12 @@ static void flecsEngine_renderView_render(
         return;
     }
 
+    if (flecsEngine_hiz_ensureView(engine, impl)) {
+        ecs_err("failed to create hi-z view resources");
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
     if (flecsEngine_gpuCull_initView(engine, impl)) {
         ecs_err("failed to create gpu cull view resources");
         FLECS_TRACY_ZONE_END;
@@ -972,6 +980,8 @@ static void flecsEngine_renderView_render(
         flecsEngine_depthResolve(engine, impl, encoder);
     }
 
+    flecsEngine_hiz_build(engine, impl, encoder);
+
     if (have_atmosphere) {
         if (!flecsEngine_atmosphere_renderCompose(
             world, engine, impl, view->atmosphere, encoder,
@@ -1037,6 +1047,7 @@ static void flecsEngine_renderView_cull(
 
     impl->frustum_valid = false;
     impl->shadow_frustum_valid = false;
+    impl->camera_view_proj_valid = false;
 
     if (view->camera) {
         const FlecsCameraImpl *camera = ecs_get(
@@ -1046,6 +1057,9 @@ static void flecsEngine_renderView_cull(
                 camera->mvp,
                 impl->frustum_planes);
             impl->frustum_valid = true;
+            memcpy(impl->camera_view_proj, camera->mvp,
+                sizeof(impl->camera_view_proj));
+            impl->camera_view_proj_valid = true;
 
             if (view->shadow.enabled && view->shadow.max_range > 0.0f) {
                 const FlecsCamera *cam = ecs_get(

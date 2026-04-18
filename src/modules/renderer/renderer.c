@@ -1,6 +1,7 @@
 #include "renderer.h"
 #include "batches/batches.h"
 #include "gpu_cull.h"
+#include "hiz.h"
 #include "gpu_timing.h"
 #include "../engine/engine.h"
 #include "../../tracy_hooks.h"
@@ -55,6 +56,7 @@ void flecsEngine_renderer_cleanup(
     FLECS_WGPU_RELEASE(impl->pipelines.depth_resolve_bind_layout, wgpuBindGroupLayoutRelease);
     flecsEngine_depthPrepass_fini(impl);
     flecsEngine_gpuCull_fini(impl);
+    flecsEngine_hiz_fini(impl);
     flecsEngine_gpuTiming_fini(impl);
 }
 
@@ -173,6 +175,10 @@ int flecsEngine_initRenderer(
     }
 
     if (flecsEngine_gpuCull_init(impl)) {
+        goto error;
+    }
+
+    if (flecsEngine_hiz_init(impl)) {
         goto error;
     }
 

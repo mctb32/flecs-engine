@@ -165,6 +165,9 @@ struct FlecsRenderViewImpl {
     float screen_cull_threshold;
     bool screen_cull_valid;
 
+    float camera_view_proj[4][4];
+    bool camera_view_proj_valid;
+
     flecs_view_shadow_t shadow;
     flecs_view_cluster_t cluster;
     flecs_view_opaque_snapshot_t opaque_snapshot;
@@ -178,6 +181,18 @@ struct FlecsRenderViewImpl {
     /* GPU cull per-view uniforms (frustum + cascade planes + camera pos). */
     WGPUBuffer cull_view_uniform_buffer;
     WGPUBindGroup cull_view_bind_group;
+    uint32_t cull_view_bind_hiz_version;
+
+    WGPUTexture hiz_texture;
+    WGPUTextureView hiz_view_all;
+    WGPUTextureView *hiz_mip_views;
+    uint32_t hiz_mip_count;
+    uint32_t hiz_width;
+    uint32_t hiz_height;
+    uint32_t hiz_version;
+    bool hiz_valid;
+    WGPUBindGroup *hiz_build_mip0_bg;
+    WGPUBindGroup *hiz_build_reduce_bg;
 };
 typedef struct FlecsRenderViewImpl FlecsRenderViewImpl;
 

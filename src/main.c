@@ -137,7 +137,7 @@ void initEngine(
     .shadow = {
       .enabled = true,
       .map_size = 4096,
-      .max_range = 1000,
+      .max_range = 200,
       .bias = 0.0001
     },
     .ambient_intensity = 0.2f,

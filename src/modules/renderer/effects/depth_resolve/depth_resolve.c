@@ -46,7 +46,7 @@ int flecsEngine_initDepthResolve(
     }
 
     WGPUDepthStencilState depth_stencil = {
-        .format = WGPUTextureFormat_Depth24Plus,
+        .format = WGPUTextureFormat_Depth32Float,
         .depthWriteEnabled = true,
         .depthCompare = WGPUCompareFunction_Always
     };

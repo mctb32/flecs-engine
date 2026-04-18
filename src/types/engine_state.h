@@ -23,6 +23,16 @@ typedef struct {
 } flecsEngine_gpuCull_t;
 
 typedef struct {
+    WGPUShaderModule mip0_shader_module;
+    WGPUShaderModule reduce_shader_module;
+    WGPUComputePipeline mip0_pipeline;
+    WGPUComputePipeline reduce_pipeline;
+    WGPUBindGroupLayout mip0_bind_layout;
+    WGPUBindGroupLayout reduce_bind_layout;
+    WGPUSampler sampler;
+} flecsEngine_hiz_t;
+
+typedef struct {
     FlecsGpuLight *cpu_lights;
     int32_t light_count;
     int32_t light_capacity;
@@ -166,6 +176,7 @@ typedef struct {
     flecsEngine_textures_t textures;
     flecsEngine_pipelines_t pipelines;
     flecsEngine_gpuCull_t gpu_cull;
+    flecsEngine_hiz_t hiz;
     flecsEngine_gpuTiming_t gpu_timing;
 
     flecsEngine_default_attr_cache_t *default_attr_cache;

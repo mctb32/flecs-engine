@@ -91,7 +91,7 @@ WGPURenderPipeline flecsEngine_depthPrepass_createPipeline(
     }
 
     WGPUDepthStencilState depth_state = {
-        .format = WGPUTextureFormat_Depth24Plus,
+        .format = WGPUTextureFormat_Depth32Float,
         .depthWriteEnabled = WGPUOptionalBool_True,
         .depthCompare = WGPUCompareFunction_Less,
         .stencilReadMask = 0xFFFFFFFF,
