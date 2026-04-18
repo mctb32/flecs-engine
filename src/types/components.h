@@ -212,6 +212,14 @@ typedef struct {
 
 extern ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);
 
+typedef struct flecsEngine_batch_group_t flecsEngine_batch_group_t;
+typedef struct {
+    flecsEngine_batch_group_t *group;
+    int32_t slot;
+} FlecsBufferSlot;
+
+extern ECS_COMPONENT_DECLARE(FlecsBufferSlot);
+
 typedef struct {
     WGPUBindGroupLayout bind_layout;
     WGPURenderPipeline pipeline_surface;

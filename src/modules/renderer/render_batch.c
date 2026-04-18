@@ -3,11 +3,13 @@
 
 #include "renderer.h"
 #include "depth_prepass.h"
+#include "batches/common/common.h"
 #include "../../tracy_hooks.h"
 #include "flecs_engine.h"
 
 ECS_COMPONENT_DECLARE(FlecsRenderBatch);
 ECS_COMPONENT_DECLARE(FlecsRenderBatchImpl);
+ECS_COMPONENT_DECLARE(FlecsBufferSlot);
 
 ECS_DTOR(FlecsRenderBatch, ptr, {
     if (ptr->ctx && ptr->free_ctx) {
@@ -676,11 +678,62 @@ void flecsEngine_renderBatch_renderDepthPrepass(
     FLECS_TRACY_ZONE_END;
 }
 
+void flecsEngine_bufferSlot_markChanged(
+    ecs_world_t *world,
+    ecs_entity_t entity)
+{
+    const FlecsBufferSlot *bs = ecs_get(world, entity, FlecsBufferSlot);
+    if (!bs || !bs->group) {
+        return;
+    }
+    flecsEngine_batch_group_t *group = bs->group;
+
+    ecs_map_val_t *existing =
+        ecs_map_get(&group->changed_set, (ecs_map_key_t)entity);
+    if (existing) {
+        return;
+    }
+    ecs_map_ensure(&group->changed_set, (ecs_map_key_t)entity);
+    *ecs_vec_append_t(NULL, &group->changed, ecs_entity_t) = entity;
+    *ecs_vec_append_t(NULL, &group->changed_slots, int32_t) = bs->slot;
+}
+
+static void FlecsBufferSlot_on_remove(ecs_iter_t *it)
+{
+    const ecs_world_t *world = ecs_get_world(it->world);
+    if (ecs_should_quit(world) || ecs_is_fini(world)) {
+        return;
+    }
+
+    FlecsBufferSlot *bs = ecs_field(it, FlecsBufferSlot, 0);
+    for (int i = 0; i < it->count; i ++) {
+        flecsEngine_batch_group_t *group = bs[i].group;
+        if (!group || !group->batch) {
+            continue;
+        }
+        int32_t slot = bs[i].slot;
+        *ecs_vec_append_t(NULL, &group->batch->free_slots, int32_t) = slot;
+
+        int32_t n = ecs_vec_count(&group->slots);
+        int32_t *slots = ecs_vec_first_t(&group->slots, int32_t);
+        for (int32_t j = 0; j < n; j ++) {
+            if (slots[j] == slot) {
+                slots[j] = slots[n - 1];
+                ecs_vec_remove_last(&group->slots);
+                break;
+            }
+        }
+
+        ecs_map_remove(&group->changed_set, (ecs_map_key_t)it->entities[i]);
+    }
+}
+
 void flecsEngine_renderBatch_register(
     ecs_world_t *world)
 {
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatch);
     ECS_COMPONENT_DEFINE(world, FlecsRenderBatchImpl);
+    ECS_COMPONENT_DEFINE(world, FlecsBufferSlot);
 
     ecs_set_hooks(world, FlecsRenderBatch, {
         .ctor = flecs_default_ctor,
@@ -693,5 +746,12 @@ void flecsEngine_renderBatch_register(
         .ctor = flecs_default_ctor,
         .move = ecs_move(FlecsRenderBatchImpl),
         .dtor = ecs_dtor(FlecsRenderBatchImpl)
+    });
+
+    ecs_observer(world, {
+        .entity = ecs_entity(world, { .name = "FlecsBufferSlotOnRemove" }),
+        .query.terms = {{ ecs_id(FlecsBufferSlot) }},
+        .events = { EcsOnRemove },
+        .callback = FlecsBufferSlot_on_remove
     });
 }

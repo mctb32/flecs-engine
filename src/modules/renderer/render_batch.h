@@ -71,6 +71,10 @@ void flecsEngine_renderBatch_upload(
 void flecsEngine_renderBatch_register(
     ecs_world_t *world);
 
+void flecsEngine_bufferSlot_markChanged(
+    ecs_world_t *world,
+    ecs_entity_t entity);
+
 void flecsEngine_renderBatchSet_register(
     ecs_world_t *world);
 

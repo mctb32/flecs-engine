@@ -21,6 +21,7 @@ typedef enum {
      * that render every instance unconditionally (e.g. bevel boxes) or that
      * manage their own visible_slots / draw loop (e.g. transparent sort). */
     FLECS_BATCH_NO_GPU_CULL = 1 << 2,
+    FLECS_BATCH_TRACK_STATIC = 1 << 3,
 } flecsEngine_batch_flags_t;
 
 typedef void (*flecsEngine_primitive_scale_t)(
@@ -62,11 +63,15 @@ typedef struct {
 
     int32_t group_count;
     int32_t group_capacity;
+
+    bool needs_full_upload;
 } flecsEngine_batch_buffers_t;
 
 /* Batch: render data for all entities matching the batch query. */
-typedef struct {
+typedef struct flecsEngine_batch_t {
     flecsEngine_batch_buffers_t buffers;
+    flecsEngine_batch_buffers_t static_buffers;
+    ecs_vec_t free_slots;
     ecs_flags32_t flags;
 } flecsEngine_batch_t;
 
@@ -81,9 +86,15 @@ typedef struct {
 
 /* Batch group: each batch can have multiple batch groups, where a group is
  * associated with a single mesh. */
-typedef struct {
+typedef struct flecsEngine_batch_group_t {
     flecsEngine_batch_t *batch;
     flecsEngine_batch_view_t view;
+    flecsEngine_batch_view_t static_view;
+
+    ecs_vec_t slots;
+    ecs_vec_t changed;
+    ecs_vec_t changed_slots;
+    ecs_map_t changed_set;
 
     uint64_t group_id;
     FlecsMesh3Impl mesh;
@@ -113,6 +124,17 @@ void flecsEngine_batch_ensureCapacity(
     flecsEngine_batch_t *buf,
     int32_t count);
 
+void flecsEngine_batch_ensureStaticCapacity(
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_t *buf,
+    int32_t count);
+
+void flecsEngine_batchBuffers_releaseStaticGpu(
+    flecsEngine_batch_buffers_t *bb);
+
+void flecsEngine_batchBuffers_freeStaticCpu(
+    flecsEngine_batch_buffers_t *bb);
+
 void flecsEngine_batch_ensureGroupCapacity(
     flecsEngine_batch_t *buf,
     int32_t group_count);
@@ -130,6 +152,23 @@ void flecsEngine_batch_group_extract(
  * per-view atomic counters in the indirect args. No AABB test runs on CPU. */
 void flecsEngine_batch_group_prepareArgs(
     flecsEngine_batch_group_t *ctx);
+
+void flecsEngine_batch_group_prepareStaticArgs(
+    flecsEngine_batch_group_t *ctx);
+
+void flecsEngine_batch_group_applyChanges(
+    const ecs_world_t *world,
+    flecsEngine_batch_group_t *ctx);
+
+void flecsEngine_batch_uploadStatic(
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_t *buf,
+    flecsEngine_batch_group_t **groups,
+    int32_t group_count);
+
+void flecsEngine_batch_ensureStaticGroupCapacity(
+    flecsEngine_batch_t *buf,
+    int32_t group_count);
 
 void flecsEngine_batch_group_draw(
     const FlecsEngineImpl *engine,
@@ -153,6 +192,10 @@ WGPUBindGroup flecsEngine_batch_ensureCullBindGroup(
     FlecsEngineImpl *engine,
     flecsEngine_batch_t *buf);
 
+WGPUBindGroup flecsEngine_batch_ensureStaticCullBindGroup(
+    FlecsEngineImpl *engine,
+    flecsEngine_batch_t *buf);
+
 /* Accessor for the single shared buffer owned by a batch. Used by gpu_cull
  * dispatch to iterate batches without knowing their concrete ctx type. */
 flecsEngine_batch_t* flecsEngine_batch_getCullBuf(
@@ -172,6 +215,37 @@ void flecsEngine_batch_bindInstanceGroupShadow(
     FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_t *buf);
+
+void flecsEngine_batch_bindMaterialGroupStatic(
+    FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_t *buf);
+
+void flecsEngine_batch_bindInstanceGroupStatic(
+    FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_t *buf);
+
+void flecsEngine_batch_bindInstanceGroupShadowStatic(
+    FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_t *buf);
+
+void flecsEngine_batch_group_drawStatic(
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_group_t *ctx);
+
+void flecsEngine_batch_group_drawShadowStatic(
+    const FlecsEngineImpl *engine,
+    const FlecsRenderViewImpl *view_impl,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_group_t *ctx);
+
+void flecsEngine_batch_group_drawDepthPrepassStatic(
+    const FlecsEngineImpl *engine,
+    const WGPURenderPassEncoder pass,
+    const flecsEngine_batch_group_t *ctx);
 
 void flecsEngine_batch_group_init(
     flecsEngine_batch_group_t* batch,

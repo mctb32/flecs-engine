@@ -467,29 +467,41 @@ void flecsEngine_gpuCull_dispatchBatch(
     WGPUComputePassEncoder cpass,
     flecsEngine_batch_t *buf)
 {
-    if (buf->flags & FLECS_BATCH_NO_GPU_CULL) {
-        return;
-    }
     if (!view_impl->cull_view_bind_group) {
         return;
     }
-    int32_t count = buf->buffers.count;
-    int32_t group_count = buf->buffers.group_count;
-    if (!count || !group_count) {
-        return;
+
+    if (!(buf->flags & FLECS_BATCH_NO_GPU_CULL)) {
+        int32_t count = buf->buffers.count;
+        int32_t group_count = buf->buffers.group_count;
+        if (count && group_count) {
+            WGPUBindGroup batch_bg =
+                flecsEngine_batch_ensureCullBindGroup(engine, buf);
+            if (batch_bg) {
+                wgpuComputePassEncoderSetBindGroup(cpass, 0,
+                    view_impl->cull_view_bind_group, 0, NULL);
+                wgpuComputePassEncoderSetBindGroup(cpass, 1, batch_bg, 0, NULL);
+                uint32_t wg = (uint32_t)((count + 63) / 64);
+                wgpuComputePassEncoderDispatchWorkgroups(cpass, wg, 1, 1);
+            }
+        }
     }
 
-    WGPUBindGroup batch_bg = flecsEngine_batch_ensureCullBindGroup(engine, buf);
-    if (!batch_bg) {
-        return;
+    if ((buf->flags & FLECS_BATCH_TRACK_STATIC)) {
+        int32_t count = buf->static_buffers.count;
+        int32_t group_count = buf->static_buffers.group_count;
+        if (count && group_count) {
+            WGPUBindGroup batch_bg =
+                flecsEngine_batch_ensureStaticCullBindGroup(engine, buf);
+            if (batch_bg) {
+                wgpuComputePassEncoderSetBindGroup(cpass, 0,
+                    view_impl->cull_view_bind_group, 0, NULL);
+                wgpuComputePassEncoderSetBindGroup(cpass, 1, batch_bg, 0, NULL);
+                uint32_t wg = (uint32_t)((count + 63) / 64);
+                wgpuComputePassEncoderDispatchWorkgroups(cpass, wg, 1, 1);
+            }
+        }
     }
-
-    wgpuComputePassEncoderSetBindGroup(cpass, 0,
-        view_impl->cull_view_bind_group, 0, NULL);
-    wgpuComputePassEncoderSetBindGroup(cpass, 1, batch_bg, 0, NULL);
-
-    uint32_t wg = (uint32_t)((count + 63) / 64);
-    wgpuComputePassEncoderDispatchWorkgroups(cpass, wg, 1, 1);
 }
 
 typedef struct {

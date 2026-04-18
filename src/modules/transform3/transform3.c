@@ -2,6 +2,7 @@
 
 #define FLECS_ENGINE_TRANSFORM3_IMPL
 #include "transform3.h"
+#include "../renderer/render_batch.h"
 #include "../../tracy_hooks.h"
 
 ECS_COMPONENT_DECLARE(FlecsPosition3);
@@ -208,6 +209,7 @@ static void flecsEngine_transform3_propagateChildren(
             ecs_entity_t child = child_it.entities[i];
             if (ecs_has(world, child, FlecsWorldTransform3)) {
                 flecsEngine_transform3_computeSingle(world, child);
+                flecsEngine_bufferSlot_markChanged(world, child);
                 flecsEngine_transform3_propagateChildren(world, child);
             }
         }
@@ -217,8 +219,10 @@ static void flecsEngine_transform3_propagateChildren(
 static void FlecsTransform3OnSet(ecs_iter_t *it) {
     ecs_world_t *world = it->world;
     for (int i = 0; i < it->count; i ++) {
-        flecsEngine_transform3_computeSingle(world, it->entities[i]);
-        flecsEngine_transform3_propagateChildren(world, it->entities[i]);
+        ecs_entity_t e = it->entities[i];
+        flecsEngine_transform3_computeSingle(world, e);
+        flecsEngine_bufferSlot_markChanged(world, e);
+        flecsEngine_transform3_propagateChildren(world, e);
     }
 }
 

@@ -8,59 +8,98 @@ void flecsEngine_batch_init(
 {
     ecs_os_memset_t(buf, 0, flecsEngine_batch_t);
     buf->flags = flags;
+    ecs_vec_init_t(NULL, &buf->free_slots, int32_t, 0);
 }
 
-static void flecsEngine_batch_releaseCullGroup(
-    flecsEngine_batch_t *buf)
+static void flecsEngine_batchBuffers_releaseCullGroup(
+    flecsEngine_batch_buffers_t *bb)
 {
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_cull_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_cull_bind_group, wgpuBindGroupRelease);
+}
+
+static void flecsEngine_batchBuffers_releaseGpu(
+    flecsEngine_batch_buffers_t *bb)
+{
+    flecsEngine_batchBuffers_releaseCullGroup(bb);
+    FLECS_WGPU_RELEASE(bb->gpu_transforms, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_material_ids, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_material_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_instance_bind_group, wgpuBindGroupRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_materials, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_aabb, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_slot_to_group, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_visible_slots, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_batch_info, wgpuBufferRelease);
+}
+
+static void flecsEngine_batchBuffers_releaseGroupGpu(
+    flecsEngine_batch_buffers_t *bb)
+{
+    flecsEngine_batchBuffers_releaseCullGroup(bb);
+    FLECS_WGPU_RELEASE(bb->gpu_group_info, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_indirect_args, wgpuBufferRelease);
+}
+
+static void flecsEngine_batchBuffers_freeCpu(
+    flecsEngine_batch_buffers_t *bb)
+{
+    ecs_os_free(bb->cpu_transforms);
+    bb->cpu_transforms = NULL;
+    ecs_os_free(bb->cpu_material_ids);
+    bb->cpu_material_ids = NULL;
+    ecs_os_free(bb->cpu_materials);
+    bb->cpu_materials = NULL;
+    ecs_os_free(bb->cpu_aabb);
+    bb->cpu_aabb = NULL;
+    ecs_os_free(bb->cpu_slot_to_group);
+    bb->cpu_slot_to_group = NULL;
+}
+
+static void flecsEngine_batchBuffers_freeGroupCpu(
+    flecsEngine_batch_buffers_t *bb)
+{
+    ecs_os_free(bb->cpu_group_info);
+    bb->cpu_group_info = NULL;
+    ecs_os_free(bb->cpu_indirect_args);
+    bb->cpu_indirect_args = NULL;
 }
 
 static void flecsEngine_batch_releaseGpu(
     flecsEngine_batch_t *buf)
 {
-    flecsEngine_batch_releaseCullGroup(buf);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_transforms, wgpuBufferRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_material_ids, wgpuBufferRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_material_bind_group, wgpuBindGroupRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_instance_bind_group, wgpuBindGroupRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_materials, wgpuBufferRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_aabb, wgpuBufferRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_slot_to_group, wgpuBufferRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_visible_slots, wgpuBufferRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_batch_info, wgpuBufferRelease);
+    flecsEngine_batchBuffers_releaseGpu(&buf->buffers);
 }
 
 static void flecsEngine_batch_releaseGroupGpu(
     flecsEngine_batch_t *buf)
 {
-    flecsEngine_batch_releaseCullGroup(buf);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_group_info, wgpuBufferRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_indirect_args, wgpuBufferRelease);
+    flecsEngine_batchBuffers_releaseGroupGpu(&buf->buffers);
 }
 
 static void flecsEngine_batch_freeCpu(
     flecsEngine_batch_t *buf)
 {
-    ecs_os_free(buf->buffers.cpu_transforms);
-    buf->buffers.cpu_transforms = NULL;
-    ecs_os_free(buf->buffers.cpu_material_ids);
-    buf->buffers.cpu_material_ids = NULL;
-    ecs_os_free(buf->buffers.cpu_materials);
-    buf->buffers.cpu_materials = NULL;
-    ecs_os_free(buf->buffers.cpu_aabb);
-    buf->buffers.cpu_aabb = NULL;
-    ecs_os_free(buf->buffers.cpu_slot_to_group);
-    buf->buffers.cpu_slot_to_group = NULL;
+    flecsEngine_batchBuffers_freeCpu(&buf->buffers);
 }
 
 static void flecsEngine_batch_freeGroupCpu(
     flecsEngine_batch_t *buf)
 {
-    ecs_os_free(buf->buffers.cpu_group_info);
-    buf->buffers.cpu_group_info = NULL;
-    ecs_os_free(buf->buffers.cpu_indirect_args);
-    buf->buffers.cpu_indirect_args = NULL;
+    flecsEngine_batchBuffers_freeGroupCpu(&buf->buffers);
+}
+
+void flecsEngine_batchBuffers_releaseStaticGpu(
+    flecsEngine_batch_buffers_t *bb)
+{
+    flecsEngine_batchBuffers_releaseGpu(bb);
+    flecsEngine_batchBuffers_releaseGroupGpu(bb);
+}
+
+void flecsEngine_batchBuffers_freeStaticCpu(
+    flecsEngine_batch_buffers_t *bb)
+{
+    flecsEngine_batchBuffers_freeCpu(bb);
+    flecsEngine_batchBuffers_freeGroupCpu(bb);
 }
 
 void flecsEngine_batch_fini(
@@ -74,6 +113,13 @@ void flecsEngine_batch_fini(
     buf->buffers.capacity = 0;
     buf->buffers.group_count = 0;
     buf->buffers.group_capacity = 0;
+
+    flecsEngine_batchBuffers_releaseStaticGpu(&buf->static_buffers);
+    flecsEngine_batchBuffers_freeStaticCpu(&buf->static_buffers);
+    buf->static_buffers.count = 0;
+    buf->static_buffers.capacity = 0;
+
+    ecs_vec_fini_t(NULL, &buf->free_slots, int32_t);
 }
 
 static WGPUBuffer flecsEngine_makeStorageBuffer(
@@ -87,12 +133,24 @@ static WGPUBuffer flecsEngine_makeStorageBuffer(
         });
 }
 
-void flecsEngine_batch_ensureCapacity(
+static void* flecsEngine_reallocPreserve(
+    void *old_ptr, int32_t old_count, int32_t new_capacity, ecs_size_t elem_size)
+{
+    void *new_ptr = ecs_os_malloc(new_capacity * elem_size);
+    if (old_ptr && old_count > 0) {
+        ecs_os_memcpy(new_ptr, old_ptr, old_count * elem_size);
+    }
+    ecs_os_free(old_ptr);
+    return new_ptr;
+}
+
+static void flecsEngine_batchBuffers_ensureCapacity(
     const FlecsEngineImpl *engine,
-    flecsEngine_batch_t *buf,
+    flecsEngine_batch_buffers_t *bb,
+    ecs_flags32_t flags,
     int32_t count)
 {
-    if (count <= buf->buffers.capacity) {
+    if (count <= bb->capacity) {
         return;
     }
 
@@ -100,36 +158,41 @@ void flecsEngine_batch_ensureCapacity(
     if (new_capacity < 64) {
         new_capacity = 64;
     }
+    if (new_capacity < bb->capacity * 2) {
+        new_capacity = bb->capacity * 2;
+    }
 
-    flecsEngine_batch_releaseGpu(buf);
-    flecsEngine_batch_freeCpu(buf);
+    int32_t old_count = bb->count;
+
+    flecsEngine_batchBuffers_releaseGpu(bb);
 
     WGPUDevice device = engine->device;
 
-    buf->buffers.gpu_transforms = flecsEngine_makeStorageBuffer(
+    bb->gpu_transforms = flecsEngine_makeStorageBuffer(
         device, (uint64_t)new_capacity * sizeof(FlecsGpuTransform));
-    buf->buffers.cpu_transforms =
-        ecs_os_malloc_n(FlecsGpuTransform, new_capacity);
+    bb->cpu_transforms = flecsEngine_reallocPreserve(
+        bb->cpu_transforms, old_count, new_capacity,
+        ECS_SIZEOF(FlecsGpuTransform));
 
-    buf->buffers.cpu_aabb =
-        ecs_os_malloc_n(flecsEngine_gpuAabb_t, new_capacity);
-    buf->buffers.gpu_aabb = flecsEngine_makeStorageBuffer(
+    bb->cpu_aabb = flecsEngine_reallocPreserve(
+        bb->cpu_aabb, old_count, new_capacity,
+        ECS_SIZEOF(flecsEngine_gpuAabb_t));
+    bb->gpu_aabb = flecsEngine_makeStorageBuffer(
         device, (uint64_t)new_capacity * sizeof(flecsEngine_gpuAabb_t));
 
-    buf->buffers.cpu_slot_to_group =
-        ecs_os_malloc_n(uint32_t, new_capacity);
-    buf->buffers.gpu_slot_to_group = flecsEngine_makeStorageBuffer(
+    bb->cpu_slot_to_group = flecsEngine_reallocPreserve(
+        bb->cpu_slot_to_group, old_count, new_capacity,
+        ECS_SIZEOF(uint32_t));
+    bb->gpu_slot_to_group = flecsEngine_makeStorageBuffer(
         device, (uint64_t)new_capacity * sizeof(uint32_t));
 
-    buf->buffers.gpu_material_ids = flecsEngine_makeStorageBuffer(
+    bb->gpu_material_ids = flecsEngine_makeStorageBuffer(
         device, (uint64_t)new_capacity * sizeof(FlecsMaterialId));
-    buf->buffers.cpu_material_ids =
-        ecs_os_malloc_n(FlecsMaterialId, new_capacity);
+    bb->cpu_material_ids = flecsEngine_reallocPreserve(
+        bb->cpu_material_ids, old_count, new_capacity,
+        ECS_SIZEOF(FlecsMaterialId));
 
-    /* Visible slots: 5 views (main + 4 cascades) packed into one buffer.
-     * Usage includes Storage (compute write) and Vertex (per-instance slot
-     * input in render pipelines). */
-    buf->buffers.gpu_visible_slots = wgpuDeviceCreateBuffer(device,
+    bb->gpu_visible_slots = wgpuDeviceCreateBuffer(device,
         &(WGPUBufferDescriptor){
             .usage = WGPUBufferUsage_Storage
                    | WGPUBufferUsage_Vertex
@@ -137,48 +200,68 @@ void flecsEngine_batch_ensureCapacity(
             .size = (uint64_t)new_capacity * 5ull * sizeof(uint32_t)
         });
 
-    buf->buffers.gpu_batch_info = wgpuDeviceCreateBuffer(device,
+    bb->gpu_batch_info = wgpuDeviceCreateBuffer(device,
         &(WGPUBufferDescriptor){
             .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
             .size = 16
         });
 
-    if ((buf->flags & FLECS_BATCH_OWNS_MATERIAL)) {
+    if ((flags & FLECS_BATCH_OWNS_MATERIAL)) {
         uint64_t storage_size =
             (uint64_t)new_capacity * sizeof(FlecsGpuMaterial);
-        buf->buffers.gpu_materials = wgpuDeviceCreateBuffer(device,
+        bb->gpu_materials = wgpuDeviceCreateBuffer(device,
             &(WGPUBufferDescriptor){
                 .usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst,
                 .size = storage_size
             });
-        buf->buffers.cpu_materials =
-            ecs_os_malloc_n(FlecsGpuMaterial, new_capacity);
+        bb->cpu_materials = flecsEngine_reallocPreserve(
+            bb->cpu_materials, old_count, new_capacity,
+            ECS_SIZEOF(FlecsGpuMaterial));
 
         flecsEngine_materialBind_ensureLayout((FlecsEngineImpl*)engine);
-        buf->buffers.gpu_material_bind_group = flecsEngine_materialBind_createGroup(
-            engine, buf->buffers.gpu_materials, storage_size);
+        bb->gpu_material_bind_group = flecsEngine_materialBind_createGroup(
+            engine, bb->gpu_materials, storage_size);
 
         for (int32_t i = 0; i < new_capacity; i ++) {
-            buf->buffers.cpu_material_ids[i].value = (uint32_t)i;
+            bb->cpu_material_ids[i].value = (uint32_t)i;
         }
     }
 
     flecsEngine_instanceBind_ensureLayout((FlecsEngineImpl*)engine);
-    buf->buffers.gpu_instance_bind_group = flecsEngine_instanceBind_createGroup(
+    bb->gpu_instance_bind_group = flecsEngine_instanceBind_createGroup(
         engine,
-        buf->buffers.gpu_transforms,
+        bb->gpu_transforms,
         (uint64_t)new_capacity * sizeof(FlecsGpuTransform),
-        buf->buffers.gpu_material_ids,
+        bb->gpu_material_ids,
         (uint64_t)new_capacity * sizeof(FlecsMaterialId));
 
-    buf->buffers.capacity = new_capacity;
+    bb->capacity = new_capacity;
+    bb->needs_full_upload = (old_count > 0);
 }
 
-void flecsEngine_batch_ensureGroupCapacity(
+void flecsEngine_batch_ensureCapacity(
+    const FlecsEngineImpl *engine,
     flecsEngine_batch_t *buf,
+    int32_t count)
+{
+    flecsEngine_batchBuffers_ensureCapacity(engine, &buf->buffers,
+        buf->flags, count);
+}
+
+void flecsEngine_batch_ensureStaticCapacity(
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_t *buf,
+    int32_t count)
+{
+    flecsEngine_batchBuffers_ensureCapacity(engine, &buf->static_buffers,
+        buf->flags, count);
+}
+
+static void flecsEngine_batchBuffers_ensureGroupCapacity(
+    flecsEngine_batch_buffers_t *bb,
     int32_t group_count)
 {
-    if (group_count <= buf->buffers.group_capacity) {
+    if (group_count <= bb->group_capacity) {
         return;
     }
 
@@ -187,43 +270,65 @@ void flecsEngine_batch_ensureGroupCapacity(
         new_capacity = 4;
     }
 
-    flecsEngine_batch_releaseGroupGpu(buf);
-    flecsEngine_batch_freeGroupCpu(buf);
+    flecsEngine_batchBuffers_releaseGroupGpu(bb);
+    flecsEngine_batchBuffers_freeGroupCpu(bb);
 
-    buf->buffers.cpu_group_info =
+    bb->cpu_group_info =
         ecs_os_malloc_n(flecsEngine_gpuCullGroupInfo_t, new_capacity);
-    buf->buffers.cpu_indirect_args =
+    bb->cpu_indirect_args =
         ecs_os_malloc_n(flecsEngine_gpuDrawArgs_t,
             new_capacity * (1 + FLECS_ENGINE_SHADOW_CASCADE_COUNT));
-    buf->buffers.group_capacity = new_capacity;
+    bb->group_capacity = new_capacity;
+}
+
+void flecsEngine_batch_ensureGroupCapacity(
+    flecsEngine_batch_t *buf,
+    int32_t group_count)
+{
+    flecsEngine_batchBuffers_ensureGroupCapacity(&buf->buffers, group_count);
+}
+
+void flecsEngine_batch_ensureStaticGroupCapacity(
+    flecsEngine_batch_t *buf,
+    int32_t group_count)
+{
+    flecsEngine_batchBuffers_ensureGroupCapacity(
+        &buf->static_buffers, group_count);
+}
+
+static void flecsEngine_batchBuffers_ensureGroupGpu(
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_buffers_t *bb)
+{
+    if (bb->gpu_group_info && bb->gpu_indirect_args) {
+        return;
+    }
+
+    FLECS_WGPU_RELEASE(bb->gpu_group_info, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_indirect_args, wgpuBufferRelease);
+    FLECS_WGPU_RELEASE(bb->gpu_cull_bind_group, wgpuBindGroupRelease);
+
+    bb->gpu_group_info = flecsEngine_makeStorageBuffer(
+        engine->device,
+        (uint64_t)bb->group_capacity *
+            sizeof(flecsEngine_gpuCullGroupInfo_t));
+
+    bb->gpu_indirect_args = wgpuDeviceCreateBuffer(
+        engine->device, &(WGPUBufferDescriptor){
+            .usage = WGPUBufferUsage_Storage
+                   | WGPUBufferUsage_Indirect
+                   | WGPUBufferUsage_CopyDst,
+            .size = (uint64_t)bb->group_capacity
+                * (1 + FLECS_ENGINE_SHADOW_CASCADE_COUNT)
+                * sizeof(flecsEngine_gpuDrawArgs_t)
+        });
 }
 
 static void flecsEngine_batch_ensureGroupGpu(
     const FlecsEngineImpl *engine,
     flecsEngine_batch_t *buf)
 {
-    if (buf->buffers.gpu_group_info && buf->buffers.gpu_indirect_args) {
-        return;
-    }
-
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_group_info, wgpuBufferRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_indirect_args, wgpuBufferRelease);
-    FLECS_WGPU_RELEASE(buf->buffers.gpu_cull_bind_group, wgpuBindGroupRelease);
-
-    buf->buffers.gpu_group_info = flecsEngine_makeStorageBuffer(
-        engine->device,
-        (uint64_t)buf->buffers.group_capacity *
-            sizeof(flecsEngine_gpuCullGroupInfo_t));
-
-    buf->buffers.gpu_indirect_args = wgpuDeviceCreateBuffer(
-        engine->device, &(WGPUBufferDescriptor){
-            .usage = WGPUBufferUsage_Storage
-                   | WGPUBufferUsage_Indirect
-                   | WGPUBufferUsage_CopyDst,
-            .size = (uint64_t)buf->buffers.group_capacity
-                * (1 + FLECS_ENGINE_SHADOW_CASCADE_COUNT)
-                * sizeof(flecsEngine_gpuDrawArgs_t)
-        });
+    flecsEngine_batchBuffers_ensureGroupGpu(engine, &buf->buffers);
 }
 
 typedef struct {
@@ -304,50 +409,64 @@ void flecsEngine_batch_upload(
     FLECS_TRACY_ZONE_END;
 }
 
-WGPUBindGroup flecsEngine_batch_ensureCullBindGroup(
+static WGPUBindGroup flecsEngine_batchBuffers_ensureCullBindGroup(
     FlecsEngineImpl *engine,
-    flecsEngine_batch_t *buf)
+    flecsEngine_batch_buffers_t *bb)
 {
-    if (buf->buffers.gpu_cull_bind_group) {
-        return buf->buffers.gpu_cull_bind_group;
+    if (bb->gpu_cull_bind_group) {
+        return bb->gpu_cull_bind_group;
     }
 
-    if (!buf->buffers.gpu_aabb ||
-        !buf->buffers.gpu_slot_to_group ||
-        !buf->buffers.gpu_group_info ||
-        !buf->buffers.gpu_visible_slots ||
-        !buf->buffers.gpu_indirect_args ||
-        !buf->buffers.gpu_batch_info)
+    if (!bb->gpu_aabb ||
+        !bb->gpu_slot_to_group ||
+        !bb->gpu_group_info ||
+        !bb->gpu_visible_slots ||
+        !bb->gpu_indirect_args ||
+        !bb->gpu_batch_info)
     {
         return NULL;
     }
 
     WGPUBindGroupEntry entries[6] = {
-        { .binding = 0, .buffer = buf->buffers.gpu_aabb,
-          .size = (uint64_t)buf->buffers.capacity
-              * sizeof(flecsEngine_gpuAabb_t) },
-        { .binding = 1, .buffer = buf->buffers.gpu_slot_to_group,
-          .size = (uint64_t)buf->buffers.capacity * sizeof(uint32_t) },
-        { .binding = 2, .buffer = buf->buffers.gpu_group_info,
-          .size = (uint64_t)buf->buffers.group_capacity
+        { .binding = 0, .buffer = bb->gpu_aabb,
+          .size = (uint64_t)bb->capacity * sizeof(flecsEngine_gpuAabb_t) },
+        { .binding = 1, .buffer = bb->gpu_slot_to_group,
+          .size = (uint64_t)bb->capacity * sizeof(uint32_t) },
+        { .binding = 2, .buffer = bb->gpu_group_info,
+          .size = (uint64_t)bb->group_capacity
               * sizeof(flecsEngine_gpuCullGroupInfo_t) },
-        { .binding = 3, .buffer = buf->buffers.gpu_visible_slots,
-          .size = (uint64_t)buf->buffers.capacity * 5ull * sizeof(uint32_t) },
-        { .binding = 4, .buffer = buf->buffers.gpu_indirect_args,
-          .size = (uint64_t)buf->buffers.group_capacity
+        { .binding = 3, .buffer = bb->gpu_visible_slots,
+          .size = (uint64_t)bb->capacity * 5ull * sizeof(uint32_t) },
+        { .binding = 4, .buffer = bb->gpu_indirect_args,
+          .size = (uint64_t)bb->group_capacity
               * (1 + FLECS_ENGINE_SHADOW_CASCADE_COUNT)
               * sizeof(flecsEngine_gpuDrawArgs_t) },
-        { .binding = 5, .buffer = buf->buffers.gpu_batch_info, .size = 16 }
+        { .binding = 5, .buffer = bb->gpu_batch_info, .size = 16 }
     };
 
-    buf->buffers.gpu_cull_bind_group = wgpuDeviceCreateBindGroup(
+    bb->gpu_cull_bind_group = wgpuDeviceCreateBindGroup(
         engine->device, &(WGPUBindGroupDescriptor){
             .layout = engine->gpu_cull.batch_bind_layout,
             .entryCount = 6,
             .entries = entries
         });
 
-    return buf->buffers.gpu_cull_bind_group;
+    return bb->gpu_cull_bind_group;
+}
+
+WGPUBindGroup flecsEngine_batch_ensureCullBindGroup(
+    FlecsEngineImpl *engine,
+    flecsEngine_batch_t *buf)
+{
+    return flecsEngine_batchBuffers_ensureCullBindGroup(engine, &buf->buffers);
+}
+
+WGPUBindGroup flecsEngine_batch_ensureStaticCullBindGroup(
+    FlecsEngineImpl *engine,
+    flecsEngine_batch_t *buf)
+{
+    return flecsEngine_batchBuffers_ensureCullBindGroup(
+        engine, &buf->static_buffers);
 }
 
 /* --- Per-group batch lifecycle --- */
@@ -362,6 +481,10 @@ void flecsEngine_batch_group_init(
         result->mesh = *mesh;
     }
     result->group_id = group_id;
+    ecs_vec_init_t(NULL, &result->slots, int32_t, 0);
+    ecs_vec_init_t(NULL, &result->changed, ecs_entity_t, 0);
+    ecs_vec_init_t(NULL, &result->changed_slots, int32_t, 0);
+    ecs_map_init(&result->changed_set, NULL);
 }
 
 flecsEngine_batch_group_t* flecsEngine_batch_group_create(
@@ -379,6 +502,10 @@ void flecsEngine_batch_group_fini(
     ptr->view.count = 0;
     ptr->view.offset = 0;
     ptr->batch = NULL;
+    ecs_vec_fini_t(NULL, &ptr->slots, int32_t);
+    ecs_vec_fini_t(NULL, &ptr->changed, ecs_entity_t);
+    ecs_vec_fini_t(NULL, &ptr->changed_slots, int32_t);
+    ecs_map_fini(&ptr->changed_set);
 }
 
 void flecsEngine_batch_group_delete(
@@ -390,6 +517,37 @@ void flecsEngine_batch_group_delete(
 
 /* --- Fill indirect draw args (CPU) --- */
 
+static void flecsEngine_batch_group_prepareArgsForSet(
+    flecsEngine_batch_buffers_t *bb,
+    const flecsEngine_batch_view_t *view,
+    uint32_t index_count,
+    bool identity)
+{
+    int32_t g = view->group_idx;
+    if (g < 0) {
+        return;
+    }
+    int32_t gc = bb->group_count;
+    uint32_t initial_count = identity ? (uint32_t)view->count : 0u;
+
+    bb->cpu_group_info[g] = (flecsEngine_gpuCullGroupInfo_t){
+        .src_offset = (uint32_t)view->offset,
+        .src_count = (uint32_t)view->count,
+        ._pad0 = 0,
+        ._pad1 = 0
+    };
+
+    for (int v = 0; v < 1 + FLECS_ENGINE_SHADOW_CASCADE_COUNT; v ++) {
+        flecsEngine_gpuDrawArgs_t *a =
+            &bb->cpu_indirect_args[v * gc + g];
+        a->index_count = index_count;
+        a->instance_count = (v == 0) ? initial_count : 0u;
+        a->first_index = 0;
+        a->base_vertex = 0;
+        a->first_instance = 0;
+    }
+}
+
 void flecsEngine_batch_group_prepareArgs(
     flecsEngine_batch_group_t *ctx)
 {
@@ -397,31 +555,22 @@ void flecsEngine_batch_group_prepareArgs(
     if (!buf || ctx->view.group_idx < 0) {
         return;
     }
-
-    int32_t g = ctx->view.group_idx;
-    int32_t gc = buf->buffers.group_count;
-    uint32_t index_count = (uint32_t)ctx->mesh.index_count;
     bool identity = (buf->flags & FLECS_BATCH_NO_GPU_CULL) != 0;
-    uint32_t initial_count = identity ? (uint32_t)ctx->view.count : 0u;
+    flecsEngine_batch_group_prepareArgsForSet(
+        &buf->buffers, &ctx->view,
+        (uint32_t)ctx->mesh.index_count, identity);
+}
 
-    buf->buffers.cpu_group_info[g] = (flecsEngine_gpuCullGroupInfo_t){
-        .src_offset = (uint32_t)ctx->view.offset,
-        .src_count = (uint32_t)ctx->view.count,
-        ._pad0 = 0,
-        ._pad1 = 0
-    };
-
-    /* Identity mode fills main view only; cascades stay at 0. Matches the
-     * earlier 27ms baseline for an apples-to-apples compute-cost comparison. */
-    for (int v = 0; v < 1 + FLECS_ENGINE_SHADOW_CASCADE_COUNT; v ++) {
-        flecsEngine_gpuDrawArgs_t *a =
-            &buf->buffers.cpu_indirect_args[v * gc + g];
-        a->index_count = index_count;
-        a->instance_count = (v == 0) ? initial_count : 0u;
-        a->first_index = 0;
-        a->base_vertex = 0;
-        a->first_instance = 0;
+void flecsEngine_batch_group_prepareStaticArgs(
+    flecsEngine_batch_group_t *ctx)
+{
+    flecsEngine_batch_t *buf = ctx->batch;
+    if (!buf || ctx->static_view.group_idx < 0) {
+        return;
     }
+    flecsEngine_batch_group_prepareArgsForSet(
+        &buf->static_buffers, &ctx->static_view,
+        (uint32_t)ctx->mesh.index_count, false);
 }
 
 /* For identity batches, slot_to_group isn't read but visible_slots for the
@@ -455,6 +604,146 @@ void flecsEngine_batch_writeIdentityVisible(
         tmp, (uint64_t)count * sizeof(uint32_t));
     ecs_os_free(tmp);
     (void)flecsEngine_batch_fillIdentityVisible;
+}
+
+static void flecsEngine_utils_worldAabb(
+    const FlecsWorldTransform3 *wt,
+    const FlecsAABB local,
+    flecsEngine_gpuAabb_t *out)
+{
+    float smin[3] = { local.min[0], local.min[1], local.min[2] };
+    float smax[3] = { local.max[0], local.max[1], local.max[2] };
+    float mn[3], mx[3];
+    for (int i = 0; i < 3; i ++) {
+        mn[i] = mx[i] = wt->m[3][i];
+        for (int j = 0; j < 3; j ++) {
+            float e = wt->m[j][i] * smin[j];
+            float f = wt->m[j][i] * smax[j];
+            if (e < f) { mn[i] += e; mx[i] += f; }
+            else       { mn[i] += f; mx[i] += e; }
+        }
+    }
+    out->min[0] = mn[0]; out->min[1] = mn[1]; out->min[2] = mn[2];
+    out->max[0] = mx[0]; out->max[1] = mx[1]; out->max[2] = mx[2];
+    out->_pad0 = 0; out->_pad1 = 0;
+}
+
+void flecsEngine_batch_group_applyChanges(
+    const ecs_world_t *world,
+    flecsEngine_batch_group_t *ctx)
+{
+    int32_t n = ecs_vec_count(&ctx->changed);
+    if (!n) {
+        return;
+    }
+    ecs_entity_t *es = ecs_vec_first_t(&ctx->changed, ecs_entity_t);
+    int32_t *slots = ecs_vec_first_t(&ctx->changed_slots, int32_t);
+    flecsEngine_batch_t *buf = ctx->batch;
+    flecsEngine_batch_buffers_t *bb = &buf->static_buffers;
+    FlecsAABB mesh_aabb = ctx->mesh.aabb;
+    uint32_t g = (uint32_t)ctx->static_view.group_idx;
+
+    for (int32_t i = 0; i < n; i ++) {
+        ecs_entity_t e = es[i];
+        int32_t slot = slots[i];
+        const FlecsWorldTransform3 *wt =
+            ecs_get(world, e, FlecsWorldTransform3);
+        if (!wt) continue;
+        flecsEngine_utils_worldAabb(wt, mesh_aabb, &bb->cpu_aabb[slot]);
+        flecsEngine_batch_transformInstance(
+            &bb->cpu_transforms[slot], wt, 1.0f, 1.0f, 1.0f);
+        bb->cpu_slot_to_group[slot] = g;
+    }
+}
+
+void flecsEngine_batch_uploadStatic(
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_t *buf,
+    flecsEngine_batch_group_t **groups,
+    int32_t group_count)
+{
+    FLECS_TRACY_ZONE_BEGIN("BatchUploadStatic");
+    flecsEngine_batch_buffers_t *bb = &buf->static_buffers;
+    if (!bb->count || !bb->group_count) {
+        FLECS_TRACY_ZONE_END;
+        return;
+    }
+
+    flecsEngine_batchBuffers_ensureGroupGpu(engine, bb);
+
+    WGPUQueue queue = engine->queue;
+    bool owns_material = (buf->flags & FLECS_BATCH_OWNS_MATERIAL) != 0;
+
+    if (bb->needs_full_upload) {
+        int32_t n = bb->count;
+        wgpuQueueWriteBuffer(queue, bb->gpu_transforms, 0,
+            bb->cpu_transforms, (uint64_t)n * sizeof(FlecsGpuTransform));
+        wgpuQueueWriteBuffer(queue, bb->gpu_aabb, 0,
+            bb->cpu_aabb, (uint64_t)n * sizeof(flecsEngine_gpuAabb_t));
+        wgpuQueueWriteBuffer(queue, bb->gpu_material_ids, 0,
+            bb->cpu_material_ids, (uint64_t)n * sizeof(FlecsMaterialId));
+        if (owns_material) {
+            wgpuQueueWriteBuffer(queue, bb->gpu_materials, 0,
+                bb->cpu_materials, (uint64_t)n * sizeof(FlecsGpuMaterial));
+        }
+        bb->needs_full_upload = false;
+    } else {
+        for (int32_t g = 0; g < group_count; g ++) {
+            flecsEngine_batch_group_t *ctx = groups[g];
+            int32_t nc = ecs_vec_count(&ctx->changed_slots);
+            if (!nc) continue;
+            int32_t *slots = ecs_vec_first_t(&ctx->changed_slots, int32_t);
+            for (int32_t i = 0; i < nc; i ++) {
+                int32_t slot = slots[i];
+                wgpuQueueWriteBuffer(queue,
+                    bb->gpu_transforms,
+                    (uint64_t)slot * sizeof(FlecsGpuTransform),
+                    &bb->cpu_transforms[slot], sizeof(FlecsGpuTransform));
+                wgpuQueueWriteBuffer(queue,
+                    bb->gpu_aabb,
+                    (uint64_t)slot * sizeof(flecsEngine_gpuAabb_t),
+                    &bb->cpu_aabb[slot], sizeof(flecsEngine_gpuAabb_t));
+                wgpuQueueWriteBuffer(queue,
+                    bb->gpu_material_ids,
+                    (uint64_t)slot * sizeof(FlecsMaterialId),
+                    &bb->cpu_material_ids[slot], sizeof(FlecsMaterialId));
+                if (owns_material) {
+                    wgpuQueueWriteBuffer(queue,
+                        bb->gpu_materials,
+                        (uint64_t)slot * sizeof(FlecsGpuMaterial),
+                        &bb->cpu_materials[slot], sizeof(FlecsGpuMaterial));
+                }
+            }
+        }
+    }
+
+    wgpuQueueWriteBuffer(queue, bb->gpu_slot_to_group, 0,
+        bb->cpu_slot_to_group, (uint64_t)bb->count * sizeof(uint32_t));
+    wgpuQueueWriteBuffer(queue, bb->gpu_group_info, 0,
+        bb->cpu_group_info,
+        (uint64_t)bb->group_count * sizeof(flecsEngine_gpuCullGroupInfo_t));
+    wgpuQueueWriteBuffer(queue, bb->gpu_indirect_args, 0,
+        bb->cpu_indirect_args,
+        (uint64_t)bb->group_count *
+            (1 + FLECS_ENGINE_SHADOW_CASCADE_COUNT) *
+            sizeof(flecsEngine_gpuDrawArgs_t));
+
+    flecsEngine_gpuCullBatchInfoUpload_t info = {
+        .count = (uint32_t)bb->count,
+        .capacity = (uint32_t)bb->capacity,
+        .group_count = (uint32_t)bb->group_count,
+        ._pad = 0
+    };
+    wgpuQueueWriteBuffer(queue, bb->gpu_batch_info, 0, &info, sizeof(info));
+
+    for (int32_t g = 0; g < group_count; g ++) {
+        flecsEngine_batch_group_t *ctx = groups[g];
+        ecs_vec_clear(&ctx->changed);
+        ecs_vec_clear(&ctx->changed_slots);
+        ecs_map_clear(&ctx->changed_set);
+    }
+
+    FLECS_TRACY_ZONE_END;
 }
 
 void flecsEngine_batch_transformInstance(

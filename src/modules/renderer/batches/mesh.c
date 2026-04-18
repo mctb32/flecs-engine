@@ -20,6 +20,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
             { .id = ecs_id(FlecsPbrTextures), .src.id = EcsUp, .trav = EcsIsA, .oper = EcsNot },
             { .id = FlecsAlphaBlend, .src.id = EcsUp, .trav = EcsIsA, .oper = EcsNot },
             { .id = ecs_id(FlecsTransmission), .src.id = EcsUp, .trav = EcsIsA, .oper = EcsNot },
+            { .id = FlecsDynamicTransform, .oper = EcsOptional },
+            { .id = ecs_id(FlecsBufferSlot), .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto,
         .group_by = EcsIsA,
@@ -38,7 +40,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialIndex(
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .depth_prepass_callback = flecsEngine_mesh_renderDepthPrepass,
         .get_cull_buf = flecsEngine_mesh_getCullBuf,
-        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_DEFAULT),
+        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_TRACK_STATIC),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
 
@@ -65,6 +67,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
             { .id = ecs_id(FlecsMaterialId), .src.id = EcsUp, .trav = EcsIsA, .oper = EcsNot },
             { .id = ecs_id(FlecsPbrTextures), .src.id = EcsUp, .trav = EcsIsA, .oper = EcsNot },
             { .id = ecs_id(FlecsTransmission), .src.id = EcsSelf, .oper = EcsNot },
+            { .id = FlecsDynamicTransform, .oper = EcsOptional },
+            { .id = ecs_id(FlecsBufferSlot), .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto,
         .group_by = EcsIsA,
@@ -83,7 +87,8 @@ ecs_entity_t flecsEngine_createBatch_mesh_materialData(
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .depth_prepass_callback = flecsEngine_mesh_renderDepthPrepass,
         .get_cull_buf = flecsEngine_mesh_getCullBuf,
-        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_OWNS_MATERIAL),
+        .ctx = flecsEngine_mesh_createCtx(
+            FLECS_BATCH_OWNS_MATERIAL | FLECS_BATCH_TRACK_STATIC),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
 
@@ -110,6 +115,8 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
             { .id = ecs_id(FlecsPbrTextures), .src.id = EcsUp, .trav = EcsIsA },
             { .id = FlecsAlphaBlend, .src.id = EcsUp, .trav = EcsIsA, .oper = EcsNot },
             { .id = ecs_id(FlecsTransmission), .src.id = EcsUp, .trav = EcsIsA, .oper = EcsNot },
+            { .id = FlecsDynamicTransform, .oper = EcsOptional },
+            { .id = ecs_id(FlecsBufferSlot), .oper = EcsNot },
         },
         .cache_kind = EcsQueryCacheAuto,
         .group_by = EcsIsA,
@@ -128,7 +135,7 @@ ecs_entity_t flecsEngine_createBatch_textured_mesh(
         .shadow_callback = flecsEngine_mesh_renderShadow,
         .depth_prepass_callback = flecsEngine_mesh_renderDepthPrepass,
         .get_cull_buf = flecsEngine_mesh_getCullBuf,
-        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_DEFAULT),
+        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_TRACK_STATIC),
         .free_ctx = flecsEngine_mesh_deleteCtx
     });
 
@@ -412,7 +419,7 @@ ecs_entity_t flecsEngine_createBatch_mesh_transmission(
         .upload_callback = flecsEngine_mesh_upload,
         .callback = flecsEngine_mesh_render,
         .get_cull_buf = flecsEngine_mesh_getCullBuf,
-        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_DEFAULT),
+        .ctx = flecsEngine_mesh_createCtx(FLECS_BATCH_TRACK_STATIC),
         .free_ctx = flecsEngine_mesh_deleteCtx,
         .render_after_snapshot = true,
         .needs_transmission = true

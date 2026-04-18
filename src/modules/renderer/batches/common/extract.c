@@ -46,6 +46,54 @@ static void flecsEngine_extract_applyScaleAabb(
     aabb->max[2] *= scale_xyz[2];
 }
 
+static void flecsEngine_extract_writeStaticEntry(
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_t *buf,
+    flecsEngine_batch_group_t *ctx,
+    int32_t slot,
+    int32_t i,
+    const FlecsWorldTransform3 *wt,
+    const void *scale_data,
+    ecs_size_t scale_size,
+    flecsEngine_primitive_scale_t scale,
+    flecsEngine_primitive_scale_aabb_t scale_aabb,
+    const FlecsMaterialId *material_id,
+    const FlecsRgba *colors,
+    const FlecsPbrMaterial *materials,
+    const FlecsEmissive *emissives,
+    const FlecsTransmission *transmissions)
+{
+    flecsEngine_batch_buffers_t *bb = &buf->static_buffers;
+
+    FlecsAABB aabb = ctx->mesh.aabb;
+    if (scale_aabb) {
+        scale_aabb(&aabb,
+            scale_data ? ECS_ELEM(scale_data, scale_size, i) : NULL, 1);
+    }
+    flecsEngine_extract_worldAabb(&wt[i], aabb, &bb->cpu_aabb[slot]);
+
+    bb->cpu_slot_to_group[slot] = (uint32_t)ctx->static_view.group_idx;
+
+    vec3 s = {1, 1, 1};
+    if (scale_data) {
+        scale(ECS_ELEM(scale_data, scale_size, i), s);
+    }
+    flecsEngine_batch_transformInstance(
+        &bb->cpu_transforms[slot], &wt[i], s[0], s[1], s[2]);
+
+    if (buf->flags & FLECS_BATCH_OWNS_MATERIAL) {
+        bb->cpu_materials[slot] = flecsEngine_material_pack(
+            engine,
+            colors ? &colors[i] : NULL,
+            materials ? &materials[i] : NULL,
+            emissives ? &emissives[i] : NULL,
+            transmissions ? &transmissions[i] : NULL,
+            NULL);
+    } else if (material_id) {
+        bb->cpu_material_ids[slot] = material_id[0];
+    }
+}
+
 static void flecsEngine_batch_group_extractTable(
     const FlecsEngineImpl *engine,
     flecsEngine_batch_group_t *ctx,
@@ -55,6 +103,74 @@ static void flecsEngine_batch_group_extractTable(
     ecs_iter_t *it)
 {
     flecsEngine_batch_t *buf = ctx->batch;
+
+    const void *scale_data = scale ? ecs_field_w_size(it, scale_size, 0) : NULL;
+    const FlecsWorldTransform3 *wt = ecs_field(it, FlecsWorldTransform3, 1);
+    bool owns_material = (buf->flags & FLECS_BATCH_OWNS_MATERIAL) != 0;
+    const FlecsMaterialId *material_id = NULL;
+    const FlecsRgba *colors = NULL;
+    const FlecsPbrMaterial *materials = NULL;
+    const FlecsEmissive *emissives = NULL;
+    const FlecsTransmission *transmissions = NULL;
+    if (owns_material) {
+        colors = ecs_field(it, FlecsRgba, 3);
+        materials = ecs_field(it, FlecsPbrMaterial, 4);
+        emissives = ecs_field(it, FlecsEmissive, 5);
+        if (buf->flags & FLECS_BATCH_OWNS_TRANSMISSION) {
+            transmissions = ecs_field(it, FlecsTransmission, 6);
+        }
+    } else {
+        material_id = ecs_field(it, FlecsMaterialId, 3);
+    }
+
+    bool is_static = false;
+    if (buf->flags & FLECS_BATCH_TRACK_STATIC) {
+        is_static = !ecs_table_has_id(
+            ecs_get_world(it->world), it->table, FlecsDynamicTransform);
+    }
+
+    if (is_static) {
+        int32_t nfree = ecs_vec_count(&buf->free_slots);
+        int32_t need = buf->static_buffers.count + (it->count - nfree);
+        if (need < buf->static_buffers.count) need = buf->static_buffers.count;
+        if (need > buf->static_buffers.capacity) {
+            flecsEngine_batch_ensureStaticCapacity(engine, buf, need);
+        }
+
+        for (int32_t i = 0; i < it->count; i ++) {
+            ecs_entity_t e = it->entities[i];
+            if (ecs_map_get(&ctx->changed_set, (ecs_map_key_t)e)) {
+                continue;
+            }
+
+            int32_t slot;
+            int32_t *fs = ecs_vec_first_t(&buf->free_slots, int32_t);
+            if (nfree > 0) {
+                slot = fs[nfree - 1];
+                ecs_vec_remove_last(&buf->free_slots);
+                nfree --;
+            } else {
+                slot = buf->static_buffers.count ++;
+            }
+
+            flecsEngine_extract_writeStaticEntry(
+                engine, buf, ctx, slot, i, wt, scale_data, scale_size,
+                scale, scale_aabb, material_id,
+                colors, materials, emissives, transmissions);
+
+            *ecs_vec_append_t(NULL, &ctx->slots, int32_t) = slot;
+
+            ecs_map_ensure(&ctx->changed_set, (ecs_map_key_t)e);
+            *ecs_vec_append_t(NULL, &ctx->changed, ecs_entity_t) = e;
+            *ecs_vec_append_t(NULL, &ctx->changed_slots, int32_t) = slot;
+
+            ecs_set(it->world, e, FlecsBufferSlot, {
+                .group = ctx, .slot = slot
+            });
+        }
+        return;
+    }
+
     int32_t base = ctx->view.offset + ctx->view.count;
     int32_t dst = base;
 
@@ -65,9 +181,6 @@ static void flecsEngine_batch_group_extractTable(
         ctx->view.count += it->count;
         return;
     }
-
-    const void *scale_data = scale ? ecs_field_w_size(it, scale_size, 0) : NULL;
-    const FlecsWorldTransform3 *wt = ecs_field(it, FlecsWorldTransform3, 1);
 
     /* Build world AABBs into the padded GPU buffer. Apply optional primitive
      * scale transformation to a copy of the mesh aabb per entity. */
@@ -99,9 +212,7 @@ static void flecsEngine_batch_group_extractTable(
     }
 
     dst = base;
-    if (!(buf->flags & FLECS_BATCH_OWNS_MATERIAL)) {
-        const FlecsMaterialId *material_id = ecs_field(it, FlecsMaterialId, 3);
-
+    if (!owns_material) {
         for (int32_t i = 0; i < it->count; i ++) {
             vec3 s = {1, 1, 1};
             if (scale_data) {
@@ -116,14 +227,6 @@ static void flecsEngine_batch_group_extractTable(
             dst ++;
         }
     } else {
-        const FlecsRgba *colors = ecs_field(it, FlecsRgba, 3);
-        const FlecsPbrMaterial *materials = ecs_field(it, FlecsPbrMaterial, 4);
-        const FlecsEmissive *emissives = ecs_field(it, FlecsEmissive, 5);
-        const FlecsTransmission *transmissions = NULL;
-        if ((buf->flags & FLECS_BATCH_OWNS_TRANSMISSION)) {
-            transmissions = ecs_field(it, FlecsTransmission, 6);
-        }
-
         for (int32_t i = 0; i < it->count; i ++) {
             vec3 s = {1, 1, 1};
             if (scale_data) {
