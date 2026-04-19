@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "private.h"
+#include "modules/renderer/gpu_timing.h"
 
 WGPUShaderModule flecsEngine_createShaderModule(
     WGPUDevice device,
@@ -196,10 +197,34 @@ bool flecsEngine_fullscreenPass(
     WGPULoadOp load_op,
     WGPUColor clear_value,
     WGPURenderPipeline pipeline,
-    WGPUBindGroup bind_group)
+    WGPUBindGroup bind_group,
+    FlecsEngineImpl *engine,
+    const char *ts_name,
+    const WGPURenderPassTimestampWrites *ts_writes)
 {
-    WGPURenderPassEncoder pass = flecsEngine_beginColorPass(
-        encoder, view, load_op, clear_value);
+    WGPURenderPassTimestampWrites ts_local;
+    if (!ts_writes && engine && ts_name) {
+        int ts_pair = flecsEngine_gpuTiming_allocPair(engine, ts_name);
+        if (ts_pair >= 0) {
+            flecsEngine_gpuTiming_renderPassTimestamps(
+                engine, ts_pair, &ts_local);
+            ts_writes = &ts_local;
+        }
+    }
+
+    WGPURenderPassColorAttachment color_att = {
+        .view = view,
+        WGPU_DEPTH_SLICE
+        .loadOp = load_op,
+        .storeOp = WGPUStoreOp_Store,
+        .clearValue = clear_value
+    };
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
+        encoder, &(WGPURenderPassDescriptor){
+            .colorAttachmentCount = 1,
+            .colorAttachments = &color_att,
+            .timestampWrites = ts_writes
+        });
     if (!pass) {
         return false;
     }

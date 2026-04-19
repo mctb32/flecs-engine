@@ -436,7 +436,8 @@ static void flecsEngine_textureArray_fillBucketFallback(
 /* ---- Bind group ---- */
 
 static void flecsEngine_textureArray_createBindGroup(
-    FlecsEngineImpl *impl)
+    FlecsEngineImpl *impl,
+    uint16_t max_aniso)
 {
     for (int b = 0; b < FLECS_ENGINE_TEXTURE_BUCKET_COUNT; b++) {
         flecsEngine_texture_bucket_t *bk = &impl->textures.buckets[b];
@@ -459,7 +460,9 @@ static void flecsEngine_textureArray_createBindGroup(
         }
     }
 
-    WGPUSampler sampler = flecsEngine_pbr_texture_ensureSampler(impl);
+    flecsEngine_pbr_texture_ensureSamplers(impl, max_aniso);
+    WGPUSampler aniso_sampler = impl->textures.pbr_sampler;
+    WGPUSampler low_sampler   = impl->textures.pbr_low_sampler;
     WGPUBindGroupLayout layout =
         flecsEngine_textures_ensureBindLayout(impl);
 
@@ -475,7 +478,7 @@ static void flecsEngine_textureArray_createBindGroup(
         }
     }
 
-    WGPUBindGroupEntry entries[13];
+    WGPUBindGroupEntry entries[14];
     for (uint32_t i = 0; i < 12; i++) {
         entries[i] = (WGPUBindGroupEntry){
             .binding = i,
@@ -484,7 +487,11 @@ static void flecsEngine_textureArray_createBindGroup(
     }
     entries[12] = (WGPUBindGroupEntry){
         .binding = 12,
-        .sampler = sampler
+        .sampler = aniso_sampler
+    };
+    entries[13] = (WGPUBindGroupEntry){
+        .binding = 13,
+        .sampler = low_sampler
     };
 
     impl->textures.array_bind_group =
@@ -492,7 +499,7 @@ static void flecsEngine_textureArray_createBindGroup(
             &(WGPUBindGroupDescriptor){
                 .layout = layout,
                 .entries = entries,
-                .entryCount = 13
+                .entryCount = 14
             });
 }
 
@@ -509,6 +516,11 @@ void flecsEngine_material_buildTextureArrays(
     flecsEngine_textureArray_release(impl);
     flecsEngine_pbr_texture_ensureFallbacks(impl);
 
+    const FlecsSurface *surface = ecs_get(world, impl->surface, FlecsSurface);
+    uint16_t max_aniso = (surface && surface->anisotropy != FlecsAnisotropyDefault)
+        ? (uint16_t)surface->anisotropy
+        : (uint16_t)FlecsAnisotropyHigh;
+
     /* Pass 1: format census — decide BC7 vs RGBA8 per bucket. */
     flecs_format_census_t census[FLECS_ENGINE_TEXTURE_BUCKET_COUNT];
     flecsEngine_textureArray_censusFormats(world, impl, census);
@@ -523,7 +535,7 @@ void flecsEngine_material_buildTextureArrays(
         /* No textured materials. Still build a bind group using the
          * fallback views so that pbr batches (which always
          * declare the texture array bindings) can draw. */
-        flecsEngine_textureArray_createBindGroup(impl);
+        flecsEngine_textureArray_createBindGroup(impl, max_aniso);
         return;
     }
 
@@ -559,5 +571,5 @@ void flecsEngine_material_buildTextureArrays(
             (uint64_t)impl->materials.count * sizeof(FlecsGpuMaterial));
     }
 
-    flecsEngine_textureArray_createBindGroup(impl);
+    flecsEngine_textureArray_createBindGroup(impl, max_aniso);
 }

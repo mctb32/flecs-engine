@@ -60,6 +60,9 @@ ECS_STRUCT(flecs_render_view_effect_t, {
 ECS_STRUCT(FlecsRenderView, {
     ecs_entity_t camera;
     ecs_entity_t light;
+    ecs_entity_t moon_light;   /* optional; directional light representing the
+                                * moon, used by the atmosphere as a secondary
+                                * light source for night sky and moonlight. */
     ecs_entity_t atmosphere;   /* entity with FlecsAtmosphere component; when
                                 * set, supplies sky + aerial perspective + IBL
                                 * and takes precedence over `hdri` */
@@ -68,7 +71,6 @@ ECS_STRUCT(FlecsRenderView, {
     ecs_f32_t screen_px_threshold;  /* min projected bounding-sphere diameter
                                       * in pixels; instances smaller than this
                                       * are culled. 0 disables. */
-    ecs_bool_t depth_prepass;
     flecs_engine_shadow_params_t shadow;
     ecs_vec_t effects;
 });

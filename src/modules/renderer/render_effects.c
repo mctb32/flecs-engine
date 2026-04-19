@@ -54,16 +54,21 @@ static bool flecsEngine_renderEffect_createInputSampler(
     return impl->input_sampler != NULL;
 }
 
-void flecsEngine_renderEffect_render(
+bool flecsEngine_renderEffect_render(
     const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
-    const WGPURenderPassEncoder pass,
+    WGPUCommandEncoder encoder,
+    WGPUTextureView output_view,
+    WGPULoadOp load_op,
+    WGPUColor clear_value,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
     FlecsRenderEffectImpl *impl,
     WGPUTextureView input_view,
-    WGPUTextureFormat output_format)
+    WGPUTextureFormat output_format,
+    const char *ts_name,
+    const WGPURenderPassTimestampWrites *ts_writes)
 {
     ecs_assert(effect != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(impl != NULL, ECS_INVALID_PARAMETER, NULL);
@@ -101,9 +106,9 @@ void flecsEngine_renderEffect_render(
             : impl->pipeline_hdr;
     ecs_assert(pipeline != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-    wgpuRenderPassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
-    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+    return flecsEngine_fullscreenPass(
+        encoder, output_view, load_op, clear_value,
+        pipeline, bind_group, engine, ts_name, ts_writes);
 }
 
 static int32_t flecsEngine_resolveEffectInput(
@@ -161,9 +166,10 @@ void flecsEngine_renderView_renderEffects(
         }
 
         flecsEngine_fullscreenPass(
-            encoder, view_texture, WGPULoadOp_Load, (WGPUColor){0, 0, 0, 1},
+            encoder, view_texture, WGPULoadOp_Clear, (WGPUColor){0, 0, 0, 1},
             engine->pipelines.passthrough_pipeline,
-            viewImpl->passthrough_bind_group);
+            viewImpl->passthrough_bind_group,
+            engine, "Passthrough", NULL);
         FLECS_TRACY_ZONE_END;
         return;
     }
@@ -188,8 +194,8 @@ void flecsEngine_renderView_renderEffects(
         ecs_assert(effect->input >= 0, ECS_INVALID_PARAMETER, NULL);
         ecs_assert(effect->input <= i, ECS_INVALID_PARAMETER, NULL);
 
-        FLECS_TRACY_ZONE_BEGIN_DYN(effect_zone, "Effect",
-            ecs_get_name(world, entity));
+        const char *effect_name = ecs_get_name(world, entity);
+        FLECS_TRACY_ZONE_BEGIN_DYN(effect_zone, "Effect", effect_name);
 
         bool is_last = (i == last_enabled);
         bool writes_to_final = is_last && !needs_upscale;
@@ -229,22 +235,13 @@ void flecsEngine_renderView_renderEffects(
             continue;
         }
 
-        WGPURenderPassEncoder effect_pass = flecsEngine_beginColorPass(
-            encoder, output_view, load_op, (WGPUColor){0, 0, 0, 1});
-
         flecsEngine_renderEffect_render(
-            world,
-            engine,
-            viewImpl,
-            effect_pass,
-            entity,
-            effect,
-            effect_impl,
-            input_view,
-            output_format);
+            world, engine, viewImpl, encoder,
+            output_view, load_op, (WGPUColor){0, 0, 0, 1},
+            entity, effect, effect_impl,
+            input_view, output_format,
+            effect_name ? effect_name : "Effect", NULL);
 
-        wgpuRenderPassEncoderEnd(effect_pass);
-        wgpuRenderPassEncoderRelease(effect_pass);
         FLECS_TRACY_ZONE_END_N(effect_zone);
     }
 
@@ -272,9 +269,10 @@ void flecsEngine_renderView_renderEffects(
         }
 
         flecsEngine_fullscreenPass(
-            encoder, view_texture, WGPULoadOp_Load, (WGPUColor){0, 0, 0, 1},
+            encoder, view_texture, WGPULoadOp_Clear, (WGPUColor){0, 0, 0, 1},
             engine->pipelines.passthrough_pipeline,
-            viewImpl->upscale_bind_group);
+            viewImpl->upscale_bind_group,
+            engine, "Upscale", NULL);
     }
     FLECS_TRACY_ZONE_END;
 }

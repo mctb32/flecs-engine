@@ -35,6 +35,8 @@ view.atmosphere {
         ozone_scale: 2,
         stratospheric_aerosol_scale: 1.5,
         ground_albedo: {180, 160, 140, 255}
+        night_tint: {70, 110, 230, 255 }
+        night_intensity: 0.003
     }
 }
 
@@ -58,7 +60,6 @@ view.heightFog {
         base_height: 0,
         max_opacity: 1,
         atmosphere: view.atmosphere
-        horizon_offset: 0.07
     }
 }
 
@@ -1122,5 +1123,5 @@ template KenneyCity {
 
 KenneyCity city(150) {
   Position3: {y: 1}
-  Scale3: {4, 4, 4}
+  Scale3: {8, 8, 8}
 }

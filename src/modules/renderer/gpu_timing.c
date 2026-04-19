@@ -39,7 +39,7 @@ int flecsEngine_gpuTiming_init(FlecsEngineImpl *engine)
         t->slots[i].state = FLECS_GPU_TIMING_IDLE;
     }
 
-    t->enabled = true;
+    t->capable = true;
     t->cur_slot = -1;
     t->next_slot = 0;
     return 0;
@@ -58,10 +58,10 @@ void flecsEngine_gpuTiming_fini(FlecsEngineImpl *engine)
     }
 }
 
-bool flecsEngine_gpuTiming_beginFrame(FlecsEngineImpl *engine)
+bool flecsEngine_gpuTiming_beginFrame(FlecsEngineImpl *engine, bool wanted)
 {
     flecsEngine_gpuTiming_t *t = &engine->gpu_timing;
-    if (!t->enabled) {
+    if (!t->capable || !wanted) {
         t->cur_slot = -1;
         return false;
     }
@@ -104,7 +104,7 @@ void flecsEngine_gpuTiming_computePassTimestamps(
     WGPUComputePassTimestampWrites *out)
 {
     flecsEngine_gpuTiming_t *t = &engine->gpu_timing;
-    out->querySet = (t->enabled && pair_idx >= 0) ? t->query_set : NULL;
+    out->querySet = (t->capable && pair_idx >= 0) ? t->query_set : NULL;
     out->beginningOfPassWriteIndex = (uint32_t)(pair_idx * 2);
     out->endOfPassWriteIndex = (uint32_t)(pair_idx * 2 + 1);
 }
@@ -115,9 +115,37 @@ void flecsEngine_gpuTiming_renderPassTimestamps(
     WGPURenderPassTimestampWrites *out)
 {
     flecsEngine_gpuTiming_t *t = &engine->gpu_timing;
-    out->querySet = (t->enabled && pair_idx >= 0) ? t->query_set : NULL;
+    out->querySet = (t->capable && pair_idx >= 0) ? t->query_set : NULL;
     out->beginningOfPassWriteIndex = (uint32_t)(pair_idx * 2);
     out->endOfPassWriteIndex = (uint32_t)(pair_idx * 2 + 1);
+}
+
+const WGPURenderPassTimestampWrites *flecsEngine_gpuTiming_renderPassBegin(
+    FlecsEngineImpl *engine,
+    int pair_idx,
+    WGPURenderPassTimestampWrites *out)
+{
+    if (pair_idx < 0) {
+        return NULL;
+    }
+    out->querySet = engine->gpu_timing.query_set;
+    out->beginningOfPassWriteIndex = (uint32_t)(pair_idx * 2);
+    out->endOfPassWriteIndex = WGPU_QUERY_SET_INDEX_UNDEFINED;
+    return out;
+}
+
+const WGPURenderPassTimestampWrites *flecsEngine_gpuTiming_renderPassEnd(
+    FlecsEngineImpl *engine,
+    int pair_idx,
+    WGPURenderPassTimestampWrites *out)
+{
+    if (pair_idx < 0) {
+        return NULL;
+    }
+    out->querySet = engine->gpu_timing.query_set;
+    out->beginningOfPassWriteIndex = WGPU_QUERY_SET_INDEX_UNDEFINED;
+    out->endOfPassWriteIndex = (uint32_t)(pair_idx * 2 + 1);
+    return out;
 }
 
 void flecsEngine_gpuTiming_endFrame(
@@ -187,6 +215,9 @@ void flecsEngine_gpuTiming_afterSubmit(FlecsEngineImpl *engine)
 void flecsEngine_gpuTiming_logIfReady(FlecsEngineImpl *engine)
 {
     flecsEngine_gpuTiming_t *t = &engine->gpu_timing;
+    if (!t->capable) {
+        return;
+    }
     for (int i = 0; i < FLECS_GPU_TIMING_RING; i ++) {
         flecsEngine_gpuTimingSlot_t *slot = &t->slots[i];
         if (slot->state != FLECS_GPU_TIMING_READY) continue;
@@ -202,16 +233,20 @@ void flecsEngine_gpuTiming_logIfReady(FlecsEngineImpl *engine)
 
         printf("[gpu-timing frame %llu]",
             (unsigned long long)slot->frame_id);
-        uint64_t total_ns = 0;
+        uint64_t min_begin = UINT64_MAX;
+        uint64_t max_end = 0;
         for (int p = 0; p < slot->pair_count; p ++) {
             uint64_t t0 = data[p * 2];
             uint64_t t1 = data[p * 2 + 1];
             uint64_t dt = (t1 >= t0) ? (t1 - t0) : 0;
-            total_ns += dt;
+            if (t0 && t0 < min_begin) min_begin = t0;
+            if (t1 > max_end) max_end = t1;
             printf("  %s=%.3fms", slot->pairs[p].name,
                 (double)dt / 1.0e6);
         }
-        printf("  total=%.3fms\n", (double)total_ns / 1.0e6);
+        uint64_t span_ns = (max_end > min_begin && min_begin != UINT64_MAX)
+            ? (max_end - min_begin) : 0;
+        printf("  frame=%.3fms\n", (double)span_ns / 1.0e6);
 
         wgpuBufferUnmap(slot->readback_buffer);
         slot->state = FLECS_GPU_TIMING_IDLE;

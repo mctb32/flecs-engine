@@ -2,6 +2,7 @@
 
 #include "../../renderer.h"
 #include "../../mip_pyramid.h"
+#include "../../gpu_timing.h"
 #include "flecs_engine.h"
 
 ECS_COMPONENT_DECLARE(FlecsBloom);
@@ -383,10 +384,22 @@ static bool flecsEngine_bloom_runPass(
     WGPUTextureView target_view,
     WGPULoadOp load_op,
     bool use_blend_constant,
-    float blend_value)
+    float blend_value,
+    const WGPURenderPassTimestampWrites *ts_writes)
 {
-    WGPURenderPassEncoder pass = flecsEngine_beginColorPass(
-        encoder, target_view, load_op, (WGPUColor){0});
+    WGPURenderPassColorAttachment color_att = {
+        .view = target_view,
+        WGPU_DEPTH_SLICE
+        .loadOp = load_op,
+        .storeOp = WGPUStoreOp_Store,
+        .clearValue = (WGPUColor){0}
+    };
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
+        encoder, &(WGPURenderPassDescriptor){
+            .colorAttachmentCount = 1,
+            .colorAttachments = &color_att,
+            .timestampWrites = ts_writes
+        });
     if (!pass) {
         return false;
     }
@@ -610,7 +623,7 @@ static bool flecsEngine_bloom_setup(
 
 static bool flecsEngine_bloom_renderPassthrough(
     const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
@@ -619,32 +632,19 @@ static bool flecsEngine_bloom_renderPassthrough(
     WGPUTextureView input_view,
     WGPUTextureView output_view,
     WGPUTextureFormat output_format,
-    WGPULoadOp output_load_op)
+    WGPULoadOp output_load_op,
+    const char *ts_name)
 {
-    WGPURenderPassEncoder pass = flecsEngine_beginColorPass(
-        encoder, output_view, output_load_op, (WGPUColor){0});
-    if (!pass) {
-        return false;
-    }
-
-    flecsEngine_renderEffect_render(
-        world,
-        engine,
-        view_impl,
-        pass,
-        effect_entity,
-        effect,
-        effect_impl,
-        input_view,
-        output_format);
-    wgpuRenderPassEncoderEnd(pass);
-    wgpuRenderPassEncoderRelease(pass);
-    return true;
+    return flecsEngine_renderEffect_render(
+        world, engine, view_impl, encoder,
+        output_view, output_load_op, (WGPUColor){0},
+        effect_entity, effect, effect_impl,
+        input_view, output_format, ts_name, NULL);
 }
 
 static bool flecsEngine_bloom_render(
     const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder,
     ecs_entity_t effect_entity,
@@ -663,19 +663,14 @@ static bool flecsEngine_bloom_render(
     const FlecsBloom *bloom = ecs_get(world, effect_entity, FlecsBloom);
     ecs_assert(bloom != NULL, ECS_INVALID_OPERATION, NULL);
 
+    const char *ts_name = ecs_get_name(world, effect_entity);
+    if (!ts_name) ts_name = "Bloom";
+
     if (bloom->intensity <= 0.0f) {
         return flecsEngine_bloom_renderPassthrough(
-            world,
-            engine,
-            view_impl,
-            effect_entity,
-            effect,
-            effect_impl,
-            encoder,
-            input_view,
-            output_view,
-            output_format,
-            output_load_op);
+            world, engine, view_impl, effect_entity, effect, effect_impl,
+            encoder, input_view, output_view, output_format, output_load_op,
+            ts_name);
     }
 
     if (!flecsEngine_bloom_ensureTexture(world, engine, bloom, impl)) {
@@ -697,6 +692,13 @@ static bool flecsEngine_bloom_render(
         return false;
     }
 
+    int ts_pair = flecsEngine_gpuTiming_allocPair(engine, ts_name);
+    WGPURenderPassTimestampWrites ts_b, ts_e;
+    const WGPURenderPassTimestampWrites *ts_begin =
+        flecsEngine_gpuTiming_renderPassBegin(engine, ts_pair, &ts_b);
+    const WGPURenderPassTimestampWrites *ts_end =
+        flecsEngine_gpuTiming_renderPassEnd(engine, ts_pair, &ts_e);
+
     if (!flecsEngine_bloom_runPass(
         encoder,
         impl->downsample_first_pipeline,
@@ -704,7 +706,8 @@ static bool flecsEngine_bloom_render(
         impl->mip_views[0],
         WGPULoadOp_Clear,
         false,
-        0.0f))
+        0.0f,
+        ts_begin))
     {
         return false;
     }
@@ -717,7 +720,8 @@ static bool flecsEngine_bloom_render(
             impl->mip_views[mip],
             WGPULoadOp_Clear,
             false,
-            0.0f))
+            0.0f,
+            NULL))
         {
             return false;
         }
@@ -734,7 +738,8 @@ static bool flecsEngine_bloom_render(
             impl->mip_views[mip - 1u],
             WGPULoadOp_Load,
             true,
-            blend))
+            blend,
+            NULL))
         {
             return false;
         }
@@ -749,17 +754,9 @@ static bool flecsEngine_bloom_render(
         bloom, 0.0f, max_mip);
 
     if (!flecsEngine_bloom_renderPassthrough(
-        world,
-        engine,
-        view_impl,
-        effect_entity,
-        effect,
-        effect_impl,
-        encoder,
-        input_view,
-        output_view,
-        output_format,
-        output_load_op))
+        world, engine, view_impl, effect_entity, effect, effect_impl,
+        encoder, input_view, output_view, output_format, output_load_op,
+        NULL))
     {
         return false;
     }
@@ -771,7 +768,8 @@ static bool flecsEngine_bloom_render(
         output_view,
         WGPULoadOp_Load,
         true,
-        final_blend);
+        final_blend,
+        ts_end);
 }
 
 ecs_entity_t flecsEngine_createEffect_bloom(

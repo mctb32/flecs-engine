@@ -28,7 +28,10 @@ bool flecsEngine_fullscreenPass(
     WGPULoadOp load_op,
     WGPUColor clear_value,
     WGPURenderPipeline pipeline,
-    WGPUBindGroup bind_group);
+    WGPUBindGroup bind_group,
+    FlecsEngineImpl *engine,
+    const char *ts_name,
+    const WGPURenderPassTimestampWrites *ts_writes);
 
 WGPUComputePipeline flecsEngine_createComputePipeline(
     const FlecsEngineImpl *impl,

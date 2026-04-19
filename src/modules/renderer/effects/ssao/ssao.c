@@ -1,4 +1,5 @@
 #include "../../renderer.h"
+#include "../../gpu_timing.h"
 #include "flecs_engine.h"
 
 ECS_COMPONENT_DECLARE(FlecsSSAO);
@@ -577,7 +578,7 @@ static bool flecsEngine_ssao_ensureBlurTexture(
 
 static bool flecsEngine_ssao_render(
     const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder,
     ecs_entity_t effect_entity,
@@ -596,20 +597,15 @@ static bool flecsEngine_ssao_render(
     ecs_assert(ssao != NULL, ECS_INVALID_OPERATION, NULL);
     ecs_assert(impl != NULL, ECS_INVALID_OPERATION, NULL);
 
-    if (ssao->blur <= 0) {
-        /* No blur: render SSAO composited directly to output */
-        WGPURenderPassEncoder pass = flecsEngine_beginColorPass(
-            encoder, output_view, output_load_op, (WGPUColor){0});
-        if (!pass) {
-            return false;
-        }
+    const char *ts_name = ecs_get_name(world, effect_entity);
+    if (!ts_name) ts_name = "SSAO";
 
-        flecsEngine_renderEffect_render(
-            world, engine, view_impl, pass, effect_entity,
-            effect, effect_impl, input_view, output_format);
-        wgpuRenderPassEncoderEnd(pass);
-        wgpuRenderPassEncoderRelease(pass);
-        return true;
+    if (ssao->blur <= 0) {
+        return flecsEngine_renderEffect_render(
+            world, engine, view_impl, encoder,
+            output_view, output_load_op, (WGPUColor){0},
+            effect_entity, effect, effect_impl,
+            input_view, output_format, ts_name, NULL);
     }
 
     const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
@@ -634,23 +630,19 @@ static bool flecsEngine_ssao_render(
         return false;
     }
 
-    /* Pass 1: SSAO → intermediate (AO factor only) */
-    {
-        WGPUTextureFormat hdr_format = flecsEngine_getHdrFormat(engine);
+    int ts_pair = flecsEngine_gpuTiming_allocPair(engine, ts_name);
+    WGPURenderPassTimestampWrites ts_b, ts_e;
+    const WGPURenderPassTimestampWrites *ts_begin =
+        flecsEngine_gpuTiming_renderPassBegin(engine, ts_pair, &ts_b);
+    const WGPURenderPassTimestampWrites *ts_end =
+        flecsEngine_gpuTiming_renderPassEnd(engine, ts_pair, &ts_e);
 
-        WGPURenderPassEncoder pass = flecsEngine_beginColorPass(
-            encoder, impl->blur_intermediate_view, WGPULoadOp_Clear,
-            (WGPUColor){ .r = 1, .g = 1, .b = 1, .a = 1 });
-        if (!pass) {
-            return false;
-        }
-
-        flecsEngine_renderEffect_render(
-            world, engine, view_impl, pass, effect_entity,
-            effect, effect_impl, input_view, hdr_format);
-        wgpuRenderPassEncoderEnd(pass);
-        wgpuRenderPassEncoderRelease(pass);
-    }
+    flecsEngine_renderEffect_render(
+        world, engine, view_impl, encoder,
+        impl->blur_intermediate_view, WGPULoadOp_Clear,
+        (WGPUColor){ .r = 1, .g = 1, .b = 1, .a = 1 },
+        effect_entity, effect, effect_impl,
+        input_view, flecsEngine_getHdrFormat(engine), NULL, ts_begin);
 
     /* Pass 2: Cross-bilateral blur of AO + composite with scene */
     {
@@ -681,7 +673,7 @@ static bool flecsEngine_ssao_render(
 
         flecsEngine_fullscreenPass(
             encoder, output_view, output_load_op, (WGPUColor){0},
-            blur_pipeline, blur_bind_group);
+            blur_pipeline, blur_bind_group, NULL, NULL, ts_end);
     }
 
     return true;

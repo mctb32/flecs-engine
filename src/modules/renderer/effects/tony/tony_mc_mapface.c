@@ -6,16 +6,19 @@ ECS_COMPONENT_DECLARE(FlecsTonyImpl);
 
 static const char *kShaderSource =
     FLECS_ENGINE_FULLSCREEN_VS_WGSL
+    "struct ExposureBuf { ev : f32, scale : f32 };\n"
     "@group(0) @binding(0) var input_texture : texture_2d<f32>;\n"
     "@group(0) @binding(1) var input_sampler : sampler;\n"
     "@group(0) @binding(2) var tony_lut : texture_3d<f32>;\n"
     "@group(0) @binding(3) var tony_lut_sampler : sampler;\n"
+    "@group(0) @binding(4) var<uniform> exposure_data : ExposureBuf;\n"
     "fn interleaved_gradient_noise(pixel : vec2<f32>) -> f32 {\n"
     "  return fract(52.9829189 * fract(0.06711056 * pixel.x + 0.00583715 * pixel.y));\n"
     "}\n"
     "@fragment fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {\n"
     "  let src = textureSample(input_texture, input_sampler, in.uv);\n"
-    "  let encoded = src.rgb / (src.rgb + vec3<f32>(1.0));\n"
+    "  let exposed = src.rgb * exposure_data.scale;\n"
+    "  let encoded = exposed / (exposed + vec3<f32>(1.0));\n"
     "  let dims = vec3<f32>(textureDimensions(tony_lut));\n"
     "  let uv = clamp(encoded * ((dims - vec3<f32>(1.0)) / dims) + (vec3<f32>(0.5) / dims),\n"
     "                 vec3<f32>(0.0), vec3<f32>(1.0));\n"
@@ -44,6 +47,7 @@ static void flecsEngine_tony_releaseResources(
     FLECS_WGPU_RELEASE(impl->tony_lut_sampler, wgpuSamplerRelease);
     FLECS_WGPU_RELEASE(impl->tony_lut_texture_view, wgpuTextureViewRelease);
     FLECS_WGPU_RELEASE(impl->tony_lut_texture, wgpuTextureRelease);
+    FLECS_WGPU_RELEASE(impl->fallback_exposure_buffer, wgpuBufferRelease);
 }
 
 ECS_DTOR(FlecsTonyImpl, ptr, {
@@ -72,7 +76,12 @@ static bool flecsEngine_tony_setup(
     ecs_assert(entry_count != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(*entry_count == 2, ECS_INVALID_PARAMETER, NULL);
 
+    FlecsTonyImpl *existing = ecs_get_mut(
+        (ecs_world_t*)world, effect_entity, FlecsTonyImpl);
+    ecs_entity_t auto_exposure = existing ? existing->auto_exposure : 0;
+
     FlecsTonyImpl tony = {0};
+    tony.auto_exposure = auto_exposure;
 
     tony.tony_lut_sampler = flecsEngine_createLinearClampSampler(engine->device);
     if (!tony.tony_lut_sampler) {
@@ -143,6 +152,21 @@ static bool flecsEngine_tony_setup(
         &data_layout,
         &write_size);
 
+    tony.fallback_exposure_buffer = wgpuDeviceCreateBuffer(engine->device,
+        &(WGPUBufferDescriptor){
+            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+            .size = 2 * sizeof(float)
+        });
+    if (!tony.fallback_exposure_buffer) {
+        flecsEngine_tony_releaseResources(&tony);
+        return false;
+    }
+    {
+        float init[2] = { 0.0f, 1.0f };
+        wgpuQueueWriteBuffer(engine->queue, tony.fallback_exposure_buffer, 0,
+            init, sizeof(init));
+    }
+
     layout_entries[2] = (WGPUBindGroupLayoutEntry){
         .binding = 2,
         .visibility = WGPUShaderStage_Fragment,
@@ -161,9 +185,18 @@ static bool flecsEngine_tony_setup(
         }
     };
 
+    layout_entries[4] = (WGPUBindGroupLayoutEntry){
+        .binding = 4,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer = {
+            .type = WGPUBufferBindingType_Uniform,
+            .minBindingSize = 2 * sizeof(float)
+        }
+    };
+
     ecs_set_ptr((ecs_world_t*)world, effect_entity, FlecsTonyImpl, &tony);
 
-    *entry_count = 4;
+    *entry_count = 5;
     return true;
 }
 
@@ -191,6 +224,15 @@ static bool flecsEngine_tony_bind(
         return false;
     }
 
+    WGPUBuffer exposure_buffer = tony->fallback_exposure_buffer;
+    if (tony->auto_exposure) {
+        const FlecsAutoExposureImpl *ae_impl = ecs_get(
+            world, tony->auto_exposure, FlecsAutoExposureImpl);
+        if (ae_impl && ae_impl->exposure_buffer) {
+            exposure_buffer = ae_impl->exposure_buffer;
+        }
+    }
+
     entries[2] = (WGPUBindGroupEntry){
         .binding = 2,
         .textureView = tony->tony_lut_texture_view
@@ -201,7 +243,14 @@ static bool flecsEngine_tony_bind(
         .sampler = tony->tony_lut_sampler
     };
 
-    *entry_count = 4;
+    entries[4] = (WGPUBindGroupEntry){
+        .binding = 4,
+        .buffer = exposure_buffer,
+        .offset = 0,
+        .size = 2 * sizeof(float)
+    };
+
+    *entry_count = 5;
     return true;
 }
 
@@ -209,9 +258,13 @@ ecs_entity_t flecsEngine_createEffect_tonyMcMapFace(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name,
-    int32_t input)
+    int32_t input,
+    ecs_entity_t auto_exposure)
 {
     ecs_entity_t effect = ecs_entity(world, { .parent = parent, .name = name });
+
+    ecs_set(world, effect, FlecsTonyImpl, { .auto_exposure = auto_exposure });
+
     ecs_set(world, effect, FlecsRenderEffect, {
         .shader = flecsEngine_tony_shader(world),
         .input = input,

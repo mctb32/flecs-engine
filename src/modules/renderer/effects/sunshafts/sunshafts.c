@@ -99,10 +99,20 @@ static void flecsEngine_sunShafts_fillUniform(
     uniform->params[2] = shafts->decay;
     uniform->params[3] = shafts->exposure;
 
-    uniform->color[0] = flecsEngine_colorChannelToFloat(shafts->color.r);
-    uniform->color[1] = flecsEngine_colorChannelToFloat(shafts->color.g);
-    uniform->color[2] = flecsEngine_colorChannelToFloat(shafts->color.b);
-    uniform->color[3] = flecsEngine_colorChannelToFloat(shafts->color.a);
+    const FlecsRgba *shaft_rgb = &shafts->color;
+    FlecsRgba light_rgb;
+    if (shafts->light) {
+        const FlecsRgba *light_color = ecs_get(world, shafts->light, FlecsRgba);
+        if (light_color) {
+            light_rgb = *light_color;
+            shaft_rgb = &light_rgb;
+        }
+    }
+
+    uniform->color[0] = flecsEngine_colorChannelToFloat(shaft_rgb->r);
+    uniform->color[1] = flecsEngine_colorChannelToFloat(shaft_rgb->g);
+    uniform->color[2] = flecsEngine_colorChannelToFloat(shaft_rgb->b);
+    uniform->color[3] = flecsEngine_colorChannelToFloat(shaft_rgb->a);
 
     ecs_entity_t view_entity = ecs_get_target(world, effect_entity, EcsChildOf, 0);
     if (!view_entity) return;
@@ -320,7 +330,8 @@ void flecsEngine_sunShafts_register(
             { .name = "weight", .type = ecs_id(ecs_f32_t) },
             { .name = "decay", .type = ecs_id(ecs_f32_t) },
             { .name = "exposure", .type = ecs_id(ecs_f32_t) },
-            { .name = "color", .type = ecs_id(flecs_rgba_t) }
+            { .name = "color", .type = ecs_id(flecs_rgba_t) },
+            { .name = "light", .type = ecs_id(ecs_entity_t) }
         }
     });
 }

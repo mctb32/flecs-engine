@@ -163,10 +163,14 @@ static void page_bindings(ecs_strbuf_t *b, const FlecsEngineImpl *impl)
 
     ecs_strbuf_appendlit(b, "</table>");
 
-    ecs_strbuf_appendlit(b, "<h2>Group 1 — Sampler</h2>");
+    ecs_strbuf_appendlit(b, "<h2>Group 1 — Samplers</h2>");
     ecs_strbuf_append(b,
-        "<p>Binding 12: filtering sampler (trilinear, 16x aniso, repeat) — %s</p>",
+        "<p>Binding 12: aniso sampler (albedo + normal, %ux aniso, repeat) — %s</p>",
+        (unsigned)impl->textures.applied_max_aniso,
         impl->textures.pbr_sampler ? "created" : "not created");
+    ecs_strbuf_append(b,
+        "<p>Binding 13: trilinear sampler (emissive + metal-rough, 1x aniso, repeat) — %s</p>",
+        impl->textures.pbr_low_sampler ? "created" : "not created");
 
     html_tail(b);
 }

@@ -160,16 +160,6 @@ void flecsEngine_batch_group_draw(
         ctx, pass, 0, ctx->mesh.vertex_uv_buffer);
 }
 
-void flecsEngine_batch_group_drawDepthPrepass(
-    const FlecsEngineImpl *engine,
-    const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_group_t *ctx)
-{
-    (void)engine;
-    flecsEngine_batch_group_drawView(
-        ctx, pass, 0, ctx->mesh.vertex_buffer);
-}
-
 void flecsEngine_batch_group_drawShadow(
     const FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
@@ -190,16 +180,6 @@ void flecsEngine_batch_group_drawStatic(
     (void)engine;
     flecsEngine_batch_group_drawViewStatic(
         ctx, pass, 0, ctx->mesh.vertex_uv_buffer);
-}
-
-void flecsEngine_batch_group_drawDepthPrepassStatic(
-    const FlecsEngineImpl *engine,
-    const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_group_t *ctx)
-{
-    (void)engine;
-    flecsEngine_batch_group_drawViewStatic(
-        ctx, pass, 0, ctx->mesh.vertex_buffer);
 }
 
 void flecsEngine_batch_group_drawShadowStatic(

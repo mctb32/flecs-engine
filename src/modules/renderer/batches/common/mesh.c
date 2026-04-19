@@ -71,34 +71,63 @@ void* flecsEngine_mesh_getCullBuf(
     return batch->ctx;
 }
 
-static void flecsEngine_mesh_extractGroup(
+static void flecsEngine_mesh_extractDynamic(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderBatch *batch,
-    uint64_t group_id,
-    flecsEngine_batch_t *shared)
+    flecsEngine_batch_t *shared,
+    const ecs_map_t *groups)
 {
-    if (!group_id) {
-        return;
-    }
+    flecsEngine_batch_dynamicExtract_t s;
+    do {
+        flecsEngine_batch_dynamicExtract_begin(&s, shared);
 
-    flecsEngine_batch_group_t *ctx =
-        ecs_query_get_group_ctx(batch->query, group_id);
-    ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
+        ecs_map_iter_t git = ecs_map_iter(groups);
+        while (ecs_map_next(&git)) {
+            uint64_t group_id = ecs_map_key(&git);
+            if (!group_id) continue;
 
-    const FlecsMesh3Impl *mesh = ecs_get(
-        world, (ecs_entity_t)group_id, FlecsMesh3Impl);
-    if (!mesh || !mesh->index_buffer || !mesh->index_count) {
-        ctx->view.count = 0;
-        ctx->static_view.count = 0;
-        ctx->static_view.group_idx = -1;
-        ecs_os_zeromem(&ctx->mesh);
-        return;
-    }
+            flecsEngine_batch_group_t *ctx =
+                ecs_query_get_group_ctx(batch->query, group_id);
+            if (!ctx) continue;
 
-    ctx->mesh = *mesh;
-    ctx->batch = shared;
-    flecsEngine_batch_group_extract(world, engine, batch, ctx, NULL, NULL, 0);
+            const FlecsMesh3Impl *mesh = ecs_get(
+                world, (ecs_entity_t)group_id, FlecsMesh3Impl);
+            if (mesh) {
+                ctx->mesh = *mesh;
+            } else {
+                ecs_os_zeromem(&ctx->mesh);
+            }
+            ctx->batch = shared;
+
+            flecsEngine_batch_dynamicExtract_group(
+                &s, world, engine, batch, ctx, NULL, NULL, 0);
+        }
+    } while (flecsEngine_batch_dynamicExtract_commit(&s, engine, shared));
+}
+
+static void flecsEngine_mesh_extractStatic(
+    const ecs_world_t *world,
+    const FlecsRenderBatch *batch,
+    flecsEngine_batch_t *shared,
+    const ecs_map_t *groups)
+{
+    flecsEngine_batch_staticExtract_t s;
+    do {
+        flecsEngine_batch_staticExtract_begin(&s, shared);
+
+        ecs_map_iter_t git = ecs_map_iter(groups);
+        while (ecs_map_next(&git)) {
+            uint64_t group_id = ecs_map_key(&git);
+            if (!group_id) continue;
+
+            flecsEngine_batch_group_t *ctx =
+                ecs_query_get_group_ctx(batch->query, group_id);
+            if (!ctx) continue;
+
+            flecsEngine_batch_staticExtract_group(&s, world, ctx);
+        }
+    } while (flecsEngine_batch_staticExtract_commit(&s, shared));
 }
 
 void flecsEngine_mesh_extract(
@@ -121,89 +150,8 @@ void flecsEngine_mesh_extract(
         return;
     }
 
-redo: {
-        int32_t total = 0;
-        int32_t group_idx = 0;
-        ecs_map_iter_t git = ecs_map_iter(groups);
-        while (ecs_map_next(&git)) {
-            uint64_t group_id = ecs_map_key(&git);
-            if (!group_id) continue;
-
-            flecsEngine_batch_group_t *ctx =
-                ecs_query_get_group_ctx(batch->query, group_id);
-            if (!ctx) continue;
-
-            ctx->view.offset = total;
-            ctx->view.group_idx = group_idx;
-            flecsEngine_mesh_extractGroup(
-                world, engine, batch, group_id, shared);
-            total += ctx->view.count;
-            group_idx ++;
-        }
-
-        if (total > shared->buffers.capacity) {
-            flecsEngine_batch_ensureCapacity(engine, shared, total);
-            goto redo;
-        }
-
-        shared->buffers.count = total;
-        shared->buffers.group_count = group_idx;
-        flecsEngine_batch_ensureGroupCapacity(shared, group_idx);
-
-        /* Fill group_info + zero indirect args on CPU. */
-        ecs_map_iter_t it2 = ecs_map_iter(groups);
-        while (ecs_map_next(&it2)) {
-            uint64_t group_id = ecs_map_key(&it2);
-            if (!group_id) continue;
-
-            flecsEngine_batch_group_t *ctx =
-                ecs_query_get_group_ctx(batch->query, group_id);
-            if (!ctx || !ctx->view.count) continue;
-
-            flecsEngine_batch_group_prepareArgs(ctx);
-        }
-
-        int32_t static_group_idx = 0;
-        int32_t static_offset = 0;
-        ecs_map_iter_t sit = ecs_map_iter(groups);
-        while (ecs_map_next(&sit)) {
-            uint64_t group_id = ecs_map_key(&sit);
-            if (!group_id) continue;
-            flecsEngine_batch_group_t *ctx =
-                ecs_query_get_group_ctx(batch->query, group_id);
-            if (!ctx) continue;
-
-            int32_t sc = ecs_vec_count(&ctx->slots);
-            if (!sc || !ctx->mesh.index_buffer || !ctx->mesh.index_count) {
-                ctx->static_view.count = 0;
-                ctx->static_view.offset = 0;
-                ctx->static_view.group_idx = -1;
-                continue;
-            }
-
-            ctx->static_view.count = sc;
-            ctx->static_view.offset = static_offset;
-            ctx->static_view.group_idx = static_group_idx;
-            static_offset += sc;
-            static_group_idx ++;
-        }
-
-        shared->static_buffers.group_count = static_group_idx;
-        if (static_group_idx > 0) {
-            flecsEngine_batch_ensureStaticGroupCapacity(shared, static_group_idx);
-
-            ecs_map_iter_t ait = ecs_map_iter(groups);
-            while (ecs_map_next(&ait)) {
-                uint64_t group_id = ecs_map_key(&ait);
-                if (!group_id) continue;
-                flecsEngine_batch_group_t *ctx =
-                    ecs_query_get_group_ctx(batch->query, group_id);
-                if (!ctx || ctx->static_view.group_idx < 0) continue;
-                flecsEngine_batch_group_applyChanges(world, ctx);
-                flecsEngine_batch_group_prepareStaticArgs(ctx);
-            }
-        }
-    }
+    flecsEngine_mesh_extractDynamic(world, engine, batch, shared, groups);
+    flecsEngine_mesh_extractStatic(world, batch, shared, groups);
 
     FLECS_TRACY_ZONE_END;
 }
@@ -294,54 +242,6 @@ void flecsEngine_mesh_render(
             if (!ctx || ctx->static_view.group_idx < 0) continue;
 
             flecsEngine_batch_group_drawStatic(engine, pass, ctx);
-        }
-    }
-
-    FLECS_TRACY_ZONE_END;
-}
-
-void flecsEngine_mesh_renderDepthPrepass(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
-    const WGPURenderPassEncoder pass,
-    const FlecsRenderBatch *batch)
-{
-    FLECS_TRACY_ZONE_BEGIN("MeshRenderDepthPrepass");
-
-    (void)world;
-    (void)view_impl;
-
-    flecsEngine_batch_t *buf = batch->ctx;
-
-    const ecs_map_t *groups = ecs_query_get_groups(batch->query);
-    ecs_assert(groups != NULL, ECS_INTERNAL_ERROR, NULL);
-
-    flecsEngine_batch_bindInstanceGroupShadow(
-        (FlecsEngineImpl*)engine, pass, buf);
-
-    ecs_map_iter_t git = ecs_map_iter(groups);
-    while (ecs_map_next(&git)) {
-        uint64_t group = ecs_map_key(&git);
-        if (!group) continue;
-
-        flecsEngine_batch_group_t *ctx =
-            ecs_query_get_group_ctx(batch->query, group);
-        ecs_assert(ctx != NULL, ECS_INTERNAL_ERROR, NULL);
-        flecsEngine_batch_group_drawDepthPrepass(engine, pass, ctx);
-    }
-
-    if (buf->static_buffers.group_count > 0) {
-        flecsEngine_batch_bindInstanceGroupShadowStatic(
-            (FlecsEngineImpl*)engine, pass, buf);
-        ecs_map_iter_t sit = ecs_map_iter(groups);
-        while (ecs_map_next(&sit)) {
-            uint64_t group = ecs_map_key(&sit);
-            if (!group) continue;
-            flecsEngine_batch_group_t *ctx =
-                ecs_query_get_group_ctx(batch->query, group);
-            if (!ctx || ctx->static_view.group_idx < 0) continue;
-            flecsEngine_batch_group_drawDepthPrepassStatic(engine, pass, ctx);
         }
     }
 

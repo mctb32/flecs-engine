@@ -153,7 +153,7 @@ void initEngine(
     .height = options.height,
     .resolution_scale = 1,
     .vsync = true,
-    .msaa = true,
+    .msaa = FlecsMsaa4x,
     .write_to_file = options.frame_output_path,
   });
 
@@ -205,13 +205,16 @@ void initEngine(
   FlecsHeightFog fog_settings =
     flecsEngine_heightFogSettingsDefault();
   fog_settings.density = 0;
+  FlecsAutoExposure auto_exposure_settings =
+    flecsEngine_autoExposureSettingsDefault();
+  auto_exposure_settings.max_ev = 4;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_ssao(world, view_entity,
         "ssao", 0, &ssao_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = true, .effect =
+    (flecs_render_view_effect_t){ .enabled = false, .effect =
       flecsEngine_createEffect_heightFog(world, view_entity,
         "heightFog", 1, &fog_settings) };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
@@ -222,10 +225,15 @@ void initEngine(
     (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_bloom(world, view_entity,
         "bloom", 3, &bloom_settings) };
+  ecs_entity_t auto_exposure_effect = flecsEngine_createEffect_autoExposure(
+    world, view_entity, "autoExposure", 4, &auto_exposure_settings);
+  *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
+    (flecs_render_view_effect_t){ .enabled = true,
+      .effect = auto_exposure_effect };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
       flecsEngine_createEffect_tonyMcMapFace(world, view_entity,
-        "tonyMcMapFace", 4) };
+        "tonyMcMapFace", 5, auto_exposure_effect) };
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){
@@ -233,7 +241,7 @@ void initEngine(
       .enabled = true,
 #endif
       .effect = flecsEngine_createEffect_gammaCorrect(world, view_entity,
-        "gammaCorrect", 5) };
+        "gammaCorrect", 6) };
 
   ecs_set_ptr(world, view_entity, FlecsRenderView, &view);
   ecs_set_ptr(world, view_entity, FlecsRenderBatchSet, &batch_set);

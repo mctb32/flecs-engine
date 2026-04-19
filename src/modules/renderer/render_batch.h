@@ -33,7 +33,6 @@ ECS_PRIVATE
     flecs_render_batch_extract_callback upload_callback;
     flecs_render_batch_callback callback;
     flecs_render_batch_callback shadow_callback;
-    flecs_render_batch_callback depth_prepass_callback;
     flecs_render_batch_get_buf_fn get_cull_buf;
     void *ctx;
     void (*free_ctx)(void *ctx);
@@ -111,24 +110,10 @@ void flecsEngine_renderBatchSet_renderShadow(
     const FlecsRenderBatchSet *batch_set,
     WGPURenderPassEncoder pass);
 
-void flecsEngine_renderBatch_renderDepthPrepass(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const WGPURenderPassEncoder pass,
-    ecs_entity_t batch_entity);
-
 void flecsEngine_renderView_ensureSceneBindGroup(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
     FlecsRenderViewImpl *view_impl,
     const FlecsRenderView *view);
-
-void flecsEngine_renderBatchSet_renderDepthPrepass(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatchSet *batch_set,
-    WGPURenderPassEncoder pass);
 
 #endif

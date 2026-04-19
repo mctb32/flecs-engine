@@ -434,7 +434,7 @@ static bool flecsIblDrawFullscreenPass(
 {
     return flecsEngine_fullscreenPass(
         encoder, target_view, WGPULoadOp_Clear, (WGPUColor){0},
-        pipeline, bind_group);
+        pipeline, bind_group, NULL, NULL, NULL);
 }
 
 static bool flecsIblSubmitFullscreenPass(

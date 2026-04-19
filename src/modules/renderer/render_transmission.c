@@ -198,7 +198,8 @@ static void flecsEngine_transmission_downsampleMip(
     }
     flecsEngine_fullscreenPass(
         encoder, s->mip_views[dst_mip], WGPULoadOp_Clear, (WGPUColor){0},
-        engine->pipelines.opaque_snapshot_downsample_pipeline, bind_group);
+        engine->pipelines.opaque_snapshot_downsample_pipeline, bind_group,
+        NULL, NULL, NULL);
 }
 
 void flecsEngine_transmission_updateSnapshot(

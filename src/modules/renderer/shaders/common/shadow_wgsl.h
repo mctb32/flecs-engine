@@ -17,17 +17,35 @@
     "    return -1.0;\n" \
     "  }\n" \
     "  let current_depth = light_ndc.z - uniforms.shadow_info.y;\n" \
-    "  let texel_size = 1.0 / vec2<f32>(textureDimensions(shadow_map));\n" \
+    "  let shadow_size = vec2<f32>(textureDimensions(shadow_map));\n" \
+    "  let texel_size = 1.0 / shadow_size;\n" \
+    "  let uv = shadow_uv * shadow_size;\n" \
+    "  var base_uv = vec2<f32>(floor(uv.x + 0.5), floor(uv.y + 0.5));\n" \
+    "  let s = uv.x + 0.5 - base_uv.x;\n" \
+    "  let t = uv.y + 0.5 - base_uv.y;\n" \
+    "  base_uv = (base_uv - vec2<f32>(0.5)) * texel_size;\n" \
+    "  let uw0 = 3.0 - 2.0 * s;\n" \
+    "  let uw1 = 1.0 + 2.0 * s;\n" \
+    "  let u0 = (2.0 - s) / uw0 - 1.0;\n" \
+    "  let u1 = s / uw1 + 1.0;\n" \
+    "  let vw0 = 3.0 - 2.0 * t;\n" \
+    "  let vw1 = 1.0 + 2.0 * t;\n" \
+    "  let v0 = (2.0 - t) / vw0 - 1.0;\n" \
+    "  let v1 = t / vw1 + 1.0;\n" \
     "  var shadow = 0.0;\n" \
-    "  for (var x = -1; x <= 1; x++) {\n" \
-    "    for (var y = -1; y <= 1; y++) {\n" \
-    "      let offset = vec2<f32>(f32(x), f32(y)) * texel_size;\n" \
-    "      shadow += textureSampleCompareLevel(\n" \
-    "        shadow_map, shadow_sampler,\n" \
-    "        shadow_uv + offset, cascade, current_depth);\n" \
-    "    }\n" \
-    "  }\n" \
-    "  return shadow / 9.0;\n" \
+    "  shadow += uw0 * vw0 * textureSampleCompareLevel(\n" \
+    "    shadow_map, shadow_sampler,\n" \
+    "    base_uv + vec2<f32>(u0, v0) * texel_size, cascade, current_depth);\n" \
+    "  shadow += uw1 * vw0 * textureSampleCompareLevel(\n" \
+    "    shadow_map, shadow_sampler,\n" \
+    "    base_uv + vec2<f32>(u1, v0) * texel_size, cascade, current_depth);\n" \
+    "  shadow += uw0 * vw1 * textureSampleCompareLevel(\n" \
+    "    shadow_map, shadow_sampler,\n" \
+    "    base_uv + vec2<f32>(u0, v1) * texel_size, cascade, current_depth);\n" \
+    "  shadow += uw1 * vw1 * textureSampleCompareLevel(\n" \
+    "    shadow_map, shadow_sampler,\n" \
+    "    base_uv + vec2<f32>(u1, v1) * texel_size, cascade, current_depth);\n" \
+    "  return shadow / 16.0;\n" \
     "}\n" \
     "fn computeShadow(world_pos : vec3<f32>) -> f32 {\n" \
     "  let clip = uniforms.vp * vec4<f32>(world_pos, 1.0);\n" \

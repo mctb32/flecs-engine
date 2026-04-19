@@ -201,7 +201,6 @@ extern ECS_COMPONENT_DECLARE(FlecsRenderViewImpl);
 typedef struct {
     WGPURenderPipeline pipeline_hdr;
     WGPURenderPipeline pipeline_shadow;
-    WGPURenderPipeline pipeline_depth_prepass;
     bool uses_ibl;
     bool uses_shadow;
     bool uses_cluster;
@@ -262,9 +261,27 @@ typedef struct {
     WGPUTexture tony_lut_texture;
     WGPUTextureView tony_lut_texture_view;
     WGPUSampler tony_lut_sampler;
+    WGPUBuffer fallback_exposure_buffer;
+    ecs_entity_t auto_exposure;
 } FlecsTonyImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsTonyImpl);
+
+typedef struct {
+    WGPUBuffer histogram_buffer;
+    WGPUBuffer exposure_buffer;
+    WGPUBuffer build_uniform_buffer;
+    WGPUBuffer reduce_uniform_buffer;
+    WGPUBindGroupLayout build_bind_layout;
+    WGPUBindGroupLayout reduce_bind_layout;
+    WGPUComputePipeline build_pipeline;
+    WGPUComputePipeline reduce_pipeline;
+    WGPUBindGroup histogram_bind_group;
+    WGPUTextureView histogram_bind_view;
+    WGPUBindGroup reduce_bind_group;
+} FlecsAutoExposureImpl;
+
+extern ECS_COMPONENT_DECLARE(FlecsAutoExposureImpl);
 
 typedef struct {
     WGPUBindGroupLayout bind_layout;

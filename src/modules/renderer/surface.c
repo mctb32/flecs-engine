@@ -2,6 +2,8 @@
 #include "renderer.h"
 #include "../engine/engine.h"
 
+ECS_COMPONENT_DECLARE(FlecsAnisotropy);
+ECS_COMPONENT_DECLARE(FlecsMsaa);
 ECS_COMPONENT_DECLARE(FlecsSurface);
 ECS_COMPONENT_DECLARE(FlecsSurfaceImpl);
 
@@ -147,7 +149,12 @@ void flecsEngine_surface_set(
 int32_t flecsEngine_surface_sampleCount(
     const FlecsSurface *surface)
 {
-    return (surface && surface->msaa) ? 4 : 1;
+    if (!surface || surface->msaa == FlecsMsaaDefault ||
+        surface->msaa == FlecsMsaaOff)
+    {
+        return 1;
+    }
+    return (int32_t)surface->msaa;
 }
 
 static void FlecsOnSurfaceSet(
@@ -193,6 +200,8 @@ static void FlecsOnSurfaceSet(
 void flecsEngine_surface_register(
     ecs_world_t *world)
 {
+    ECS_META_COMPONENT(world, FlecsAnisotropy);
+    ECS_META_COMPONENT(world, FlecsMsaa);
     ECS_META_COMPONENT(world, FlecsSurface);
 
     ECS_COMPONENT_DEFINE(world, FlecsSurfaceImpl);

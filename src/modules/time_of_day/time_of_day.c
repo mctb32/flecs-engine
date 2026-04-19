@@ -103,6 +103,12 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
         float pitch = -altitude;
         float yaw = azimuth + north_rad + GLM_PIf;
 
+        const float sun_disk_radius_rad = 0.00465f;
+        float sun_disk_fade = flecsEngine_smoothstep01(
+            (altitude + sun_disk_radius_rad) / (2.0f * sun_disk_radius_rad));
+        float altitude_for_trans = altitude > sun_disk_radius_rad
+            ? altitude : sun_disk_radius_rad;
+
         float atm_trans_rgb[3] = { 0.0f, 0.0f, 0.0f };
         const FlecsAtmosphere *atm_settings = NULL;
 
@@ -111,7 +117,7 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
                 world, t->atmosphere, FlecsAtmosphere);
             if (atm_settings) {
                 flecsEngine_atmos_sunTransmittance(
-                    atm_settings, sinf(altitude), atm_trans_rgb);
+                    atm_settings, sinf(altitude_for_trans), atm_trans_rgb);
             }
         }
 
@@ -131,7 +137,7 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
                 float m = atm_trans_rgb[0];
                 if (atm_trans_rgb[1] > m) m = atm_trans_rgb[1];
                 if (atm_trans_rgb[2] > m) m = atm_trans_rgb[2];
-                light_intensity = t->sun_intensity * m;
+                light_intensity = t->sun_intensity * m * sun_disk_fade;
                 if (m > 1e-6f) {
                     light_r = atm_trans_rgb[0] / m;
                     light_g = atm_trans_rgb[1] / m;
@@ -140,9 +146,12 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
                     light_r = light_g = light_b = 0.0f;
                 }
             } else {
-                float transmittance = flecsEngine_sunTransmittance(altitude);
-                light_intensity = t->sun_intensity * transmittance;
-                flecsEngine_sunColor(altitude, &light_r, &light_g, &light_b);
+                float transmittance = flecsEngine_sunTransmittance(
+                    altitude_for_trans);
+                light_intensity =
+                    t->sun_intensity * transmittance * sun_disk_fade;
+                flecsEngine_sunColor(
+                    altitude_for_trans, &light_r, &light_g, &light_b);
             }
 
             FlecsDirectionalLight *dl = ecs_get_mut(

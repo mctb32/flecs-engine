@@ -49,12 +49,13 @@ static void flecsEngine_releaseFrameTarget(
 void flecsEngine_renderer_cleanup(
     FlecsEngineImpl *impl)
 {
+    FLECS_WGPU_RELEASE(impl->textures.pbr_sampler, wgpuSamplerRelease);
+    FLECS_WGPU_RELEASE(impl->textures.pbr_low_sampler, wgpuSamplerRelease);
     FLECS_WGPU_RELEASE(impl->pipelines.passthrough_pipeline, wgpuRenderPipelineRelease);
     FLECS_WGPU_RELEASE(impl->pipelines.passthrough_bind_layout, wgpuBindGroupLayoutRelease);
     FLECS_WGPU_RELEASE(impl->pipelines.passthrough_sampler, wgpuSamplerRelease);
     FLECS_WGPU_RELEASE(impl->pipelines.depth_resolve_pipeline, wgpuRenderPipelineRelease);
     FLECS_WGPU_RELEASE(impl->pipelines.depth_resolve_bind_layout, wgpuBindGroupLayoutRelease);
-    flecsEngine_depthPrepass_fini(impl);
     flecsEngine_gpuCull_fini(impl);
     flecsEngine_hiz_fini(impl);
     flecsEngine_gpuTiming_fini(impl);
@@ -167,10 +168,6 @@ int flecsEngine_initRenderer(
     }
 
     if (flecsEngine_initDepthResolve(impl)) {
-        goto error;
-    }
-
-    if (flecsEngine_depthPrepass_init(impl)) {
         goto error;
     }
 
@@ -334,12 +331,24 @@ static void FlecsEngineRender(
     }
 
     flecsEngine_gpuTiming_logIfReady(impl);
-    flecsEngine_gpuTiming_beginFrame(impl);
+    flecsEngine_gpuTiming_beginFrame(impl, surface->gpu_timings);
 
     // Sync materials
     FLECS_TRACY_ZONE_BEGIN_N(__matu, "MaterialUploadBuffer");
     flecsEngine_material_uploadBuffer(it->world, impl);
     FLECS_TRACY_ZONE_END_N(__matu);
+
+    {
+        uint16_t desired_aniso = (surface->anisotropy != FlecsAnisotropyDefault)
+            ? (uint16_t)surface->anisotropy
+            : (uint16_t)FlecsAnisotropyHigh;
+        if (impl->textures.applied_max_aniso &&
+            impl->textures.applied_max_aniso != desired_aniso)
+        {
+            FLECS_WGPU_RELEASE(impl->textures.array_bind_group,
+                wgpuBindGroupRelease);
+        }
+    }
 
     // Build texture arrays (only runs when materials change)
     if (!impl->textures.array_bind_group) {
@@ -496,6 +505,7 @@ void FlecsEngineRendererImport(
     flecsEngine_heightFog_register(world);
     flecsEngine_ssao_register(world);
     flecsEngine_sunShafts_register(world);
+    flecsEngine_autoExposure_register(world);
 
     /* Register FlecsTextureImpl (renderer-side companion for FlecsTexture) */
     ECS_COMPONENT_DEFINE(world, FlecsTextureImpl);

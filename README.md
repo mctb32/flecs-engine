@@ -64,13 +64,15 @@ You should probably not use this, unless:
 ### Atmosphere
 - Dynamic atmosphere
 - Dynamic atmosphere IBL
+- Distance fog
+- Height based fog
 
 ### Effects
 - Bloom
 - SSAO
-- Height fog (flat color & from atmosphere)
 - Screen space sun shafts
 - Tony McMapFace tone mapping
+- Auto exposure
 
 ### Misc
 - Input handling

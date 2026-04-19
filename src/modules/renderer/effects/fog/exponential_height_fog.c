@@ -91,14 +91,8 @@ static const char *kShaderSource =
     "    let view_dir = ray / max(distance, 1e-6);\n"
     "    let planet_r = uniforms.atmos_params.x;\n"
     "    let view_r = planet_r + max(uniforms.atmos_params.y, 0.001);\n"
-    "    let horizon_offset = uniforms.atmos_params.z;\n"
     "    let xz_len = max(sqrt(view_dir.x * view_dir.x + view_dir.z * view_dir.z), 1e-6);\n"
-    "    let azim_x = view_dir.x / xz_len;\n"
-    "    let azim_z = view_dir.z / xz_len;\n"
-    "    let sample_dir = vec3<f32>(\n"
-    "      azim_x * cos(horizon_offset),\n"
-    "      sin(horizon_offset),\n"
-    "      azim_z * cos(horizon_offset));\n"
+    "    let sample_dir = vec3<f32>(view_dir.x / xz_len, 0.0, view_dir.z / xz_len);\n"
     "    let sv_uv = fog_skyview_uv(sample_dir, view_r, planet_r);\n"
     "    fog_color = textureSampleLevel(skyview_lut, input_sampler, sv_uv, 0.0).rgb;\n"
     "  }\n"
@@ -198,7 +192,6 @@ static void flecsEngine_heightFog_fillUniform(
             if (alt_km < 0.001f) alt_km = 0.001f;
             uniform->atmos_params[0] = planet_r;
             uniform->atmos_params[1] = alt_km;
-            uniform->atmos_params[2] = fog->horizon_offset;
             uniform->fog_params[3] = 1.0f;
         }
     }
@@ -364,8 +357,7 @@ FlecsHeightFog flecsEngine_heightFogSettingsDefault(void)
         .base_height = 0.0f,
         .max_opacity = 1.0f,
         .color = {191, 158, 140, 255},
-        .atmosphere = 0,
-        .horizon_offset = 0.1f
+        .atmosphere = 0
     };
 }
 
@@ -413,8 +405,7 @@ void flecsEngine_heightFog_register(
             { .name = "base_height", .type = ecs_id(ecs_f32_t) },
             { .name = "max_opacity", .type = ecs_id(ecs_f32_t) },
             { .name = "color", .type = ecs_id(flecs_rgba_t) },
-            { .name = "atmosphere", .type = ecs_id(ecs_entity_t) },
-            { .name = "horizon_offset", .type = ecs_id(ecs_f32_t) }
+            { .name = "atmosphere", .type = ecs_id(ecs_entity_t) }
         }
     });
 }

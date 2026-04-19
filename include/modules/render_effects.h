@@ -28,9 +28,6 @@ ECS_STRUCT(FlecsHeightFog, {
 
     /* Set to atmosphere entity to derive fog color from atmosphere */
     ecs_entity_t atmosphere;
-
-    /* Angle from which to sample the horizon color */
-    float horizon_offset;
 });
 
 extern ECS_COMPONENT_DECLARE(FlecsHeightFog);
@@ -51,15 +48,42 @@ ECS_STRUCT(FlecsSunShafts, {
     float decay;
     float exposure;
     flecs_rgba_t color;
+
+    /* Set to directional light entity to derive shaft color from light color */
+    ecs_entity_t light;
 });
 
 extern ECS_COMPONENT_DECLARE(FlecsSunShafts);
+
+ECS_STRUCT(FlecsAutoExposure, {
+    float min_ev;
+    float max_ev;
+    float min_log_luma;
+    float max_log_luma;
+    float speed_up;
+    float speed_down;
+    float compensation;
+    float low_percentile;
+    float high_percentile;
+});
+
+extern ECS_COMPONENT_DECLARE(FlecsAutoExposure);
+
+FlecsAutoExposure flecsEngine_autoExposureSettingsDefault(void);
+
+ecs_entity_t flecsEngine_createEffect_autoExposure(
+    ecs_world_t *world,
+    ecs_entity_t parent,
+    const char *name,
+    int32_t input,
+    const FlecsAutoExposure *settings);
 
 ecs_entity_t flecsEngine_createEffect_tonyMcMapFace(
     ecs_world_t *world,
     ecs_entity_t parent,
     const char *name,
-    int32_t input);
+    int32_t input,
+    ecs_entity_t auto_exposure);
 
 ecs_entity_t flecsEngine_createEffect_invert(
     ecs_world_t *world,

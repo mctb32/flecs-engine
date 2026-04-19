@@ -13,10 +13,6 @@ typedef struct {
 
 typedef struct {
     WGPUShaderModule shader_module;
-} flecsEngine_depthPrepass_t;
-
-typedef struct {
-    WGPUShaderModule shader_module;
     WGPUComputePipeline pipeline;
     WGPUBindGroupLayout view_bind_layout;
     WGPUBindGroupLayout batch_bind_layout;
@@ -81,6 +77,8 @@ typedef struct {
 
     WGPUBindGroupLayout pbr_bind_layout;
     WGPUSampler pbr_sampler;
+    WGPUSampler pbr_low_sampler;
+    uint16_t applied_max_aniso;
 
     WGPUTexture fallback_white_tex;
     WGPUTextureView fallback_white_array_view;
@@ -139,7 +137,7 @@ typedef struct {
 } flecsEngine_gpuTimingSlot_t;
 
 typedef struct {
-    bool enabled;
+    bool capable;
     WGPUQuerySet query_set;
     WGPUBuffer resolve_buffer;
     flecsEngine_gpuTimingSlot_t slots[FLECS_GPU_TIMING_RING];
@@ -170,7 +168,6 @@ typedef struct {
     WGPUBindGroupLayout instance_bind_layout;
 
     flecsEngine_shadow_t shadow;
-    flecsEngine_depthPrepass_t depth_prepass;
     flecsEngine_lighting_t lighting;
     flecsEngine_materials_t materials;
     flecsEngine_textures_t textures;

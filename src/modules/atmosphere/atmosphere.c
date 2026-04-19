@@ -36,8 +36,10 @@ typedef struct FlecsAtmosphereUniform {
     float ext_mie[4];
     float abs_ozone[4];
     float abs_strat_aerosol[4];
+    float abs_haze[4];
     float misc[4];
     float aerial_params[4];
+    float night_tint[4];
 } FlecsAtmosphereUniform;
 
 typedef struct FlecsAtmosphereSliceUniform {
@@ -63,8 +65,10 @@ static const char *kAtmosphereCommonWgsl =
 "  ext_mie : vec4<f32>,\n"
 "  abs_ozone : vec4<f32>,\n"
 "  abs_strat_aerosol : vec4<f32>,\n"
+"  abs_haze : vec4<f32>,\n"
 "  misc : vec4<f32>,\n"
 "  aerial_params : vec4<f32>,\n"
+"  night_tint : vec4<f32>,\n"
 "};\n"
 "struct Medium {\n"
 "  scattering : vec3<f32>,\n"
@@ -85,11 +89,12 @@ static const char *kAtmosphereCommonWgsl =
 "  let ext_mie = u.ext_mie.xyz * density_mie;\n"
 "  let abs_ozone = u.abs_ozone.xyz * density_ozone;\n"
 "  let abs_strat = u.abs_strat_aerosol.xyz * density_strat;\n"
+"  let abs_haze = u.abs_haze.xyz * density_mie;\n"
 "  var m : Medium;\n"
 "  m.scattering_rayleigh = scat_ray;\n"
 "  m.scattering_mie = scat_mie;\n"
 "  m.scattering = scat_ray + scat_mie;\n"
-"  m.extinction = ext_ray + ext_mie + abs_ozone + abs_strat;\n"
+"  m.extinction = ext_ray + ext_mie + abs_ozone + abs_strat + abs_haze;\n"
 "  return m;\n"
 "}\n"
 "fn rayleigh_phase(c : f32) -> f32 {\n"
@@ -144,6 +149,11 @@ static const char *kAtmosphereCommonWgsl =
 "fn sample_transmittance_lut(trans : texture_2d<f32>, smp : sampler, r : f32, mu : f32, u : AtmosUniforms) -> vec3<f32> {\n"
 "  let uv = trans_params_to_uv(r, mu, u);\n"
 "  return textureSampleLevel(trans, smp, uv, 0.0).rgb;\n"
+"}\n"
+"fn earth_shadow_factor(r : f32, mu_sun : f32, u : AtmosUniforms) -> f32 {\n"
+"  let Rb = bottomR(u);\n"
+"  let horizon = -sqrt(max(0.0, 1.0 - (Rb * Rb) / max(r * r, 1e-6)));\n"
+"  return smoothstep(horizon - 0.02, horizon + 0.02, mu_sun);\n"
 "}\n"
 "fn ms_uv_to_params(uv : vec2<f32>, u : AtmosUniforms) -> vec2<f32> {\n"
 "  let cos_sun = uv.x * 2.0 - 1.0;\n"
@@ -246,7 +256,8 @@ static const char *kMSShaderSource =
     "    let step_trans = exp(-m.extinction * dt);\n"
     "    let up = pos / max(r_p, 1e-4);\n"
     "    let mu_sun = clamp(dot(up, sun), -1.0, 1.0);\n"
-    "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u);\n"
+    "    let shadow = earth_shadow_factor(r_p, mu_sun, u);\n"
+    "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u) * shadow;\n"
     "    let s_int = (m.scattering - m.scattering * step_trans) / max(m.extinction, vec3<f32>(1e-6));\n"
     "    let phase_iso = 1.0 / (4.0 * PI);\n"
     "    L = L + throughput * (sun_trans * phase_iso * m.scattering) * dt;\n"
@@ -325,7 +336,8 @@ static const char *kSkyViewShaderSource =
     "    let step_trans = exp(-m.extinction * dt);\n"
     "    let up = pos / max(r_p, 1e-4);\n"
     "    let mu_sun = clamp(dot(up, sun), -1.0, 1.0);\n"
-    "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u);\n"
+    "    let shadow = earth_shadow_factor(r_p, mu_sun, u);\n"
+    "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u) * shadow;\n"
     "    let scat_r = m.scattering_rayleigh * rayleigh_phase(cos_sv);\n"
     "    let scat_m = m.scattering_mie * mie_phase(cos_sv, mie_g);\n"
     "    let single = (scat_r + scat_m) * sun_trans;\n"
@@ -344,7 +356,9 @@ static const char *kSkyViewShaderSource =
     "  let r = bottomR(u) + max(alt_km, PLANET_OFFSET);\n"
     "  let ro = vec3<f32>(0.0, r, 0.0);\n"
     "  let rd = skyview_uv_to_dir(in.uv, r, u);\n"
-    "  let L = integrate_skyview(ro, rd, u);\n"
+    "  var L = integrate_skyview(ro, rd, u);\n"
+    "  let night_amount = 1.0 - smoothstep(-0.05, 0.02, u.sun_direction.y);\n"
+    "  L = L + u.night_tint.rgb * night_amount;\n"
     "  return vec4<f32>(L, 1.0);\n"
     "}\n";
 
@@ -403,6 +417,7 @@ static const char *kAerialComputeShaderSource =
     "@group(0) @binding(2) var ms_lut : texture_2d<f32>;\n"
     "@group(0) @binding(3) var lut_sampler : sampler;\n"
     "@group(0) @binding(4) var aerial_out : texture_storage_2d_array<rgba16float, write>;\n"
+    "@group(0) @binding(5) var skyview_lut : texture_2d<f32>;\n"
     "const AP_STEPS : i32 = 6;\n"
     "@compute @workgroup_size(8, 8, 1)\n"
     "fn cs_main(@builtin(global_invocation_id) gid : vec3<u32>) {\n"
@@ -435,6 +450,7 @@ static const char *kAerialComputeShaderSource =
     "  let sun = u.sun_direction.xyz;\n"
     "  let cos_sv = clamp(dot(rd, sun), -1.0, 1.0);\n"
     "  let mie_g = u.mie_params.x;\n"
+    "  let density_k = u.aerial_params.x;\n"
     "  var throughput = vec3<f32>(1.0);\n"
     "  var L = vec3<f32>(0.0);\n"
     "  for (var i : i32 = 0; i < AP_STEPS; i = i + 1) {\n"
@@ -442,11 +458,16 @@ static const char *kAerialComputeShaderSource =
     "    let pos = ro + rd * t;\n"
     "    let r_p = length(pos);\n"
     "    let alt = r_p - bottomR(u);\n"
-    "    let m = sample_medium(max(alt, 0.0), u);\n"
+    "    var m = sample_medium(max(alt, 0.0), u);\n"
+    "    m.scattering = m.scattering * density_k;\n"
+    "    m.scattering_rayleigh = m.scattering_rayleigh * density_k;\n"
+    "    m.scattering_mie = m.scattering_mie * density_k;\n"
+    "    m.extinction = m.extinction * density_k;\n"
     "    let step_trans = exp(-m.extinction * dt);\n"
     "    let up = pos / max(r_p, 1e-4);\n"
     "    let mu_sun = clamp(dot(up, sun), -1.0, 1.0);\n"
-    "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u);\n"
+    "    let shadow = earth_shadow_factor(r_p, mu_sun, u);\n"
+    "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u) * shadow;\n"
     "    let scat_r = m.scattering_rayleigh * rayleigh_phase(cos_sv);\n"
     "    let scat_m = m.scattering_mie * mie_phase(cos_sv, mie_g);\n"
     "    let single = (scat_r + scat_m) * sun_trans;\n"
@@ -459,8 +480,13 @@ static const char *kAerialComputeShaderSource =
     "    throughput = throughput * step_trans;\n"
     "  }\n"
     "  let t_avg = (throughput.x + throughput.y + throughput.z) / 3.0;\n"
+    "  let horizon_u = atan2(rd.x, rd.z) / (2.0 * PI) + 0.5;\n"
+    "  let horizon_uv = vec2<f32>(clamp(horizon_u, 0.0, 1.0), 0.5);\n"
+    "  let horizon_color = textureSampleLevel(skyview_lut, lut_sampler, horizon_uv, 0.0).rgb;\n"
+    "  let fog_amount = clamp(1.0 - t_avg, 0.0, 1.0);\n"
+    "  let L_out = mix(L, horizon_color, fog_amount);\n"
     "  textureStore(aerial_out, vec2<i32>(i32(gid.x), i32(gid.y)),\n"
-    "    i32(gid.z), vec4<f32>(L, t_avg));\n"
+    "    i32(gid.z), vec4<f32>(L_out, t_avg));\n"
     "}\n";
 
 static const char *kComposeShaderSource =
@@ -509,7 +535,8 @@ static const char *kComposeShaderSource =
     "    let rd = normalize(world_pos - u.camera_pos_world.xyz);\n"
     "    let alt_km = u.camera_pos_world.w;\n"
     "    let view_r = bottomR(u) + max(alt_km, PLANET_OFFSET);\n"
-    "    let sv_uv = dir_to_skyview_uv(rd, view_r, u);\n"
+    "    var sv_uv = dir_to_skyview_uv(rd, view_r, u);\n"
+    "    sv_uv.y = min(sv_uv.y, 0.5);\n"
     "    var sky = textureSampleLevel(skyview_lut, lut_sampler, sv_uv, 0.0).rgb;\n"
     "    let sun_cos = dot(rd, u.sun_direction.xyz);\n"
     "    let disk_cos = u.mie_params.z;\n"
@@ -534,9 +561,7 @@ static const char *kComposeShaderSource =
     "  let max_km = u.mie_params.y;\n"
     "  let slice_count = u.misc.x;\n"
     "  let ap = sample_aerial(in.uv, dist_km, max_km, slice_count);\n"
-    "  let k = u.aerial_params.x;\n"
-    "  let t_scaled = max(0.0, 1.0 - k * (1.0 - ap.a));\n"
-    "  var composed = src.rgb * t_scaled + ap.rgb * k;\n"
+    "  var composed = src.rgb * ap.a + ap.rgb;\n"
     "  return vec4<f32>(composed, src.a);\n"
     "}\n";
 
@@ -623,7 +648,10 @@ FlecsAtmosphere flecsEngine_atmosphereSettingsDefault(void)
         },
         .ozone_scale = 1.0f,
         .stratospheric_aerosol_scale = 0.0f,
-        .ground_albedo = { 77, 77, 77, 255 }
+        .haze_absorption = 0.0f,
+        .ground_albedo = { 77, 77, 77, 255 },
+        .night_tint = { 70, 110, 230, 255 },
+        .night_intensity = 0.003f
     };
 }
 
@@ -678,6 +706,12 @@ static void flecsEngine_atmos_fillUniform(
     out->abs_strat_aerosol[2] = 0.000255f * strat;
     out->abs_strat_aerosol[3] = 0.0f;
 
+    float haze = s->haze_absorption > 0.0f ? s->haze_absorption : 0.0f;
+    out->abs_haze[0] = 0.005f * haze;
+    out->abs_haze[1] = 0.005f * haze;
+    out->abs_haze[2] = 0.005f * haze;
+    out->abs_haze[3] = 0.0f;
+
     out->ground_albedo[0] = flecsEngine_colorChannelToFloat(s->ground_albedo.r);
     out->ground_albedo[1] = flecsEngine_colorChannelToFloat(s->ground_albedo.g);
     out->ground_albedo[2] = flecsEngine_colorChannelToFloat(s->ground_albedo.b);
@@ -698,8 +732,17 @@ static void flecsEngine_atmos_fillUniform(
 
     out->misc[0] = (float)FLECS_ATMOS_AERIAL_SLICES;
 
-    out->aerial_params[0] = s->aerial_perspective_intensity > 0.0f
+    out->aerial_params[0] = s->aerial_perspective_intensity >= 0.0f
         ? s->aerial_perspective_intensity : 1.0f;
+
+    float night_intensity = s->night_intensity >= 0.0f ? s->night_intensity : 0.0f;
+    out->night_tint[0] =
+        flecsEngine_colorChannelToFloat(s->night_tint.r) * night_intensity;
+    out->night_tint[1] =
+        flecsEngine_colorChannelToFloat(s->night_tint.g) * night_intensity;
+    out->night_tint[2] =
+        flecsEngine_colorChannelToFloat(s->night_tint.b) * night_intensity;
+    out->night_tint[3] = 0.0f;
 
     out->camera_pos_world[3] = s->ground_altitude_km;
 
@@ -938,9 +981,9 @@ static WGPUBindGroupLayout flecsEngine_atmos_layoutAerialCompute(
 {
     static const flecsEngine_atmos_bind_kind_t k[] = {
         ATMOS_BIND_UNIFORM, ATMOS_BIND_TEX2D, ATMOS_BIND_TEX2D,
-        ATMOS_BIND_SAMPLER, ATMOS_BIND_STORAGE2DARRAY
+        ATMOS_BIND_SAMPLER, ATMOS_BIND_STORAGE2DARRAY, ATMOS_BIND_TEX2D
     };
-    return flecsEngine_atmos_makeLayout(engine, WGPUShaderStage_Compute, k, 5);
+    return flecsEngine_atmos_makeLayout(engine, WGPUShaderStage_Compute, k, 6);
 }
 
 static WGPUBindGroupLayout flecsEngine_atmos_layoutCubeFaceCompute(
@@ -1181,18 +1224,19 @@ bool flecsEngine_atmosphere_ensureImpl(
                 .layout = existing->skyview_layout,
                 .entryCount = 4, .entries = sv_entries });
 
-        WGPUBindGroupEntry a_entries[5] = {
+        WGPUBindGroupEntry a_entries[6] = {
             { .binding = 0, .buffer = existing->uniform_buffer,
               .offset = 0, .size = sizeof(FlecsAtmosphereUniform) },
             { .binding = 1, .textureView = existing->trans_view },
             { .binding = 2, .textureView = existing->ms_view },
             { .binding = 3, .sampler = existing->clamp_sampler },
-            { .binding = 4, .textureView = existing->aerial_storage_view }
+            { .binding = 4, .textureView = existing->aerial_storage_view },
+            { .binding = 5, .textureView = existing->skyview_view }
         };
         existing->aerial_compute_bind_group = wgpuDeviceCreateBindGroup(
             engine->device, &(WGPUBindGroupDescriptor){
                 .layout = existing->aerial_compute_layout,
-                .entryCount = 5, .entries = a_entries });
+                .entryCount = 6, .entries = a_entries });
 
         WGPUBindGroupEntry cf_entries[4] = {
             { .binding = 0, .buffer = existing->uniform_buffer,
@@ -1234,7 +1278,7 @@ static bool flecsEngine_atmos_runPassBG(
 {
     return flecsEngine_fullscreenPass(
         encoder, target_view, WGPULoadOp_Clear, (WGPUColor){0},
-        pipeline, bind_group);
+        pipeline, bind_group, NULL, NULL, NULL);
 }
 
 static bool flecsEngine_atmos_runTrans(
@@ -1341,7 +1385,8 @@ static bool flecsEngine_atmos_runCompose(
             : a->compose_pipeline_hdr;
 
     bool ok = flecsEngine_fullscreenPass(
-        encoder, output_view, output_load_op, (WGPUColor){0}, pipeline, bg);
+        encoder, output_view, output_load_op, (WGPUColor){0}, pipeline, bg,
+        NULL, NULL, NULL);
     FLECS_TRACY_ZONE_END;
     return ok;
 }
@@ -1506,6 +1551,11 @@ void flecsEngine_atmos_sunTransmittance(
     float st_g = 0.005643f * strat;
     float st_b = 0.000255f * strat;
 
+    float haze = atm->haze_absorption > 0.0f ? atm->haze_absorption : 0.0f;
+    float hz_r = 0.005f * haze;
+    float hz_g = 0.005f * haze;
+    float hz_b = 0.005f * haze;
+
     float ray_h = atm->rayleigh.scale_height_km > 0.0f
         ? atm->rayleigh.scale_height_km : 8.0f;
     float mie_h = atm->mie.scale_height_km > 0.0f
@@ -1533,9 +1583,9 @@ void flecsEngine_atmos_sunTransmittance(
         float d_st = 1.0f - fabsf(alt - 20.0f) / 5.0f;
         if (d_st < 0.0f) d_st = 0.0f;
 
-        float ext_r = ray_r * d_ray + mie_ext_r * d_mie + oz_r * d_oz + st_r * d_st;
-        float ext_g = ray_g * d_ray + mie_ext_g * d_mie + oz_g * d_oz + st_g * d_st;
-        float ext_b = ray_b * d_ray + mie_ext_b * d_mie + oz_b * d_oz + st_b * d_st;
+        float ext_r = ray_r * d_ray + mie_ext_r * d_mie + oz_r * d_oz + st_r * d_st + hz_r * d_mie;
+        float ext_g = ray_g * d_ray + mie_ext_g * d_mie + oz_g * d_oz + st_g * d_st + hz_g * d_mie;
+        float ext_b = ray_b * d_ray + mie_ext_b * d_mie + oz_b * d_oz + st_b * d_st + hz_b * d_mie;
 
         od_r += ext_r * dt;
         od_g += ext_g * dt;
@@ -1597,7 +1647,10 @@ void FlecsEngineAtmosphereImport(ecs_world_t *world)
             { .name = "mie", .type = mie_t },
             { .name = "ozone_scale", .type = ecs_id(ecs_f32_t) },
             { .name = "stratospheric_aerosol_scale", .type = ecs_id(ecs_f32_t) },
-            { .name = "ground_albedo", .type = ecs_id(flecs_rgba_t) }
+            { .name = "haze_absorption", .type = ecs_id(ecs_f32_t) },
+            { .name = "ground_albedo", .type = ecs_id(flecs_rgba_t) },
+            { .name = "night_tint", .type = ecs_id(flecs_rgba_t) },
+            { .name = "night_intensity", .type = ecs_id(ecs_f32_t) }
         }
     });
 }

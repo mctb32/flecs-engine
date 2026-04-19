@@ -151,41 +151,6 @@ void flecsEngine_renderBatchSet_render(
     }
 }
 
-void flecsEngine_renderBatchSet_renderDepthPrepass(
-    ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    FlecsRenderViewImpl *view_impl,
-    const FlecsRenderBatchSet *batch_set,
-    WGPURenderPassEncoder pass)
-{
-    int32_t count = ecs_vec_count(&batch_set->batches);
-    ecs_entity_t *batches = ecs_vec_first(&batch_set->batches);
-
-    for (int32_t i = 0; i < count; i ++) {
-        ecs_entity_t batch_entity = batches[i];
-        if (!batch_entity) {
-            continue;
-        }
-
-        const FlecsRenderBatchSet *nested = ecs_get(
-            world, batch_entity, FlecsRenderBatchSet);
-        if (nested) {
-            flecsEngine_renderBatchSet_renderDepthPrepass(
-                world, engine, view_impl, nested, pass);
-            continue;
-        }
-
-        const FlecsRenderBatch *batch = ecs_get(
-            world, batch_entity, FlecsRenderBatch);
-        if (batch && batch->render_after_snapshot) {
-            continue;
-        }
-
-        flecsEngine_renderBatch_renderDepthPrepass(
-            world, engine, view_impl, pass, batch_entity);
-    }
-}
-
 void flecsEngine_renderBatchSet_renderShadow(
     ecs_world_t *world,
     FlecsEngineImpl *engine,

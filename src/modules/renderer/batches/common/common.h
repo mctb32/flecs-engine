@@ -12,6 +12,8 @@
 
 /* -- Storing data from ECS into CPU & GPU buffers -- */
 
+#define FLECS_ENGINE_BATCH_SLOT_FREE 0xFFFFFFFFu
+
 typedef enum {
     FLECS_BATCH_DEFAULT = 0,
     FLECS_BATCH_OWNS_MATERIAL = 1 << 0,
@@ -91,7 +93,7 @@ typedef struct flecsEngine_batch_group_t {
     flecsEngine_batch_view_t view;
     flecsEngine_batch_view_t static_view;
 
-    ecs_vec_t slots;
+    int32_t slot_count;
     ecs_vec_t changed;
     ecs_vec_t changed_slots;
     ecs_map_t changed_set;
@@ -148,6 +150,53 @@ void flecsEngine_batch_group_extract(
     flecsEngine_primitive_scale_aabb_t scale_aabb,
     ecs_size_t component_size);
 
+typedef struct {
+    int32_t cap;
+    int32_t group_cap;
+    int32_t prev_gc;
+    int32_t total;
+    int32_t group_idx;
+} flecsEngine_batch_dynamicExtract_t;
+
+typedef struct {
+    int32_t group_cap;
+    int32_t prev_gc;
+    int32_t static_offset;
+    int32_t static_group_idx;
+} flecsEngine_batch_staticExtract_t;
+
+void flecsEngine_batch_dynamicExtract_begin(
+    flecsEngine_batch_dynamicExtract_t *s,
+    flecsEngine_batch_t *shared);
+
+void flecsEngine_batch_dynamicExtract_group(
+    flecsEngine_batch_dynamicExtract_t *s,
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch,
+    flecsEngine_batch_group_t *ctx,
+    flecsEngine_primitive_scale_t scale,
+    flecsEngine_primitive_scale_aabb_t scale_aabb,
+    ecs_size_t scale_size);
+
+bool flecsEngine_batch_dynamicExtract_commit(
+    flecsEngine_batch_dynamicExtract_t *s,
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_t *shared);
+
+void flecsEngine_batch_staticExtract_begin(
+    flecsEngine_batch_staticExtract_t *s,
+    flecsEngine_batch_t *shared);
+
+void flecsEngine_batch_staticExtract_group(
+    flecsEngine_batch_staticExtract_t *s,
+    const ecs_world_t *world,
+    flecsEngine_batch_group_t *ctx);
+
+bool flecsEngine_batch_staticExtract_commit(
+    flecsEngine_batch_staticExtract_t *s,
+    flecsEngine_batch_t *shared);
+
 /* Fill per-group GPU data: slot_to_group entries, group_info, and zero the
  * per-view atomic counters in the indirect args. No AABB test runs on CPU. */
 void flecsEngine_batch_group_prepareArgs(
@@ -178,11 +227,6 @@ void flecsEngine_batch_group_draw(
 void flecsEngine_batch_group_drawShadow(
     const FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
-    const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_group_t *ctx);
-
-void flecsEngine_batch_group_drawDepthPrepass(
-    const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_group_t *ctx);
 
@@ -239,11 +283,6 @@ void flecsEngine_batch_group_drawStatic(
 void flecsEngine_batch_group_drawShadowStatic(
     const FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
-    const WGPURenderPassEncoder pass,
-    const flecsEngine_batch_group_t *ctx);
-
-void flecsEngine_batch_group_drawDepthPrepassStatic(
-    const FlecsEngineImpl *engine,
     const WGPURenderPassEncoder pass,
     const flecsEngine_batch_group_t *ctx);
 
@@ -327,13 +366,6 @@ void flecsEngine_mesh_render(
     const FlecsRenderBatch *batch);
 
 void flecsEngine_mesh_renderShadow(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
-    const WGPURenderPassEncoder pass,
-    const FlecsRenderBatch *batch);
-
-void flecsEngine_mesh_renderDepthPrepass(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,

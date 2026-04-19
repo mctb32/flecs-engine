@@ -481,7 +481,6 @@ void flecsEngine_batch_group_init(
         result->mesh = *mesh;
     }
     result->group_id = group_id;
-    ecs_vec_init_t(NULL, &result->slots, int32_t, 0);
     ecs_vec_init_t(NULL, &result->changed, ecs_entity_t, 0);
     ecs_vec_init_t(NULL, &result->changed_slots, int32_t, 0);
     ecs_map_init(&result->changed_set, NULL);
@@ -502,7 +501,6 @@ void flecsEngine_batch_group_fini(
     ptr->view.count = 0;
     ptr->view.offset = 0;
     ptr->batch = NULL;
-    ecs_vec_fini_t(NULL, &ptr->slots, int32_t);
     ecs_vec_fini_t(NULL, &ptr->changed, ecs_entity_t);
     ecs_vec_fini_t(NULL, &ptr->changed_slots, int32_t);
     ecs_map_fini(&ptr->changed_set);

@@ -142,6 +142,9 @@ static void flecsEngine_batch_group_extractTable(
             if (ecs_map_get(&ctx->changed_set, (ecs_map_key_t)e)) {
                 continue;
             }
+            if (ecs_has(it->world, e, FlecsBufferSlot)) {
+                continue;
+            }
 
             int32_t slot;
             int32_t *fs = ecs_vec_first_t(&buf->free_slots, int32_t);
@@ -158,7 +161,7 @@ static void flecsEngine_batch_group_extractTable(
                 scale, scale_aabb, material_id,
                 colors, materials, emissives, transmissions);
 
-            *ecs_vec_append_t(NULL, &ctx->slots, int32_t) = slot;
+            ctx->slot_count ++;
 
             ecs_map_ensure(&ctx->changed_set, (ecs_map_key_t)e);
             *ecs_vec_append_t(NULL, &ctx->changed, ecs_entity_t) = e;
@@ -273,4 +276,126 @@ void flecsEngine_batch_group_extract(
     }
 
     FLECS_TRACY_ZONE_END;
+}
+
+void flecsEngine_batch_dynamicExtract_begin(
+    flecsEngine_batch_dynamicExtract_t *s,
+    flecsEngine_batch_t *shared)
+{
+    s->cap = shared->buffers.capacity;
+    s->group_cap = shared->buffers.group_capacity;
+    s->prev_gc = shared->buffers.group_count;
+    s->total = 0;
+    s->group_idx = 0;
+}
+
+void flecsEngine_batch_dynamicExtract_group(
+    flecsEngine_batch_dynamicExtract_t *s,
+    const ecs_world_t *world,
+    const FlecsEngineImpl *engine,
+    const FlecsRenderBatch *batch,
+    flecsEngine_batch_group_t *ctx,
+    flecsEngine_primitive_scale_t scale,
+    flecsEngine_primitive_scale_aabb_t scale_aabb,
+    ecs_size_t scale_size)
+{
+    if (!ctx->mesh.index_buffer || !ctx->mesh.index_count) {
+        ctx->view.count = 0;
+        ctx->view.group_idx = -1;
+        ctx->static_view.count = 0;
+        ctx->static_view.group_idx = -1;
+        ecs_os_zeromem(&ctx->mesh);
+        return;
+    }
+
+    ctx->view.offset = s->total;
+    ctx->view.group_idx = s->group_idx;
+    flecsEngine_batch_group_extract(
+        world, engine, batch, ctx, scale, scale_aabb, scale_size);
+
+    if (s->group_idx < s->group_cap) {
+        flecsEngine_batch_group_prepareArgs(ctx);
+    }
+
+    s->total += ctx->view.count;
+    s->group_idx ++;
+}
+
+bool flecsEngine_batch_dynamicExtract_commit(
+    flecsEngine_batch_dynamicExtract_t *s,
+    const FlecsEngineImpl *engine,
+    flecsEngine_batch_t *shared)
+{
+    bool need_redo = false;
+    if (s->total > s->cap) {
+        flecsEngine_batch_ensureCapacity(engine, shared, s->total);
+        need_redo = true;
+    }
+    if (s->group_idx > s->group_cap) {
+        flecsEngine_batch_ensureGroupCapacity(shared, s->group_idx);
+        need_redo = true;
+    }
+    if (s->group_idx != s->prev_gc) {
+        shared->buffers.group_count = s->group_idx;
+        need_redo = true;
+    }
+
+    if (need_redo) {
+        return true;
+    }
+
+    shared->buffers.count = s->total;
+    return false;
+}
+
+void flecsEngine_batch_staticExtract_begin(
+    flecsEngine_batch_staticExtract_t *s,
+    flecsEngine_batch_t *shared)
+{
+    s->group_cap = shared->static_buffers.group_capacity;
+    s->prev_gc = shared->static_buffers.group_count;
+    s->static_offset = 0;
+    s->static_group_idx = 0;
+}
+
+void flecsEngine_batch_staticExtract_group(
+    flecsEngine_batch_staticExtract_t *s,
+    const ecs_world_t *world,
+    flecsEngine_batch_group_t *ctx)
+{
+    int32_t sc = ctx->slot_count;
+    if (!sc || !ctx->mesh.index_buffer || !ctx->mesh.index_count) {
+        ctx->static_view.count = 0;
+        ctx->static_view.offset = 0;
+        ctx->static_view.group_idx = -1;
+        return;
+    }
+
+    ctx->static_view.count = sc;
+    ctx->static_view.offset = s->static_offset;
+    ctx->static_view.group_idx = s->static_group_idx;
+
+    if (s->static_group_idx < s->group_cap) {
+        flecsEngine_batch_group_applyChanges(world, ctx);
+        flecsEngine_batch_group_prepareStaticArgs(ctx);
+    }
+
+    s->static_offset += sc;
+    s->static_group_idx ++;
+}
+
+bool flecsEngine_batch_staticExtract_commit(
+    flecsEngine_batch_staticExtract_t *s,
+    flecsEngine_batch_t *shared)
+{
+    bool need_redo = false;
+    if (s->static_group_idx > s->group_cap) {
+        flecsEngine_batch_ensureStaticGroupCapacity(shared, s->static_group_idx);
+        need_redo = true;
+    }
+    if (s->static_group_idx != s->prev_gc) {
+        shared->static_buffers.group_count = s->static_group_idx;
+        need_redo = true;
+    }
+    return need_redo;
 }

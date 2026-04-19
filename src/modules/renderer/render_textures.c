@@ -329,28 +329,51 @@ void flecsEngine_pbr_texture_ensureFallbacks(
             engine->textures.fallback_normal_tex);
 }
 
-WGPUSampler flecsEngine_pbr_texture_ensureSampler(
-    FlecsEngineImpl *engine)
+void flecsEngine_pbr_texture_ensureSamplers(
+    FlecsEngineImpl *engine,
+    uint16_t max_aniso)
 {
-    if (engine->textures.pbr_sampler) {
-        return engine->textures.pbr_sampler;
+    if (max_aniso < 1) max_aniso = 1;
+
+    if (engine->textures.pbr_sampler &&
+        engine->textures.applied_max_aniso != max_aniso)
+    {
+        FLECS_WGPU_RELEASE(engine->textures.pbr_sampler, wgpuSamplerRelease);
     }
 
-    WGPUSamplerDescriptor sampler_desc = {
-        .addressModeU = WGPUAddressMode_Repeat,
-        .addressModeV = WGPUAddressMode_Repeat,
-        .addressModeW = WGPUAddressMode_Repeat,
-        .magFilter = WGPUFilterMode_Linear,
-        .minFilter = WGPUFilterMode_Linear,
-        .mipmapFilter = WGPUMipmapFilterMode_Linear,
-        .lodMinClamp = 0.0f,
-        .lodMaxClamp = 32.0f,
-        .maxAnisotropy = 16
-    };
+    if (!engine->textures.pbr_sampler) {
+        WGPUSamplerDescriptor sd = {
+            .addressModeU = WGPUAddressMode_Repeat,
+            .addressModeV = WGPUAddressMode_Repeat,
+            .addressModeW = WGPUAddressMode_Repeat,
+            .magFilter = WGPUFilterMode_Linear,
+            .minFilter = WGPUFilterMode_Linear,
+            .mipmapFilter = WGPUMipmapFilterMode_Linear,
+            .lodMinClamp = 0.0f,
+            .lodMaxClamp = 32.0f,
+            .maxAnisotropy = max_aniso
+        };
+        engine->textures.pbr_sampler = wgpuDeviceCreateSampler(
+            engine->device, &sd);
+    }
 
-    engine->textures.pbr_sampler = wgpuDeviceCreateSampler(
-        engine->device, &sampler_desc);
-    return engine->textures.pbr_sampler;
+    if (!engine->textures.pbr_low_sampler) {
+        WGPUSamplerDescriptor sd = {
+            .addressModeU = WGPUAddressMode_Repeat,
+            .addressModeV = WGPUAddressMode_Repeat,
+            .addressModeW = WGPUAddressMode_Repeat,
+            .magFilter = WGPUFilterMode_Linear,
+            .minFilter = WGPUFilterMode_Linear,
+            .mipmapFilter = WGPUMipmapFilterMode_Linear,
+            .lodMinClamp = 0.0f,
+            .lodMaxClamp = 32.0f,
+            .maxAnisotropy = 1
+        };
+        engine->textures.pbr_low_sampler = wgpuDeviceCreateSampler(
+            engine->device, &sd);
+    }
+
+    engine->textures.applied_max_aniso = max_aniso;
 }
 
 const char* flecsEngine_texture_formatName(

@@ -17,8 +17,9 @@ WGPUTexture flecsEngine_texture_create1x1(
 void flecsEngine_pbr_texture_ensureFallbacks(
     FlecsEngineImpl *engine);
 
-WGPUSampler flecsEngine_pbr_texture_ensureSampler(
-    FlecsEngineImpl *engine);
+void flecsEngine_pbr_texture_ensureSamplers(
+    FlecsEngineImpl *engine,
+    uint16_t max_aniso);
 
 void flecsEngine_material_buildTextureArrays(
     ecs_world_t *world,

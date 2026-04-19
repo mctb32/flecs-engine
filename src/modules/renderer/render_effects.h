@@ -24,7 +24,7 @@ typedef bool (*flecs_render_effect_bind_callback)(
 
 typedef bool (*flecs_render_effect_render_callback)(
     const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
+    FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder,
     ecs_entity_t effect_entity,
@@ -78,16 +78,24 @@ void flecsEngine_ssao_register(
 void flecsEngine_sunShafts_register(
     ecs_world_t *world);
 
-void flecsEngine_renderEffect_render(
+void flecsEngine_autoExposure_register(
+    ecs_world_t *world);
+
+bool flecsEngine_renderEffect_render(
     const ecs_world_t *world,
-    const FlecsEngineImpl *impl,
+    FlecsEngineImpl *engine,
     const FlecsRenderViewImpl *view_impl,
-    const WGPURenderPassEncoder pass,
+    WGPUCommandEncoder encoder,
+    WGPUTextureView output_view,
+    WGPULoadOp load_op,
+    WGPUColor clear_value,
     ecs_entity_t effect_entity,
     const FlecsRenderEffect *effect,
     FlecsRenderEffectImpl *effect_impl,
     WGPUTextureView input_view,
-    WGPUTextureFormat output_format);
+    WGPUTextureFormat output_format,
+    const char *ts_name,
+    const WGPURenderPassTimestampWrites *ts_writes);
 
 void flecsEngine_renderView_renderEffects(
     ecs_world_t *world,

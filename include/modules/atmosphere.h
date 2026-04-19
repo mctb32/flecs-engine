@@ -33,8 +33,12 @@ ECS_STRUCT(FlecsAtmosphere, {
 
     float ozone_scale;
     float stratospheric_aerosol_scale;
+    float haze_absorption;
 
     flecs_rgba_t ground_albedo;
+
+    flecs_rgba_t night_tint;
+    float night_intensity;
 });
 
 extern ECS_COMPONENT_DECLARE(FlecsAtmosphere);

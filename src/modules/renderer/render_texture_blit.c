@@ -131,7 +131,7 @@ static void flecsEngine_textureArray_doBlit(
 
     flecsEngine_fullscreenPass(
         encoder, dst_slice_view, WGPULoadOp_Clear, (WGPUColor){0, 0, 0, 0},
-        impl->textures.blit_pipeline, bg);
+        impl->textures.blit_pipeline, bg, NULL, NULL, NULL);
     wgpuBindGroupRelease(bg);
 }
 
