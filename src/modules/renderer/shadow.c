@@ -228,6 +228,7 @@ static void flecsEngine_shadow_computeSingleCascade(
     float aspect,
     float cascade_near,
     float cascade_far,
+    float max_range,
     uint32_t cascade_size,
     mat4 out_vp)
 {
@@ -297,13 +298,10 @@ static void flecsEngine_shadow_computeSingleCascade(
         max_z -= z_push;
     }
 
-    /* Use square extent for stable shadow map */
     float half_x = (max_x - min_x) * 0.5f;
     float half_y = (max_y - min_y) * 0.5f;
-    float extent = fmaxf(half_x, half_y);
-
-    /* Pad by one texel for snapping headroom */
-    extent += (2.0f * extent) / (float)cascade_size;
+    half_x += (2.0f * half_x) / (float)cascade_size;
+    half_y += (2.0f * half_y) / (float)cascade_size;
 
     /* Re-center light view on the AABB center */
     float aabb_cx = (min_x + max_x) * 0.5f;
@@ -312,15 +310,23 @@ static void flecsEngine_shadow_computeSingleCascade(
     light_view[3][1] -= aabb_cy;
 
     /* Extend far Z range to catch shadow casters behind the camera */
+    vec3 cam_fwd = {
+        -inv_view[2][0], -inv_view[2][1], -inv_view[2][2]
+    };
+    float ext_scale = glm_vec3_dot(cam_fwd, (float*)ray_dir);
+    if (ext_scale < 0.0f) ext_scale = 0.0f;
     float z_range = max_z - min_z;
-    min_z -= z_range;
+    float back_ext = z_range * ext_scale;
+    if (max_range > 0.0f && back_ext > max_range) back_ext = max_range;
+    min_z -= back_ext;
 
     /* Snap light-space origin to texel boundaries to prevent shimmer */
-    float texel_size = (2.0f * extent) / (float)cascade_size;
+    float texel_x = (2.0f * half_x) / (float)cascade_size;
+    float texel_y = (2.0f * half_y) / (float)cascade_size;
     vec4 origin = {0.0f, 0.0f, 0.0f, 1.0f};
     glm_mat4_mulv(light_view, origin, origin);
-    origin[0] = floorf(origin[0] / texel_size) * texel_size;
-    origin[1] = floorf(origin[1] / texel_size) * texel_size;
+    origin[0] = floorf(origin[0] / texel_x) * texel_x;
+    origin[1] = floorf(origin[1] / texel_y) * texel_y;
 
     vec4 snapped;
     glm_mat4_mulv(light_view, (vec4){0.0f, 0.0f, 0.0f, 1.0f}, snapped);
@@ -336,8 +342,8 @@ static void flecsEngine_shadow_computeSingleCascade(
 
     mat4 light_proj;
     glm_ortho_rh_zo(
-        -extent, extent,
-        -extent, extent,
+        -half_x, half_x,
+        -half_y, half_y,
         near_plane, far_plane,
         light_proj);
 
@@ -421,7 +427,7 @@ void flecsEngine_shadow_computeCascades(
 
         flecsEngine_shadow_computeSingleCascade(
             ray_dir, up, inv_view, tan_half_fov, aspect,
-            cascade_near, cascade_far, shadow_map_size,
+            cascade_near, cascade_far, max_range, shadow_map_size,
             out_light_vp[c]);
     }
 }

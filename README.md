@@ -80,7 +80,8 @@ You should probably not use this, unless:
 - Tracy profiling
 - Image-based rendering regression testing
 - MSAA
-- CPU frustum culling
+- GPU frustum culling
+- Hi-Z occlusion culling
 - Render to image
 
 ## Dependencies
