@@ -318,6 +318,17 @@ typedef struct {
 extern ECS_COMPONENT_DECLARE(FlecsCameraImpl);
 
 typedef struct {
+    float atmosphere[4];
+    float scat_rayleigh[4];
+    float scat_mie[4];
+    float ext_mie[4];
+    float abs_ozone[4];
+    float abs_strat_aerosol[4];
+    float abs_haze[4];
+    float ground_albedo[4];
+} FlecsAtmosphereLutKey;
+
+typedef struct {
     WGPUBuffer uniform_buffer;
 
     /* Transmittance LUT (256x64, RGBA16F). */
@@ -383,6 +394,13 @@ typedef struct {
     WGPUComputePipeline aerial_compute_pipeline;
     WGPUBindGroup aerial_compute_bind_group;
     WGPUTextureView aerial_storage_view;        /* storage-write view */
+
+    /* Cache for trans + multi-scattering LUTs. These LUTs depend only on
+     * atmosphere medium parameters (and ground_albedo for MS) — not on sun
+     * direction, sun color/intensity, or view. Skip the dispatches when the
+     * tracked parameters match the last rendered frame. */
+    FlecsAtmosphereLutKey lut_key_cached;
+    bool luts_cached;
 } FlecsAtmosphereImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsAtmosphereImpl);

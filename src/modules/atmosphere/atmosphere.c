@@ -1653,12 +1653,30 @@ bool flecsEngine_atmosphere_renderLuts(
     wgpuQueueWriteBuffer(
         engine->queue, a->uniform_buffer, 0, &uniform, sizeof(uniform));
 
-    bool ok = false;
-    ok = flecsEngine_atmos_runTrans(engine, a, encoder);
-    if (!ok) { FLECS_TRACY_ZONE_END; return false; }
+    FlecsAtmosphereLutKey key;
+    memcpy(key.atmosphere,         uniform.atmosphere,         sizeof(key.atmosphere));
+    memcpy(key.scat_rayleigh,      uniform.scat_rayleigh,      sizeof(key.scat_rayleigh));
+    memcpy(key.scat_mie,           uniform.scat_mie,           sizeof(key.scat_mie));
+    memcpy(key.ext_mie,            uniform.ext_mie,            sizeof(key.ext_mie));
+    memcpy(key.abs_ozone,          uniform.abs_ozone,          sizeof(key.abs_ozone));
+    memcpy(key.abs_strat_aerosol,  uniform.abs_strat_aerosol,  sizeof(key.abs_strat_aerosol));
+    memcpy(key.abs_haze,           uniform.abs_haze,           sizeof(key.abs_haze));
+    memcpy(key.ground_albedo,      uniform.ground_albedo,      sizeof(key.ground_albedo));
 
-    ok = flecsEngine_atmos_runMS(engine, a, encoder);
-    if (!ok) { FLECS_TRACY_ZONE_END; return false; }
+    bool luts_dirty = !a->luts_cached ||
+        memcmp(&key, &a->lut_key_cached, sizeof(key)) != 0;
+
+    bool ok = false;
+    if (luts_dirty) {
+        ok = flecsEngine_atmos_runTrans(engine, a, encoder);
+        if (!ok) { FLECS_TRACY_ZONE_END; return false; }
+
+        ok = flecsEngine_atmos_runMS(engine, a, encoder);
+        if (!ok) { FLECS_TRACY_ZONE_END; return false; }
+
+        a->lut_key_cached = key;
+        a->luts_cached = true;
+    }
 
     ok = flecsEngine_atmos_runSkyView(engine, a, encoder);
     if (!ok) { FLECS_TRACY_ZONE_END; return false; }
