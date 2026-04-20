@@ -56,13 +56,12 @@ ECS_STRUCT(FlecsSunShafts, {
 extern ECS_COMPONENT_DECLARE(FlecsSunShafts);
 
 ECS_STRUCT(FlecsAutoExposure, {
-    float min_ev;
-    float max_ev;
+    float min_brightness;
+    float max_brightness;
     float min_log_luma;
     float max_log_luma;
     float speed_up;
     float speed_down;
-    float compensation;
     float low_percentile;
     float high_percentile;
 });

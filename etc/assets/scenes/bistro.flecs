@@ -6,13 +6,9 @@ camera {
     LookAt: {-60.388, 7.801, 49.59}
 }
 
-light {
-    CelestialLight: {toa_intensity: 5.0, toa_color: {255, 255, 255, 255}}
-}
-
 time_of_day {
     TimeOfDay: {
-        light: light,
+        light: sun,
         atmosphere: view.atmosphere,
         hour: 13.7,
         day_of_year: 80,

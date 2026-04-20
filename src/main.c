@@ -137,7 +137,7 @@ void initEngine(
     .shadow = {
       .enabled = true,
       .map_size = 4096,
-      .max_range = 200,
+      .max_range = 400,
       .bias = 0.0001
     },
     .ambient_intensity = 0.2f,
@@ -169,38 +169,34 @@ void initEngine(
   ecs_set(world, view.camera, FlecsPosition3, {0, 2, -3});
   ecs_set(world, view.camera, FlecsLookAt, {0, 0, 0});
 
-  // Light
-  ecs_entity_t light = ecs_entity(world, { .name = "light" });
-  ecs_set(world, light, FlecsPosition3, {1, 2, 1});
-  ecs_set(world, light, FlecsDirectionalLight, { .intensity = 2.0f });
-  ecs_set(world, light, FlecsCelestialLight, {
-      .toa_intensity = 20.0f,
+  // sun
+  ecs_entity_t sun = ecs_entity(world, { .name = "sun" });
+  ecs_set(world, sun, FlecsPosition3, {1, 2, 1});
+  ecs_set(world, sun, FlecsDirectionalLight, { .intensity = 2.0f });
+  ecs_set(world, sun, FlecsCelestialLight, {
+      .toa_intensity = 16.0f,
       .toa_color = {255, 255, 255, 255}
   });
-  ecs_set(world, light, FlecsLookAt, { 0, 0, 0 });
-  ecs_set(world, light, FlecsRgba, {255, 255, 255, 255});
+  ecs_set(world, sun, FlecsLookAt, { 0, 0, 0 });
+  ecs_set(world, sun, FlecsRgba, {255, 255, 255, 255});
 
   // Moon light
-  ecs_entity_t moon_light = ecs_entity(world, { .name = "moon_light" });
-  ecs_set(world, moon_light, FlecsPosition3, {-1, 2, -1});
-  ecs_set(world, moon_light, FlecsDirectionalLight, { .intensity = 0.0f });
-  ecs_set(world, moon_light, FlecsCelestialLight, {
-      .toa_intensity = 0.0f,
+  ecs_entity_t moon = ecs_entity(world, { .name = "moon" });
+  ecs_set(world, moon, FlecsPosition3, {-1, 2, -1});
+  ecs_set(world, moon, FlecsDirectionalLight, { .intensity = 0.0f });
+  ecs_set(world, moon, FlecsCelestialLight, {
+      .toa_intensity = 0.002f,
       .toa_color = {255, 255, 255, 255}
   });
-  ecs_set(world, moon_light, FlecsLookAt, { 0, 0, 0 });
-  ecs_set(world, moon_light, FlecsRgba, {255, 255, 255, 255});
-
-  // HDRI (optional, ignored when atmosphere is set below)
-  // view.hdri = flecsEngine_createHdri(
-  //   world, view_entity, "hdri", "etc/assets/hdri/industrial_sunset_puresky_4k.exr", 1024, 64);
+  ecs_set(world, moon, FlecsLookAt, { 0, 0, 0 });
+  ecs_set(world, moon, FlecsRgba, {255, 255, 255, 255});
 
   // Atmosphere: sky, aerial perspective, and (phase 4) IBL
   view.atmosphere = ecs_entity(world, {
     .parent = view_entity, .name = "atmosphere" });
   FlecsAtmosphere atmosphere_settings = flecsEngine_atmosphereSettingsDefault();
-  atmosphere_settings.sun = light;
-  atmosphere_settings.moon = moon_light;
+  atmosphere_settings.sun = sun;
+  atmosphere_settings.moon = moon;
   ecs_set_ptr(world, view.atmosphere, FlecsAtmosphere, &atmosphere_settings);
 
   // RenderBatches (what to render in scene)
@@ -224,8 +220,9 @@ void initEngine(
   fog_settings.density = 0;
   FlecsAutoExposure auto_exposure_settings =
     flecsEngine_autoExposureSettingsDefault();
-  auto_exposure_settings.max_ev = 4;
-  auto_exposure_settings.low_percentile = 0.5;
+  auto_exposure_settings.min_log_luma = -16;
+  auto_exposure_settings.low_percentile = 0;
+  auto_exposure_settings.min_brightness = 0.03;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
@@ -246,7 +243,7 @@ void initEngine(
   ecs_entity_t auto_exposure_effect = flecsEngine_createEffect_autoExposure(
     world, view_entity, "autoExposure", 4, &auto_exposure_settings);
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = true,
+    (flecs_render_view_effect_t){ .enabled = false,
       .effect = auto_exposure_effect };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =

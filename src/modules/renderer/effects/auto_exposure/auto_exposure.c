@@ -25,12 +25,12 @@ typedef struct FlecsAutoExposureReduceUniforms {
     float high_percentile;
     float speed_up;
     float speed_down;
-    float compensation;
+    float min_log_brightness;
+    float max_log_brightness;
     float dt;
-    float min_ev;
-    float max_ev;
     uint32_t pixel_count;
     uint32_t _pad0;
+    uint32_t _pad1;
 } FlecsAutoExposureReduceUniforms;
 
 static const char *kBuildShaderSource =
@@ -79,12 +79,12 @@ static const char *kReduceShaderSource =
     "    high_percentile : f32,\n"
     "    speed_up : f32,\n"
     "    speed_down : f32,\n"
-    "    compensation : f32,\n"
+    "    min_log_brightness : f32,\n"
+    "    max_log_brightness : f32,\n"
     "    dt : f32,\n"
-    "    min_ev : f32,\n"
-    "    max_ev : f32,\n"
     "    pixel_count : u32,\n"
     "    _pad0 : u32,\n"
+    "    _pad1 : u32,\n"
     "};\n"
     "@group(0) @binding(0) var<storage, read_write> histogram : array<atomic<u32>, 256>;\n"
     "@group(0) @binding(1) var<storage, read_write> exposure : array<f32, 2>;\n"
@@ -98,7 +98,7 @@ static const char *kReduceShaderSource =
     "    workgroupBarrier();\n"
     "    if (idx != 0u) { return; }\n"
     "    var total : u32 = 0u;\n"
-    "    for (var i : u32 = 0u; i < 256u; i = i + 1u) {\n"
+    "    for (var i : u32 = 1u; i < 256u; i = i + 1u) {\n"
     "        total = total + shared_bins[i];\n"
     "    }\n"
     "    if (total == 0u) { return; }\n"
@@ -125,9 +125,12 @@ static const char *kReduceShaderSource =
     "    if (weight_sum > 0.0) {\n"
     "        target_log_luma = sum / weight_sum;\n"
     "    }\n"
-    "    let target_ev = clamp(\n"
-    "        -2.473931188f - target_log_luma + u.compensation,\n"
-    "        u.min_ev, u.max_ev);\n"
+    "    var target_ev : f32 = 0.0;\n"
+    "    if (target_log_luma < u.min_log_brightness) {\n"
+    "        target_ev = u.min_log_brightness - target_log_luma;\n"
+    "    } else if (target_log_luma > u.max_log_brightness) {\n"
+    "        target_ev = u.max_log_brightness - target_log_luma;\n"
+    "    }\n"
     "    let prev_ev = exposure[0];\n"
     "    let going_up = target_ev > prev_ev;\n"
     "    let speed = select(u.speed_down, u.speed_up, going_up);\n"
@@ -151,13 +154,12 @@ static const char *kPassthroughShaderSource =
 FlecsAutoExposure flecsEngine_autoExposureSettingsDefault(void)
 {
     return (FlecsAutoExposure){
-        .min_ev = -8.0f,
-        .max_ev = 8.0f,
+        .min_brightness = 0.1f,
+        .max_brightness = 0.3f,
         .min_log_luma = -8.0f,
         .max_log_luma = 4.0f,
         .speed_up = 3.0f,
         .speed_down = 1.0f,
-        .compensation = 0.0f,
         .low_percentile = 0.5f,
         .high_percentile = 0.95f
     };
@@ -452,6 +454,11 @@ static bool flecsEngine_autoExposure_render(
     if (dt < 0.0f) dt = 0.0f;
     if (dt > 0.25f) dt = 0.25f;
 
+    float min_b = settings->min_brightness;
+    float max_b = settings->max_brightness;
+    if (min_b < 1e-6f) min_b = 1e-6f;
+    if (max_b < min_b) max_b = min_b;
+
     FlecsAutoExposureReduceUniforms reduce_u = {
         .min_log_luma = settings->min_log_luma,
         .log_luma_range = log_luma_range,
@@ -459,12 +466,12 @@ static bool flecsEngine_autoExposure_render(
         .high_percentile = settings->high_percentile,
         .speed_up = settings->speed_up,
         .speed_down = settings->speed_down,
-        .compensation = settings->compensation,
+        .min_log_brightness = log2f(min_b),
+        .max_log_brightness = log2f(max_b),
         .dt = dt,
-        .min_ev = settings->min_ev,
-        .max_ev = settings->max_ev,
         .pixel_count = width * height,
-        ._pad0 = 0
+        ._pad0 = 0,
+        ._pad1 = 0
     };
     wgpuQueueWriteBuffer(engine->queue, impl->reduce_uniform_buffer, 0,
         &reduce_u, sizeof(reduce_u));
@@ -553,13 +560,12 @@ void flecsEngine_autoExposure_register(
     ecs_struct(world, {
         .entity = ecs_id(FlecsAutoExposure),
         .members = {
-            { .name = "min_ev", .type = ecs_id(ecs_f32_t) },
-            { .name = "max_ev", .type = ecs_id(ecs_f32_t) },
+            { .name = "min_brightness", .type = ecs_id(ecs_f32_t) },
+            { .name = "max_brightness", .type = ecs_id(ecs_f32_t) },
             { .name = "min_log_luma", .type = ecs_id(ecs_f32_t) },
             { .name = "max_log_luma", .type = ecs_id(ecs_f32_t) },
             { .name = "speed_up", .type = ecs_id(ecs_f32_t) },
             { .name = "speed_down", .type = ecs_id(ecs_f32_t) },
-            { .name = "compensation", .type = ecs_id(ecs_f32_t) },
             { .name = "low_percentile", .type = ecs_id(ecs_f32_t) },
             { .name = "high_percentile", .type = ecs_id(ecs_f32_t) }
         }

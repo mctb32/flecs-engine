@@ -4,11 +4,10 @@ include common/atmosphere_purple
 using flecs.engine.*
 
 camera {
-    Position3: {-33.233, 10, 55.8}
-    LookAt: {-33.233, 9.768, 54.839}
+    Position3: {-50.376, 16.55, 63.178}
+    LookAt: {-50.376, 16.316, 62.206}
 }
 
 kenney.City city(20) {
   Position3: {y: 1}
-  Scale3: {4, 4, 4}
 }

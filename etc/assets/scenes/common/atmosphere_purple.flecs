@@ -1,21 +1,13 @@
 using flecs.engine.*
 
-light {
-    CelestialLight: {toa_intensity: 16, toa_color: {255, 255, 255, 255}}
-}
-
-moon_light {
-    CelestialLight: {toa_intensity: 0.0045, toa_color: {255, 255, 255, 255}}
-}
-
 view.atmosphere {
     Atmosphere: {
-        sun: light,
-        moon: moon_light,
+        sun: sun,
+        moon: moon,
         sun_disk_intensity: 20,
         sun_disk_angular_radius: 0.02,
         aerial_perspective_distance_km: 6,
-        aerial_perspective_intensity: 40,
+        aerial_perspective_intensity: 30,
         sea_level_y: 0,
         world_units_per_km: 1000,
         ground_altitude_km: 0.01,
@@ -38,8 +30,8 @@ view.atmosphere {
 
 time_of_day {
     TimeOfDay: {
-        light: light,
-        moon_light: moon_light,
+        light: sun,
+        moon_light: moon,
         atmosphere: view.atmosphere,
         hour: 17.4,
         day_of_year: 80,
@@ -48,4 +40,3 @@ time_of_day {
         time_scale: 0.0
     }
 }
-
