@@ -728,10 +728,11 @@ static void flecsEngine_renderView_renderBatches(
         world, view_entity, FlecsRenderBatchSet);
     ecs_assert(batch_set != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    WGPUTextureView batch_target = view->atmosphere && viewImpl->scene_target_view
+    ecs_entity_t atmosphere = flecsEngine_renderView_atmosphere(world, view);
+    WGPUTextureView batch_target = atmosphere && viewImpl->scene_target_view
         ? viewImpl->scene_target_view
         : viewImpl->effect_target_views[0];
-    WGPUTexture batch_target_tex = view->atmosphere && viewImpl->scene_target_texture
+    WGPUTexture batch_target_tex = atmosphere && viewImpl->scene_target_texture
         ? viewImpl->scene_target_texture
         : viewImpl->effect_target_textures[0];
 
@@ -859,12 +860,13 @@ static void flecsEngine_renderView_render(
         return;
     }
 
-    bool have_atmosphere = view->atmosphere != 0;
+    ecs_entity_t atmosphere = flecsEngine_renderView_atmosphere(world, view);
+    bool have_atmosphere = atmosphere != 0;
     if (have_atmosphere) {
         FLECS_TRACY_ZONE_BEGIN_N(atm_ensure_zone, "AtmosEnsureImpl");
         bool scene_ok = flecsEngine_renderView_ensureSceneTarget(world, engine, impl);
         bool impl_ok = scene_ok && flecsEngine_atmosphere_ensureImpl(
-            world, engine, view->atmosphere);
+            world, engine, atmosphere);
         FLECS_TRACY_ZONE_END_N(atm_ensure_zone);
         if (!scene_ok) {
             ecs_err("failed to allocate scene pre-atmosphere target");
@@ -918,12 +920,12 @@ static void flecsEngine_renderView_render(
 
     if (have_atmosphere) {
         if (!flecsEngine_atmosphere_renderLuts(
-            world, engine, view->atmosphere, view_entity, encoder))
+            world, engine, atmosphere, view_entity, encoder))
         {
             ecs_err("atmosphere LUT pass failed");
         }
         if (!flecsEngine_atmosphere_renderIbl(
-            world, engine, view->atmosphere, encoder))
+            world, engine, atmosphere, encoder))
         {
             ecs_err("atmosphere IBL pass failed");
         }
@@ -940,7 +942,7 @@ static void flecsEngine_renderView_render(
 
     if (have_atmosphere) {
         if (!flecsEngine_atmosphere_renderCompose(
-            world, engine, impl, view->atmosphere, encoder,
+            world, engine, impl, atmosphere, encoder,
             impl->scene_target_view,
             impl->effect_target_views[0],
             impl->effect_target_format,

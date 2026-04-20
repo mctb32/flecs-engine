@@ -38,4 +38,15 @@ void flecsEngine_renderView_renderShadow(
     FlecsRenderViewImpl *view_impl,
     WGPUCommandEncoder encoder);
 
+static inline ecs_entity_t flecsEngine_renderView_atmosphere(
+    const ecs_world_t *world,
+    const FlecsRenderView *view)
+{
+    ecs_entity_t e = view->atmosphere;
+    if (e && ecs_has_id(world, e, EcsDisabled)) {
+        return 0;
+    }
+    return e;
+}
+
 #endif

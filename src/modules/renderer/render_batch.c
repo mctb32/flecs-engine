@@ -520,8 +520,9 @@ void flecsEngine_renderView_ensureSceneBindGroup(
     FlecsRenderViewImpl *view_impl,
     const FlecsRenderView *view)
 {
-    ecs_entity_t hdri = view->atmosphere
-        ? view->atmosphere
+    ecs_entity_t atmosphere = flecsEngine_renderView_atmosphere(world, view);
+    ecs_entity_t hdri = atmosphere
+        ? atmosphere
         : (view->hdri ? view->hdri : engine->fallback_hdri);
 
     FlecsHdriImpl *ibl = ecs_get_mut(world, hdri, FlecsHdriImpl);

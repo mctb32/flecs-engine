@@ -141,7 +141,7 @@ void initEngine(
       .bias = 0.0001
     },
     .ambient_intensity = 0.2f,
-    .screen_px_threshold = 5.0
+    .screen_px_threshold = 100
   };
 
   FlecsRenderBatchSet batch_set = {};
@@ -174,7 +174,7 @@ void initEngine(
   ecs_set(world, sun, FlecsPosition3, {1, 2, 1});
   ecs_set(world, sun, FlecsDirectionalLight, { .intensity = 2.0f });
   ecs_set(world, sun, FlecsCelestialLight, {
-      .toa_intensity = 16.0f,
+      .toa_intensity = 6.0f,
       .toa_color = {255, 255, 255, 255}
   });
   ecs_set(world, sun, FlecsLookAt, { 0, 0, 0 });
@@ -237,7 +237,7 @@ void initEngine(
     flecsEngine_autoExposureSettingsDefault();
   auto_exposure_settings.min_log_luma = -16;
   auto_exposure_settings.low_percentile = 0;
-  auto_exposure_settings.min_brightness = 0.01;
+  auto_exposure_settings.min_brightness = 0.03;
   auto_exposure_settings.max_brightness = 0.3;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
