@@ -173,6 +173,10 @@ void initEngine(
   ecs_entity_t light = ecs_entity(world, { .name = "light" });
   ecs_set(world, light, FlecsPosition3, {1, 2, 1});
   ecs_set(world, light, FlecsDirectionalLight, { .intensity = 2.0f });
+  ecs_set(world, light, FlecsCelestialLight, {
+      .toa_intensity = 20.0f,
+      .toa_color = {255, 255, 255, 255}
+  });
   ecs_set(world, light, FlecsLookAt, { 0, 0, 0 });
   ecs_set(world, light, FlecsRgba, {255, 255, 255, 255});
 
@@ -180,6 +184,10 @@ void initEngine(
   ecs_entity_t moon_light = ecs_entity(world, { .name = "moon_light" });
   ecs_set(world, moon_light, FlecsPosition3, {-1, 2, -1});
   ecs_set(world, moon_light, FlecsDirectionalLight, { .intensity = 0.0f });
+  ecs_set(world, moon_light, FlecsCelestialLight, {
+      .toa_intensity = 0.0f,
+      .toa_color = {255, 255, 255, 255}
+  });
   ecs_set(world, moon_light, FlecsLookAt, { 0, 0, 0 });
   ecs_set(world, moon_light, FlecsRgba, {255, 255, 255, 255});
 
@@ -217,7 +225,7 @@ void initEngine(
   FlecsAutoExposure auto_exposure_settings =
     flecsEngine_autoExposureSettingsDefault();
   auto_exposure_settings.max_ev = 4;
-  auto_exposure_settings.low_percentile = 0.1;
+  auto_exposure_settings.low_percentile = 0.5;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
@@ -238,7 +246,7 @@ void initEngine(
   ecs_entity_t auto_exposure_effect = flecsEngine_createEffect_autoExposure(
     world, view_entity, "autoExposure", 4, &auto_exposure_settings);
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = false,
+    (flecs_render_view_effect_t){ .enabled = true,
       .effect = auto_exposure_effect };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =

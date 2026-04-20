@@ -19,7 +19,6 @@ ECS_STRUCT(FlecsAtmosphere, {
     ecs_entity_t moon;         /* optional directional light entity used as
                                 * a secondary night-side light source */
 
-    float sun_intensity;
     float sun_disk_intensity;
     float sun_disk_angular_radius;
     float aerial_perspective_distance_km;

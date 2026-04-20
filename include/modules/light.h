@@ -10,6 +10,11 @@ ECS_STRUCT(FlecsDirectionalLight, {
     float intensity;
 });
 
+ECS_STRUCT(FlecsCelestialLight, {
+    float toa_intensity;
+    flecs_rgba_t toa_color;
+});
+
 ECS_STRUCT(FlecsPointLight, {
     float intensity;
     float range;

@@ -224,27 +224,36 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
                 ecs_modified(world, t->light, FlecsRotation3);
             }
 
+            const FlecsCelestialLight *cl = ecs_get(
+                world, t->light, FlecsCelestialLight);
+            float toa = cl ? cl->toa_intensity : 0.0f;
+            float toa_r = cl ? flecsEngine_colorChannelToFloat(cl->toa_color.r) : 1.0f;
+            float toa_g = cl ? flecsEngine_colorChannelToFloat(cl->toa_color.g) : 1.0f;
+            float toa_b = cl ? flecsEngine_colorChannelToFloat(cl->toa_color.b) : 1.0f;
+
             float light_intensity;
             float light_r, light_g, light_b;
             if (atm_settings) {
                 float m = atm_trans_rgb[0];
                 if (atm_trans_rgb[1] > m) m = atm_trans_rgb[1];
                 if (atm_trans_rgb[2] > m) m = atm_trans_rgb[2];
-                light_intensity = t->sun_intensity * m * sun_disk_fade;
+                light_intensity = toa * m * sun_disk_fade;
                 if (m > 1e-6f) {
-                    light_r = atm_trans_rgb[0] / m;
-                    light_g = atm_trans_rgb[1] / m;
-                    light_b = atm_trans_rgb[2] / m;
+                    light_r = toa_r * atm_trans_rgb[0] / m;
+                    light_g = toa_g * atm_trans_rgb[1] / m;
+                    light_b = toa_b * atm_trans_rgb[2] / m;
                 } else {
                     light_r = light_g = light_b = 0.0f;
                 }
             } else {
                 float transmittance = flecsEngine_sunTransmittance(
                     altitude_for_trans);
-                light_intensity =
-                    t->sun_intensity * transmittance * sun_disk_fade;
-                flecsEngine_sunColor(
-                    altitude_for_trans, &light_r, &light_g, &light_b);
+                light_intensity = toa * transmittance * sun_disk_fade;
+                float sr, sg, sb;
+                flecsEngine_sunColor(altitude_for_trans, &sr, &sg, &sb);
+                light_r = toa_r * sr;
+                light_g = toa_g * sg;
+                light_b = toa_b * sb;
             }
 
             FlecsDirectionalLight *dl = ecs_get_mut(
@@ -283,7 +292,6 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
                 ecs_modified(world, t->moon_light, FlecsRotation3);
             }
 
-            const float moon_sun_ratio = 2.5e-6f;
             float moon_altitude_for_trans = moon_alt > sun_disk_radius_rad
                 ? moon_alt : sun_disk_radius_rad;
             float moon_disk_fade = flecsEngine_smoothstep01(
@@ -305,16 +313,20 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
             if (moon_trans_rgb[1] > m) m = moon_trans_rgb[1];
             if (moon_trans_rgb[2] > m) m = moon_trans_rgb[2];
 
-            float moon_scale = t->moon_intensity > 0.0f
-                ? t->moon_intensity : 1.0f;
-            float moon_intensity = t->sun_intensity * moon_sun_ratio *
-                illum * m * moon_disk_fade * moon_scale;
+            const FlecsCelestialLight *mcl = ecs_get(
+                world, t->moon_light, FlecsCelestialLight);
+            float moon_toa = mcl ? mcl->toa_intensity : 0.0f;
+            float mtoa_r = mcl ? flecsEngine_colorChannelToFloat(mcl->toa_color.r) : 1.0f;
+            float mtoa_g = mcl ? flecsEngine_colorChannelToFloat(mcl->toa_color.g) : 1.0f;
+            float mtoa_b = mcl ? flecsEngine_colorChannelToFloat(mcl->toa_color.b) : 1.0f;
+
+            float moon_intensity = moon_toa * illum * m * moon_disk_fade;
 
             float mr = 1.0f, mg = 1.0f, mb = 1.0f;
             if (m > 1e-6f) {
-                mr = moon_trans_rgb[0] / m;
-                mg = moon_trans_rgb[1] / m;
-                mb = moon_trans_rgb[2] / m;
+                mr = mtoa_r * moon_trans_rgb[0] / m;
+                mg = mtoa_g * moon_trans_rgb[1] / m;
+                mb = mtoa_b * moon_trans_rgb[2] / m;
             }
 
             FlecsDirectionalLight *mdl = ecs_get_mut(

@@ -1,10 +1,17 @@
 using flecs.engine.*
 
+light {
+    CelestialLight: {toa_intensity: 16, toa_color: {255, 255, 255, 255}}
+}
+
+moon_light {
+    CelestialLight: {toa_intensity: 0.0045, toa_color: {255, 255, 255, 255}}
+}
+
 view.atmosphere {
     Atmosphere: {
         sun: light,
         moon: moon_light,
-        sun_intensity: 16,
         sun_disk_intensity: 20,
         sun_disk_angular_radius: 0.02,
         aerial_perspective_distance_km: 6,
@@ -38,9 +45,7 @@ time_of_day {
         day_of_year: 80,
         latitude: 25.2,
         north_offset: 30,
-        time_scale: 0.0,
-        sun_intensity: 6.0
-        moon_intensity: 300
+        time_scale: 0.0
     }
 }
 

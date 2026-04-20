@@ -670,7 +670,6 @@ ECS_MOVE(FlecsAtmosphereImpl, dst, src, {
 FlecsAtmosphere flecsEngine_atmosphereSettingsDefault(void)
 {
     return (FlecsAtmosphere){
-        .sun_intensity = 20.0f,
         .sun_disk_intensity = 1.0f,
         .sun_disk_angular_radius = 0.00465f,
         .aerial_perspective_distance_km = 32.0f,
@@ -790,14 +789,27 @@ static void flecsEngine_atmos_fillUniform(
 
     out->camera_pos_world[3] = s->ground_altitude_km;
 
+    float sun_toa = 0.0f;
+    float sun_toa_r = 1.0f, sun_toa_g = 1.0f, sun_toa_b = 1.0f;
+    if (s->sun) {
+        const FlecsCelestialLight *cl = ecs_get(
+            world, s->sun, FlecsCelestialLight);
+        if (cl) {
+            sun_toa = cl->toa_intensity;
+            sun_toa_r = flecsEngine_colorChannelToFloat(cl->toa_color.r);
+            sun_toa_g = flecsEngine_colorChannelToFloat(cl->toa_color.g);
+            sun_toa_b = flecsEngine_colorChannelToFloat(cl->toa_color.b);
+        }
+    }
+
     out->sun_direction[0] = 0.0f;
     out->sun_direction[1] = 1.0f;
     out->sun_direction[2] = 0.0f;
-    out->sun_direction[3] = s->sun_intensity;
+    out->sun_direction[3] = sun_toa;
 
-    out->sun_color[0] = s->sun_intensity;
-    out->sun_color[1] = s->sun_intensity;
-    out->sun_color[2] = s->sun_intensity;
+    out->sun_color[0] = sun_toa * sun_toa_r;
+    out->sun_color[1] = sun_toa * sun_toa_g;
+    out->sun_color[2] = sun_toa * sun_toa_b;
     out->sun_color[3] = 1.0f;
 
     if (!view_entity) return;
@@ -834,11 +846,6 @@ static void flecsEngine_atmos_fillUniform(
                 out->sun_direction[2] = -ray_dir[2];
             }
         }
-
-        out->sun_color[0] = s->sun_intensity;
-        out->sun_color[1] = s->sun_intensity;
-        out->sun_color[2] = s->sun_intensity;
-        out->sun_direction[3] = s->sun_intensity;
     }
 
     out->moon_direction[0] = 0.0f;
@@ -862,23 +869,16 @@ static void flecsEngine_atmos_fillUniform(
             }
         }
 
-        const FlecsDirectionalLight *mdl = ecs_get(
-            world, s->moon, FlecsDirectionalLight);
-        const FlecsRgba *mrgba = ecs_get(
-            world, s->moon, FlecsRgba);
-        float intensity = mdl ? mdl->intensity : 0.0f;
-        float cr = mrgba ? flecsEngine_colorChannelToFloat(mrgba->r) : 1.0f;
-        float cg = mrgba ? flecsEngine_colorChannelToFloat(mrgba->g) : 1.0f;
-        float cb = mrgba ? flecsEngine_colorChannelToFloat(mrgba->b) : 1.0f;
+        const FlecsCelestialLight *mcl = ecs_get(
+            world, s->moon, FlecsCelestialLight);
+        float moon_toa = mcl ? mcl->toa_intensity : 0.0f;
+        float cr = mcl ? flecsEngine_colorChannelToFloat(mcl->toa_color.r) : 1.0f;
+        float cg = mcl ? flecsEngine_colorChannelToFloat(mcl->toa_color.g) : 1.0f;
+        float cb = mcl ? flecsEngine_colorChannelToFloat(mcl->toa_color.b) : 1.0f;
 
-        /* Rescale moonlight back to "raw" atmospheric radiance so the scatter
-         * math can treat moon analogously to sun. The time_of_day system
-         * premultiplies by ~1/400k for the scene light; undo that here and
-         * let the shaders scale down once, matching the lunar/solar ratio. */
-        float atmos_intensity = intensity;
-        out->moon_radiance[0] = atmos_intensity * cr;
-        out->moon_radiance[1] = atmos_intensity * cg;
-        out->moon_radiance[2] = atmos_intensity * cb;
+        out->moon_radiance[0] = moon_toa * cr;
+        out->moon_radiance[1] = moon_toa * cg;
+        out->moon_radiance[2] = moon_toa * cb;
         out->moon_radiance[3] = 0.0f;
     }
 }
@@ -1720,7 +1720,6 @@ void FlecsEngineAtmosphereImport(ecs_world_t *world)
         .members = {
             { .name = "sun", .type = ecs_id(ecs_entity_t) },
             { .name = "moon", .type = ecs_id(ecs_entity_t) },
-            { .name = "sun_intensity", .type = ecs_id(ecs_f32_t) },
             { .name = "sun_disk_intensity", .type = ecs_id(ecs_f32_t) },
             { .name = "sun_disk_angular_radius", .type = ecs_id(ecs_f32_t) },
             { .name = "aerial_perspective_distance_km", .type = ecs_id(ecs_f32_t) },

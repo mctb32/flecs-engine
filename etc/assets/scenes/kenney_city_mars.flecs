@@ -7,6 +7,10 @@ camera {
     LookAt: {-9.26, 9.236, -65.4}
 }
 
+light {
+    CelestialLight: {toa_intensity: 9.0, toa_color: {255, 255, 255, 255}}
+}
+
 time_of_day {
     TimeOfDay: {
         light: light,
@@ -15,14 +19,12 @@ time_of_day {
         day_of_year: 172,
         latitude: 22.0,
         north_offset: 0,
-        time_scale: 0.0,
-        sun_intensity: 6.0
+        time_scale: 0.0
     }
 }
 
 view.atmosphere {
     Atmosphere: {
-        sun_intensity: 9.0,
         sun_disk_intensity: 400.0,
         sun_disk_angular_radius: 0.01,
         aerial_perspective_distance_km: 24.0,
