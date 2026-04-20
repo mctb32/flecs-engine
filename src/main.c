@@ -176,6 +176,13 @@ void initEngine(
   ecs_set(world, view.light, FlecsLookAt, { 0, 0, 0 });
   ecs_set(world, view.light, FlecsRgba, {255, 255, 255, 255});
 
+  // Moon light
+  view.moon_light = ecs_entity(world, { .name = "moon_light" });
+  ecs_set(world, view.moon_light, FlecsPosition3, {-1, 2, -1});
+  ecs_set(world, view.moon_light, FlecsDirectionalLight, { .intensity = 0.0f });
+  ecs_set(world, view.moon_light, FlecsLookAt, { 0, 0, 0 });
+  ecs_set(world, view.moon_light, FlecsRgba, {255, 255, 255, 255});
+
   // HDRI (optional, ignored when atmosphere is set below)
   // view.hdri = flecsEngine_createHdri(
   //   world, view_entity, "hdri", "etc/assets/hdri/industrial_sunset_puresky_4k.exr", 1024, 64);

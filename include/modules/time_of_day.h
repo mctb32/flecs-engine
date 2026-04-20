@@ -14,6 +14,7 @@
  * altitude (0 below horizon, max at zenith). */
 ECS_STRUCT(FlecsTimeOfDay, {
     ecs_entity_t light;       /* directional light to drive (required) */
+    ecs_entity_t moon_light;  /* directional light for the moon (optional) */
     ecs_entity_t atmosphere;  /* atmosphere entity to drive (optional) */
 
     float hour;               /* local solar time, 0..24 */

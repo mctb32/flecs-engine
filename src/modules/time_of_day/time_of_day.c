@@ -45,6 +45,97 @@ static float flecsEngine_wrap24(float h) {
     return h;
 }
 
+static float flecsEngine_normDeg(float d) {
+    d = fmodf(d, 360.0f);
+    if (d < 0.0f) d += 360.0f;
+    return d;
+}
+
+static void flecsEngine_moonPosition(
+    float hour,
+    float day_of_year,
+    float latitude_deg,
+    float *out_altitude,
+    float *out_azimuth,
+    float *out_illum_fraction)
+{
+    float d = (day_of_year - 1.0f) + (hour - 12.0f) / 24.0f;
+
+    float N = glm_rad(flecsEngine_normDeg(125.1228f - 0.0529538083f * d));
+    float inc = glm_rad(5.1454f);
+    float w = glm_rad(flecsEngine_normDeg(318.0634f + 0.1643573223f * d));
+    float a = 60.2666f;
+    float e = 0.054900f;
+    float M = glm_rad(flecsEngine_normDeg(115.3654f + 13.0649929509f * d));
+
+    float E = M + e * sinf(M) * (1.0f + e * cosf(M));
+    E = E - (E - e * sinf(E) - M) / (1.0f - e * cosf(E));
+
+    float xv = a * (cosf(E) - e);
+    float yv = a * sqrtf(1.0f - e * e) * sinf(E);
+    float v = atan2f(yv, xv);
+    float r = sqrtf(xv * xv + yv * yv);
+
+    float cos_N = cosf(N), sin_N = sinf(N);
+    float cos_vw = cosf(v + w), sin_vw = sinf(v + w);
+    float cos_i = cosf(inc), sin_i = sinf(inc);
+    float xh = r * (cos_N * cos_vw - sin_N * sin_vw * cos_i);
+    float yh = r * (sin_N * cos_vw + cos_N * sin_vw * cos_i);
+    float zh = r * (sin_vw * sin_i);
+
+    float moon_ecl_lon = atan2f(yh, xh);
+
+    float ecl = glm_rad(23.4393f - 3.563e-7f * d);
+    float cos_ecl = cosf(ecl), sin_ecl = sinf(ecl);
+    float xe = xh;
+    float ye = yh * cos_ecl - zh * sin_ecl;
+    float ze = yh * sin_ecl + zh * cos_ecl;
+    float moon_ra = atan2f(ye, xe);
+    float moon_dec = atan2f(ze, sqrtf(xe * xe + ye * ye));
+
+    float M_sun = glm_rad(flecsEngine_normDeg(356.0470f + 0.9856002585f * d));
+    float w_sun = glm_rad(flecsEngine_normDeg(282.9404f + 4.70935e-5f * d));
+    float e_sun = 0.016709f - 1.151e-9f * d;
+    float E_sun = M_sun + e_sun * sinf(M_sun) * (1.0f + e_sun * cosf(M_sun));
+    float xv_sun = cosf(E_sun) - e_sun;
+    float yv_sun = sqrtf(fmaxf(0.0f, 1.0f - e_sun * e_sun)) * sinf(E_sun);
+    float v_sun = atan2f(yv_sun, xv_sun);
+    float sun_ecl_lon = v_sun + w_sun;
+
+    float sun_ra = atan2f(sinf(sun_ecl_lon) * cos_ecl, cosf(sun_ecl_lon));
+
+    float sun_ha_rad = glm_rad(15.0f * (hour - 12.0f));
+    float lst = sun_ra + sun_ha_rad;
+    float moon_ha = lst - moon_ra;
+
+    float lat_rad = glm_rad(latitude_deg);
+    float sin_lat = sinf(lat_rad), cos_lat = cosf(lat_rad);
+    float sin_dec = sinf(moon_dec), cos_dec = cosf(moon_dec);
+    float cos_ha = cosf(moon_ha), sin_ha = sinf(moon_ha);
+
+    float sin_alt = sin_lat * sin_dec + cos_lat * cos_dec * cos_ha;
+    if (sin_alt > 1.0f) sin_alt = 1.0f;
+    if (sin_alt < -1.0f) sin_alt = -1.0f;
+    float altitude = asinf(sin_alt);
+    float cos_alt = cosf(altitude);
+
+    float azimuth = 0.0f;
+    if (cos_alt > 1e-4f && cos_lat > 1e-4f) {
+        float sin_az = -cos_dec * sin_ha / cos_alt;
+        float cos_az = (sin_dec - sin_lat * sin_alt) / (cos_lat * cos_alt);
+        azimuth = atan2f(sin_az, cos_az);
+    }
+
+    float elong = moon_ecl_lon - sun_ecl_lon;
+    float illum = (1.0f - cosf(elong)) * 0.5f;
+    if (illum < 0.0f) illum = 0.0f;
+    if (illum > 1.0f) illum = 1.0f;
+
+    *out_altitude = altitude;
+    *out_azimuth = azimuth;
+    *out_illum_fraction = illum;
+}
+
 static void flecsEngine_solarPosition(
     float hour,
     float day_of_year,
@@ -168,6 +259,74 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
                 rgba->b = (uint8_t)(glm_clamp(light_b, 0.0f, 1.0f) * 255.0f);
                 rgba->a = 255;
                 ecs_modified(world, t->light, FlecsRgba);
+            }
+        }
+
+        if (t->moon_light) {
+            float moon_alt, moon_az, illum;
+            flecsEngine_moonPosition(
+                t->hour, t->day_of_year, t->latitude,
+                &moon_alt, &moon_az, &illum);
+
+            float moon_pitch = -moon_alt;
+            float moon_yaw = moon_az + north_rad + GLM_PIf;
+
+            FlecsRotation3 *mrot = ecs_get_mut(
+                world, t->moon_light, FlecsRotation3);
+            if (mrot) {
+                mrot->x = moon_pitch;
+                mrot->y = moon_yaw;
+                mrot->z = 0.0f;
+                ecs_modified(world, t->moon_light, FlecsRotation3);
+            }
+
+            const float moon_sun_ratio = 2.5e-6f;
+            float moon_altitude_for_trans = moon_alt > sun_disk_radius_rad
+                ? moon_alt : sun_disk_radius_rad;
+            float moon_disk_fade = flecsEngine_smoothstep01(
+                (moon_alt + sun_disk_radius_rad)
+                    / (2.0f * sun_disk_radius_rad));
+
+            float moon_trans_rgb[3] = { 1.0f, 1.0f, 1.0f };
+            if (atm_settings) {
+                flecsEngine_atmos_sunTransmittance(
+                    atm_settings, sinf(moon_altitude_for_trans),
+                    moon_trans_rgb);
+            } else {
+                float tr = flecsEngine_sunTransmittance(
+                    moon_altitude_for_trans);
+                moon_trans_rgb[0] = moon_trans_rgb[1] = moon_trans_rgb[2] = tr;
+            }
+
+            float m = moon_trans_rgb[0];
+            if (moon_trans_rgb[1] > m) m = moon_trans_rgb[1];
+            if (moon_trans_rgb[2] > m) m = moon_trans_rgb[2];
+
+            float moon_intensity = t->sun_intensity * moon_sun_ratio *
+                illum * m * moon_disk_fade;
+
+            float mr = 1.0f, mg = 1.0f, mb = 1.0f;
+            if (m > 1e-6f) {
+                mr = moon_trans_rgb[0] / m;
+                mg = moon_trans_rgb[1] / m;
+                mb = moon_trans_rgb[2] / m;
+            }
+
+            FlecsDirectionalLight *mdl = ecs_get_mut(
+                world, t->moon_light, FlecsDirectionalLight);
+            if (mdl) {
+                mdl->intensity = moon_intensity;
+                ecs_modified(world, t->moon_light, FlecsDirectionalLight);
+            }
+
+            FlecsRgba *mrgba = ecs_get_mut(
+                world, t->moon_light, FlecsRgba);
+            if (mrgba) {
+                mrgba->r = (uint8_t)(glm_clamp(mr, 0.0f, 1.0f) * 255.0f);
+                mrgba->g = (uint8_t)(glm_clamp(mg, 0.0f, 1.0f) * 255.0f);
+                mrgba->b = (uint8_t)(glm_clamp(mb, 0.0f, 1.0f) * 255.0f);
+                mrgba->a = 255;
+                ecs_modified(world, t->moon_light, FlecsRgba);
             }
         }
     }

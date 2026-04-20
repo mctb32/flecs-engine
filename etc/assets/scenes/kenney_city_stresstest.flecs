@@ -43,6 +43,7 @@ view.atmosphere {
 time_of_day {
     TimeOfDay: {
         light: light,
+        moon_light: moon_light,
         atmosphere: view.atmosphere,
         hour: 17.4,
         day_of_year: 80,

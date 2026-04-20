@@ -30,7 +30,7 @@ view.atmosphere {
         ozone_scale: 2,
         stratospheric_aerosol_scale: 1.5,
         ground_albedo: {180, 160, 140, 255}
-        night_tint: {70, 110, 230, 255 }
+        night_tint: {25, 80, 230, 255 }
         night_intensity: 0.003
     }
 }
@@ -38,6 +38,7 @@ view.atmosphere {
 time_of_day {
     TimeOfDay: {
         light: light,
+        moon_light: moon_light,
         atmosphere: view.atmosphere,
         hour: 17.4,
         day_of_year: 80,

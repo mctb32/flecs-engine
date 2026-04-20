@@ -40,6 +40,8 @@ typedef struct FlecsAtmosphereUniform {
     float misc[4];
     float aerial_params[4];
     float night_tint[4];
+    float moon_direction[4];
+    float moon_radiance[4];
 } FlecsAtmosphereUniform;
 
 typedef struct FlecsAtmosphereSliceUniform {
@@ -69,6 +71,8 @@ static const char *kAtmosphereCommonWgsl =
 "  misc : vec4<f32>,\n"
 "  aerial_params : vec4<f32>,\n"
 "  night_tint : vec4<f32>,\n"
+"  moon_direction : vec4<f32>,\n"
+"  moon_radiance : vec4<f32>,\n"
 "};\n"
 "struct Medium {\n"
 "  scattering : vec3<f32>,\n"
@@ -323,7 +327,9 @@ static const char *kSkyViewShaderSource =
     "  if (t_max <= 0.0) { return vec3<f32>(0.0); }\n"
     "  let dt = t_max / f32(SV_STEPS);\n"
     "  let sun = u.sun_direction.xyz;\n"
+    "  let moon = u.moon_direction.xyz;\n"
     "  let cos_sv = clamp(dot(rd, sun), -1.0, 1.0);\n"
+    "  let cos_mv = clamp(dot(rd, moon), -1.0, 1.0);\n"
     "  let mie_g = u.mie_params.x;\n"
     "  var throughput = vec3<f32>(1.0);\n"
     "  var L = vec3<f32>(0.0);\n"
@@ -336,15 +342,22 @@ static const char *kSkyViewShaderSource =
     "    let step_trans = exp(-m.extinction * dt);\n"
     "    let up = pos / max(r_p, 1e-4);\n"
     "    let mu_sun = clamp(dot(up, sun), -1.0, 1.0);\n"
-    "    let shadow = earth_shadow_factor(r_p, mu_sun, u);\n"
-    "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u) * shadow;\n"
-    "    let scat_r = m.scattering_rayleigh * rayleigh_phase(cos_sv);\n"
-    "    let scat_m = m.scattering_mie * mie_phase(cos_sv, mie_g);\n"
-    "    let single = (scat_r + scat_m) * sun_trans;\n"
+    "    let shadow_sun = earth_shadow_factor(r_p, mu_sun, u);\n"
+    "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u) * shadow_sun;\n"
+    "    let scat_r_sun = m.scattering_rayleigh * rayleigh_phase(cos_sv);\n"
+    "    let scat_m_sun = m.scattering_mie * mie_phase(cos_sv, mie_g);\n"
+    "    let single_sun = (scat_r_sun + scat_m_sun) * sun_trans;\n"
     "    let ms_uv = ms_params_to_uv(mu_sun, r_p, u);\n"
     "    let psi_ms = textureSampleLevel(ms_lut, lut_sampler, ms_uv, 0.0).rgb;\n"
     "    let multi = psi_ms * m.scattering;\n"
-    "    let in_scat = (single + multi) * u.sun_color.rgb;\n"
+    "    var in_scat = (single_sun + multi) * u.sun_color.rgb;\n"
+    "    let mu_moon = clamp(dot(up, moon), -1.0, 1.0);\n"
+    "    let shadow_moon = earth_shadow_factor(r_p, mu_moon, u);\n"
+    "    let moon_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_moon, u) * shadow_moon;\n"
+    "    let scat_r_moon = m.scattering_rayleigh * rayleigh_phase(cos_mv);\n"
+    "    let scat_m_moon = m.scattering_mie * mie_phase(cos_mv, mie_g);\n"
+    "    let single_moon = (scat_r_moon + scat_m_moon) * moon_trans;\n"
+    "    in_scat = in_scat + single_moon * u.moon_radiance.rgb;\n"
     "    let s_int = (in_scat - in_scat * step_trans) / max(m.extinction, vec3<f32>(1e-6));\n"
     "    L = L + throughput * s_int;\n"
     "    throughput = throughput * step_trans;\n"
@@ -448,7 +461,9 @@ static const char *kAerialComputeShaderSource =
     "  }\n"
     "  let dt = t_max / f32(AP_STEPS);\n"
     "  let sun = u.sun_direction.xyz;\n"
+    "  let moon = u.moon_direction.xyz;\n"
     "  let cos_sv = clamp(dot(rd, sun), -1.0, 1.0);\n"
+    "  let cos_mv = clamp(dot(rd, moon), -1.0, 1.0);\n"
     "  let mie_g = u.mie_params.x;\n"
     "  let density_k = u.aerial_params.x;\n"
     "  var throughput = vec3<f32>(1.0);\n"
@@ -466,15 +481,22 @@ static const char *kAerialComputeShaderSource =
     "    let step_trans = exp(-m.extinction * dt);\n"
     "    let up = pos / max(r_p, 1e-4);\n"
     "    let mu_sun = clamp(dot(up, sun), -1.0, 1.0);\n"
-    "    let shadow = earth_shadow_factor(r_p, mu_sun, u);\n"
-    "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u) * shadow;\n"
-    "    let scat_r = m.scattering_rayleigh * rayleigh_phase(cos_sv);\n"
-    "    let scat_m = m.scattering_mie * mie_phase(cos_sv, mie_g);\n"
-    "    let single = (scat_r + scat_m) * sun_trans;\n"
+    "    let shadow_sun = earth_shadow_factor(r_p, mu_sun, u);\n"
+    "    let sun_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_sun, u) * shadow_sun;\n"
+    "    let scat_r_sun = m.scattering_rayleigh * rayleigh_phase(cos_sv);\n"
+    "    let scat_m_sun = m.scattering_mie * mie_phase(cos_sv, mie_g);\n"
+    "    let single_sun = (scat_r_sun + scat_m_sun) * sun_trans;\n"
     "    let ms_uv = ms_params_to_uv(mu_sun, r_p, u);\n"
     "    let psi_ms = textureSampleLevel(ms_lut, lut_sampler, ms_uv, 0.0).rgb;\n"
     "    let multi = psi_ms * m.scattering;\n"
-    "    let in_scat = (single + multi) * u.sun_color.rgb;\n"
+    "    var in_scat = (single_sun + multi) * u.sun_color.rgb;\n"
+    "    let mu_moon = clamp(dot(up, moon), -1.0, 1.0);\n"
+    "    let shadow_moon = earth_shadow_factor(r_p, mu_moon, u);\n"
+    "    let moon_trans = sample_transmittance_lut(trans_lut, lut_sampler, r_p, mu_moon, u) * shadow_moon;\n"
+    "    let scat_r_moon = m.scattering_rayleigh * rayleigh_phase(cos_mv);\n"
+    "    let scat_m_moon = m.scattering_mie * mie_phase(cos_mv, mie_g);\n"
+    "    let single_moon = (scat_r_moon + scat_m_moon) * moon_trans;\n"
+    "    in_scat = in_scat + single_moon * u.moon_radiance.rgb;\n"
     "    let s_int = (in_scat - in_scat * step_trans) / max(m.extinction, vec3<f32>(1e-6));\n"
     "    L = L + throughput * s_int;\n"
     "    throughput = throughput * step_trans;\n"
@@ -541,15 +563,37 @@ static const char *kComposeShaderSource =
     "    let sun_cos = dot(rd, u.sun_direction.xyz);\n"
     "    let disk_cos = u.mie_params.z;\n"
     "    let disk_int = u.mie_params.w;\n"
-    "    if (disk_int > 0.0 && sun_cos > disk_cos) {\n"
+    "    if (disk_int > 0.0 && sun_cos > disk_cos - 0.001) {\n"
     "      let ro = vec3<f32>(0.0, view_r, 0.0);\n"
     "      let t_ground = ray_sphere_nearest(ro, rd, bottomR(u));\n"
     "      if (t_ground < 0.0) {\n"
     "        let mu = clamp(u.sun_direction.y, -1.0, 1.0);\n"
     "        let t_sun = sample_transmittance_lut(trans_lut, lut_sampler, view_r, mu, u);\n"
-    "        let fade_start = mix(1.0, disk_cos, 0.25);\n"
-    "        let aa = smoothstep(disk_cos, fade_start, sun_cos);\n"
+    "        let aa_w = max(fwidth(sun_cos), 1e-6);\n"
+    "        let aa = smoothstep(disk_cos - aa_w, disk_cos + aa_w, sun_cos);\n"
     "        sky = sky + t_sun * u.sun_color.rgb * disk_int * aa;\n"
+    "      }\n"
+    "    }\n"
+    "    let moon = u.moon_direction.xyz;\n"
+    "    let moon_cos = dot(rd, moon);\n"
+    "    if (moon_cos > disk_cos - 0.001) {\n"
+    "      let ro = vec3<f32>(0.0, view_r, 0.0);\n"
+    "      let t_ground = ray_sphere_nearest(ro, rd, bottomR(u));\n"
+    "      if (t_ground < 0.0) {\n"
+    "        let mu = clamp(u.moon_direction.y, -1.0, 1.0);\n"
+    "        let t_moon = sample_transmittance_lut(trans_lut, lut_sampler, view_r, mu, u);\n"
+    "        let sin_r = sqrt(max(0.0, 1.0 - disk_cos * disk_cos));\n"
+    "        let D = 1.0 / max(sin_r, 1e-6);\n"
+    "        let b = D * moon_cos;\n"
+    "        let disc = max(0.0, b * b - (D * D - 1.0));\n"
+    "        let t_hit = b - sqrt(disc);\n"
+    "        let p = t_hit * rd;\n"
+    "        let n = normalize(p - D * moon);\n"
+    "        let n_dot_l = max(0.0, dot(n, u.sun_direction.xyz));\n"
+    "        let moon_albedo = 0.12;\n"
+    "        let aa_w = max(fwidth(moon_cos), 1e-6);\n"
+    "        let aa = smoothstep(disk_cos - aa_w, disk_cos + aa_w, moon_cos);\n"
+    "        sky = sky + t_moon * u.sun_color.rgb * moon_albedo * n_dot_l * aa;\n"
     "      }\n"
     "    }\n"
     "    return vec4<f32>(sky, 1.0);\n"
@@ -795,6 +839,47 @@ static void flecsEngine_atmos_fillUniform(
         out->sun_color[1] = s->sun_intensity;
         out->sun_color[2] = s->sun_intensity;
         out->sun_direction[3] = s->sun_intensity;
+    }
+
+    out->moon_direction[0] = 0.0f;
+    out->moon_direction[1] = -1.0f;
+    out->moon_direction[2] = 0.0f;
+    out->moon_direction[3] = 0.0f;
+    out->moon_radiance[0] = 0.0f;
+    out->moon_radiance[1] = 0.0f;
+    out->moon_radiance[2] = 0.0f;
+    out->moon_radiance[3] = 0.0f;
+
+    if (view->moon_light) {
+        const FlecsRotation3 *mrot = ecs_get(
+            world, view->moon_light, FlecsRotation3);
+        if (mrot) {
+            float ray_dir[3];
+            if (flecsEngine_lightDirFromRotation(mrot, ray_dir)) {
+                out->moon_direction[0] = -ray_dir[0];
+                out->moon_direction[1] = -ray_dir[1];
+                out->moon_direction[2] = -ray_dir[2];
+            }
+        }
+
+        const FlecsDirectionalLight *mdl = ecs_get(
+            world, view->moon_light, FlecsDirectionalLight);
+        const FlecsRgba *mrgba = ecs_get(
+            world, view->moon_light, FlecsRgba);
+        float intensity = mdl ? mdl->intensity : 0.0f;
+        float cr = mrgba ? flecsEngine_colorChannelToFloat(mrgba->r) : 1.0f;
+        float cg = mrgba ? flecsEngine_colorChannelToFloat(mrgba->g) : 1.0f;
+        float cb = mrgba ? flecsEngine_colorChannelToFloat(mrgba->b) : 1.0f;
+
+        /* Rescale moonlight back to "raw" atmospheric radiance so the scatter
+         * math can treat moon analogously to sun. The time_of_day system
+         * premultiplies by ~1/400k for the scene light; undo that here and
+         * let the shaders scale down once, matching the lunar/solar ratio. */
+        float atmos_intensity = intensity;
+        out->moon_radiance[0] = atmos_intensity * cr;
+        out->moon_radiance[1] = atmos_intensity * cg;
+        out->moon_radiance[2] = atmos_intensity * cb;
+        out->moon_radiance[3] = 0.0f;
     }
 }
 

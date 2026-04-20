@@ -17,16 +17,12 @@ ECS_COMPONENT_DECLARE(FlecsRenderViewImpl);
 
 ECS_CTOR(FlecsRenderView, ptr, {
     ecs_vec_init_t(NULL, &ptr->effects, flecs_render_view_effect_t, 0);
-    ptr->camera = 0;
-    ptr->light = 0;
-    ptr->atmosphere = 0;
-    ptr->hdri = 0;
+    ecs_os_zeromem(ptr);
     ptr->ambient_intensity = 1.0f;
     ptr->shadow.enabled = true;
     ptr->shadow.map_size = FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT;
     ptr->shadow.bias = 0.0005f;
     ptr->shadow.max_range = 100.0f;
-    ptr->screen_px_threshold = 0.0f;
 })
 
 ECS_MOVE(FlecsRenderView, dst, src, {
@@ -39,6 +35,7 @@ ECS_COPY(FlecsRenderView, dst, src, {
     ecs_vec_fini_t(NULL, &dst->effects, flecs_render_view_effect_t);
     dst->camera = src->camera;
     dst->light = src->light;
+    dst->moon_light = src->moon_light;
     dst->atmosphere = src->atmosphere;
     dst->hdri = src->hdri;
     dst->ambient_intensity = src->ambient_intensity;
