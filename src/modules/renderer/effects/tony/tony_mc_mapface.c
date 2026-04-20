@@ -225,7 +225,9 @@ static bool flecsEngine_tony_bind(
     }
 
     WGPUBuffer exposure_buffer = tony->fallback_exposure_buffer;
-    if (tony->auto_exposure) {
+    if (tony->auto_exposure &&
+        !ecs_has_id(world, tony->auto_exposure, EcsDisabled))
+    {
         const FlecsAutoExposureImpl *ae_impl = ecs_get(
             world, tony->auto_exposure, FlecsAutoExposureImpl);
         if (ae_impl && ae_impl->exposure_buffer) {

@@ -235,7 +235,7 @@ void initEngine(
   ecs_entity_t auto_exposure_effect = flecsEngine_createEffect_autoExposure(
     world, view_entity, "autoExposure", 4, &auto_exposure_settings);
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = true,
+    (flecs_render_view_effect_t){ .enabled = false,
       .effect = auto_exposure_effect };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =

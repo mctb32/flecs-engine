@@ -137,10 +137,23 @@ void flecsEngine_renderView_renderEffects(
     int32_t effect_count = ecs_vec_count(&view->effects);
     const flecs_render_view_effect_t *effects = NULL;
 
-    /* Find the last enabled effect. */
+    /* Sync enabled flag to EcsDisabled tag on each effect entity, and find
+     * the last enabled effect. */
     int32_t last_enabled = -1;
     if (effect_count > 0) {
         effects = ecs_vec_first(&view->effects);
+        ecs_defer_suspend(world);
+        for (int32_t i = 0; i < effect_count; i ++) {
+            ecs_entity_t e = effects[i].effect;
+            if (!e) continue;
+            bool has_disabled = ecs_has_id(world, e, EcsDisabled);
+            if (effects[i].enabled && has_disabled) {
+                ecs_remove_id(world, e, EcsDisabled);
+            } else if (!effects[i].enabled && !has_disabled) {
+                ecs_add_id(world, e, EcsDisabled);
+            }
+        }
+        ecs_defer_resume(world);
         for (int32_t i = effect_count - 1; i >= 0; i --) {
             if (effects[i].enabled) {
                 last_enabled = i;
