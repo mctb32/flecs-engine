@@ -68,6 +68,7 @@ You should probably not use this, unless:
 - Height based fog
 - Sun disk
 - Moon disk (w/phases)
+- Starfield
 - Time of day system
 
 ### Effects

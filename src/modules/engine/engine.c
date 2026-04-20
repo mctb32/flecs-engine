@@ -225,6 +225,7 @@ void FlecsEngineImport(
     flecsEngine_surface_register(world);
 
     ECS_IMPORT(world, FlecsEngineLight);
+    ECS_IMPORT(world, FlecsEngineStars);
     ECS_IMPORT(world, FlecsEngineTexture);
     ECS_IMPORT(world, FlecsEngineMaterial);
     ECS_IMPORT(world, FlecsEngineAtmosphere);

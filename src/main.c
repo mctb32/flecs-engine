@@ -185,11 +185,25 @@ void initEngine(
   ecs_set(world, moon, FlecsPosition3, {-1, 2, -1});
   ecs_set(world, moon, FlecsDirectionalLight, { .intensity = 0.0f });
   ecs_set(world, moon, FlecsCelestialLight, {
-      .toa_intensity = 0.002f,
+      .toa_intensity = 0.0005f,
       .toa_color = {255, 255, 255, 255}
   });
   ecs_set(world, moon, FlecsLookAt, { 0, 0, 0 });
   ecs_set(world, moon, FlecsRgba, {255, 255, 255, 255});
+
+  // Stars
+  ecs_entity_t stars = ecs_entity(world, { .name = "stars" });
+  ecs_set(world, stars, FlecsStars, {
+    .density = 0.9,
+    .cells = 180,
+    .size = 150,
+    .color_variation = 1
+  });
+  ecs_set(world, stars, FlecsCelestialLight, {
+      .toa_intensity = 0.015f,
+      .toa_color = {255, 255, 255, 255}
+  });
+  ecs_set(world, stars, FlecsRotation3, {0, 0, 0});
 
   // Atmosphere: sky, aerial perspective, and (phase 4) IBL
   view.atmosphere = ecs_entity(world, {
@@ -197,6 +211,7 @@ void initEngine(
   FlecsAtmosphere atmosphere_settings = flecsEngine_atmosphereSettingsDefault();
   atmosphere_settings.sun = sun;
   atmosphere_settings.moon = moon;
+  atmosphere_settings.stars = stars;
   ecs_set_ptr(world, view.atmosphere, FlecsAtmosphere, &atmosphere_settings);
 
   // RenderBatches (what to render in scene)
@@ -222,7 +237,8 @@ void initEngine(
     flecsEngine_autoExposureSettingsDefault();
   auto_exposure_settings.min_log_luma = -16;
   auto_exposure_settings.low_percentile = 0;
-  auto_exposure_settings.min_brightness = 0.03;
+  auto_exposure_settings.min_brightness = 0.01;
+  auto_exposure_settings.max_brightness = 0.3;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =
@@ -243,7 +259,7 @@ void initEngine(
   ecs_entity_t auto_exposure_effect = flecsEngine_createEffect_autoExposure(
     world, view_entity, "autoExposure", 4, &auto_exposure_settings);
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
-    (flecs_render_view_effect_t){ .enabled = false,
+    (flecs_render_view_effect_t){ .enabled = true,
       .effect = auto_exposure_effect };
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =

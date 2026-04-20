@@ -4,6 +4,7 @@ view.atmosphere {
     Atmosphere: {
         sun: sun,
         moon: moon,
+        stars: stars,
         sun_disk_intensity: 20,
         sun_disk_angular_radius: 0.02,
         aerial_perspective_distance_km: 6,
@@ -32,6 +33,7 @@ time_of_day {
     TimeOfDay: {
         light: sun,
         moon_light: moon,
+        stars: stars,
         atmosphere: view.atmosphere,
         hour: 17.4,
         day_of_year: 80,

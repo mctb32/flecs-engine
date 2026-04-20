@@ -42,6 +42,10 @@ typedef struct FlecsAtmosphereUniform {
     float night_tint[4];
     float moon_direction[4];
     float moon_radiance[4];
+    float star_rot_0[4];       /* xyz = rot matrix row 0, w = cells */
+    float star_rot_1[4];       /* xyz = rot matrix row 1, w = density */
+    float star_rot_2[4];       /* xyz = rot matrix row 2, w = size */
+    float star_color[4];       /* rgb = toa_color * toa_intensity, a = unused */
 } FlecsAtmosphereUniform;
 
 typedef struct FlecsAtmosphereSliceUniform {
@@ -73,6 +77,10 @@ static const char *kAtmosphereCommonWgsl =
 "  night_tint : vec4<f32>,\n"
 "  moon_direction : vec4<f32>,\n"
 "  moon_radiance : vec4<f32>,\n"
+"  star_rot_0 : vec4<f32>,\n"
+"  star_rot_1 : vec4<f32>,\n"
+"  star_rot_2 : vec4<f32>,\n"
+"  star_color : vec4<f32>,\n"
 "};\n"
 "struct Medium {\n"
 "  scattering : vec3<f32>,\n"
@@ -527,6 +535,87 @@ static const char *kComposeShaderSource =
     "  if (abs(h.w) > 1e-6) { return h.xyz / h.w; }\n"
     "  return h.xyz;\n"
     "}\n"
+    "fn stars_hash31(p : vec3<f32>) -> f32 {\n"
+    "  var p3 = fract(p * 0.1031);\n"
+    "  p3 = p3 + dot(p3, p3.yzx + 33.33);\n"
+    "  return fract((p3.x + p3.y) * p3.z);\n"
+    "}\n"
+    "fn stars_hash32(p : vec3<f32>) -> vec2<f32> {\n"
+    "  var p3 = fract(p * vec3<f32>(0.1031, 0.1030, 0.0973));\n"
+    "  p3 = p3 + dot(p3, p3.yxz + 33.33);\n"
+    "  return fract(vec2<f32>((p3.x + p3.y) * p3.z,\n"
+    "                         (p3.x + p3.z) * p3.y));\n"
+    "}\n"
+    "fn stars_cube_face_uv(rd : vec3<f32>) -> vec3<f32> {\n"
+    "  let a = abs(rd);\n"
+    "  var uv : vec2<f32>;\n"
+    "  var face : f32;\n"
+    "  if (a.x >= a.y && a.x >= a.z) {\n"
+    "    if (rd.x > 0.0) { face = 0.0; uv = vec2<f32>(-rd.z, -rd.y) / a.x; }\n"
+    "    else            { face = 1.0; uv = vec2<f32>( rd.z, -rd.y) / a.x; }\n"
+    "  } else if (a.y >= a.z) {\n"
+    "    if (rd.y > 0.0) { face = 2.0; uv = vec2<f32>( rd.x,  rd.z) / a.y; }\n"
+    "    else            { face = 3.0; uv = vec2<f32>( rd.x, -rd.z) / a.y; }\n"
+    "  } else {\n"
+    "    if (rd.z > 0.0) { face = 4.0; uv = vec2<f32>( rd.x, -rd.y) / a.z; }\n"
+    "    else            { face = 5.0; uv = vec2<f32>(-rd.x, -rd.y) / a.z; }\n"
+    "  }\n"
+    "  return vec3<f32>(uv * 0.5 + 0.5, face);\n"
+    "}\n"
+    "fn stars_palette(t : f32) -> vec3<f32> {\n"
+    "  let o_type = vec3<f32>(0.35, 0.58, 1.00);\n"
+    "  let a_type = vec3<f32>(0.80, 0.92, 1.00);\n"
+    "  let f_type = vec3<f32>(1.00, 0.97, 0.92);\n"
+    "  let g_type = vec3<f32>(1.00, 0.90, 0.65);\n"
+    "  let k_type = vec3<f32>(1.00, 0.62, 0.28);\n"
+    "  let m_type = vec3<f32>(1.00, 0.25, 0.10);\n"
+    "  if (t < 0.20) { return mix(o_type, a_type, t * 5.0); }\n"
+    "  if (t < 0.40) { return mix(a_type, f_type, (t - 0.20) * 5.0); }\n"
+    "  if (t < 0.60) { return mix(f_type, g_type, (t - 0.40) * 5.0); }\n"
+    "  if (t < 0.80) { return mix(g_type, k_type, (t - 0.60) * 5.0); }\n"
+    "  return mix(k_type, m_type, (t - 0.80) * 5.0);\n"
+    "}\n"
+    "fn sample_stars(rd_world : vec3<f32>, u : AtmosUniforms) -> vec3<f32> {\n"
+    "  let cells = u.star_rot_0.w;\n"
+    "  let thresh = u.star_rot_1.w;\n"
+    "  let size_k = u.star_rot_2.w;\n"
+    "  let variation = clamp(u.star_color.a, 0.0, 1.0);\n"
+    "  if (cells <= 0.0 || thresh >= 1.0) { return vec3<f32>(0.0); }\n"
+    "  let rd = vec3<f32>(\n"
+    "    dot(u.star_rot_0.xyz, rd_world),\n"
+    "    dot(u.star_rot_1.xyz, rd_world),\n"
+    "    dot(u.star_rot_2.xyz, rd_world));\n"
+    "  let fc = stars_cube_face_uv(rd);\n"
+    "  let face = fc.z;\n"
+    "  let p = fc.xy * cells;\n"
+    "  let cid = floor(p);\n"
+    "  var col = vec3<f32>(0.0);\n"
+    "  let inv_span = 1.0 / max(1.0 - thresh, 1e-4);\n"
+    "  for (var dy : i32 = -1; dy <= 1; dy = dy + 1) {\n"
+    "    for (var dx : i32 = -1; dx <= 1; dx = dx + 1) {\n"
+    "      let nid = cid + vec2<f32>(f32(dx), f32(dy));\n"
+    "      let seed = vec3<f32>(nid, face * 17.0);\n"
+    "      let ex = stars_hash31(seed + vec3<f32>(0.17, 0.31, 0.53));\n"
+    "      if (ex > thresh) {\n"
+    "        let off = stars_hash32(seed + vec3<f32>(4.1, 7.3, 1.9));\n"
+    "        let sp = nid + off;\n"
+    "        let d = p - sp;\n"
+    "        let d2 = dot(d, d);\n"
+    "        let mag = (ex - thresh) * inv_span;\n"
+    "        let bright = pow(mag, 3.0);\n"
+    "        let profile = exp(-d2 * size_k);\n"
+    "        let th_raw = stars_hash31(seed + vec3<f32>(9.7, 3.2, 6.6));\n"
+    "        let th_signed = th_raw * 2.0 - 1.0;\n"
+    "        let th_biased = sign(th_signed) * pow(abs(th_signed), 0.55);\n"
+    "        let th = th_biased * 0.5 + 0.5;\n"
+    "        let pal = stars_palette(th);\n"
+    "        let tint = mix(vec3<f32>(1.0), pal, variation);\n"
+    "        col = col + tint * profile * bright;\n"
+    "      }\n"
+    "    }\n"
+    "  }\n"
+    "  return col * u.star_color.rgb;\n"
+    "}\n"
     "fn sample_aerial(uv : vec2<f32>, d_km : f32, max_km : f32, slice_count : f32) -> vec4<f32> {\n"
     "  let sf = clamp(d_km / max_km, 0.0, 1.0) * slice_count - 1.0;\n"
     "  let lo = i32(floor(sf));\n"
@@ -596,6 +685,11 @@ static const char *kComposeShaderSource =
     "        sky = sky + t_moon * u.sun_color.rgb * moon_albedo * n_dot_l * aa;\n"
     "      }\n"
     "    }\n"
+    "    let mu_view = clamp(rd.y, -1.0, 1.0);\n"
+    "    let t_view = sample_transmittance_lut(trans_lut, lut_sampler, view_r, mu_view, u);\n"
+    "    let moon_fade = 1.0 - smoothstep(0.9975, 0.9998, moon_cos);\n"
+    "    let stars = sample_stars(rd, u) * t_view * moon_fade;\n"
+    "    sky = sky + stars;\n"
     "    return vec4<f32>(sky, 1.0);\n"
     "  }\n"
     "  let world_pos = reconstruct_world_pos(in.uv, depth);\n"
@@ -881,6 +975,68 @@ static void flecsEngine_atmos_fillUniform(
         out->moon_radiance[2] = moon_toa * cb;
         out->moon_radiance[3] = 0.0f;
     }
+
+    mat4 star_rot;
+    glm_mat4_identity(star_rot);
+    float star_cells = 0.0f;
+    float star_density = 1.0f;
+    float star_size = 0.0f;
+    float star_variation = 0.0f;
+    float star_col_r = 0.0f, star_col_g = 0.0f, star_col_b = 0.0f;
+
+    if (s->stars) {
+        const FlecsStars *st = ecs_get(world, s->stars, FlecsStars);
+        if (st) {
+            star_cells = st->cells;
+            star_density = st->density;
+            star_size = st->size;
+            star_variation = st->color_variation;
+        }
+
+        const FlecsRotation3 *srot = ecs_get(
+            world, s->stars, FlecsRotation3);
+        if (srot) {
+            /* x = latitude, y = hour angle (around polar axis),
+             * z = north offset (world yaw pointing to true north). */
+            float lat = srot->x;
+            float hour_ang = srot->y;
+            float north = srot->z;
+            float cos_lat = cosf(lat), sin_lat = sinf(lat);
+            float cos_n = cosf(north), sin_n = sinf(north);
+            vec3 axis = {
+                cos_lat * sin_n,
+                sin_lat,
+                cos_lat * cos_n
+            };
+            glm_rotate_make(star_rot, hour_ang, axis);
+        }
+
+        const FlecsCelestialLight *scl = ecs_get(
+            world, s->stars, FlecsCelestialLight);
+        if (scl) {
+            float toa = scl->toa_intensity;
+            star_col_r = toa * flecsEngine_colorChannelToFloat(scl->toa_color.r);
+            star_col_g = toa * flecsEngine_colorChannelToFloat(scl->toa_color.g);
+            star_col_b = toa * flecsEngine_colorChannelToFloat(scl->toa_color.b);
+        }
+    }
+
+    out->star_rot_0[0] = star_rot[0][0];
+    out->star_rot_0[1] = star_rot[1][0];
+    out->star_rot_0[2] = star_rot[2][0];
+    out->star_rot_0[3] = star_cells;
+    out->star_rot_1[0] = star_rot[0][1];
+    out->star_rot_1[1] = star_rot[1][1];
+    out->star_rot_1[2] = star_rot[2][1];
+    out->star_rot_1[3] = star_density;
+    out->star_rot_2[0] = star_rot[0][2];
+    out->star_rot_2[1] = star_rot[1][2];
+    out->star_rot_2[2] = star_rot[2][2];
+    out->star_rot_2[3] = star_size;
+    out->star_color[0] = star_col_r;
+    out->star_color[1] = star_col_g;
+    out->star_color[2] = star_col_b;
+    out->star_color[3] = star_variation;
 }
 
 static bool flecsEngine_atmos_createSimpleTexture(
@@ -1720,6 +1876,7 @@ void FlecsEngineAtmosphereImport(ecs_world_t *world)
         .members = {
             { .name = "sun", .type = ecs_id(ecs_entity_t) },
             { .name = "moon", .type = ecs_id(ecs_entity_t) },
+            { .name = "stars", .type = ecs_id(ecs_entity_t) },
             { .name = "sun_disk_intensity", .type = ecs_id(ecs_f32_t) },
             { .name = "sun_disk_angular_radius", .type = ecs_id(ecs_f32_t) },
             { .name = "aerial_perspective_distance_km", .type = ecs_id(ecs_f32_t) },

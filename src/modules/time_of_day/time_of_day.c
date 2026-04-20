@@ -346,6 +346,19 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
                 ecs_modified(world, t->moon_light, FlecsRgba);
             }
         }
+
+        if (t->stars) {
+            const float sidereal_rate = 2.0f * GLM_PIf / 23.9344696f;
+
+            FlecsRotation3 *srot = ecs_get_mut(
+                world, t->stars, FlecsRotation3);
+            if (srot) {
+                srot->x = glm_rad(t->latitude);
+                srot->y = -sidereal_rate * t->hour;
+                srot->z = north_rad;
+                ecs_modified(world, t->stars, FlecsRotation3);
+            }
+        }
     }
 }
 

@@ -18,6 +18,10 @@ ECS_STRUCT(FlecsAtmosphere, {
                                 * direction/intensity for sky scattering */
     ecs_entity_t moon;         /* optional directional light entity used as
                                 * a secondary night-side light source */
+    ecs_entity_t stars;        /* optional entity carrying FlecsStars
+                                * (shader config) plus FlecsCelestialLight
+                                * (color/intensity) and FlecsRotation3
+                                * (celestial sphere rotation) */
 
     float sun_disk_intensity;
     float sun_disk_angular_radius;
