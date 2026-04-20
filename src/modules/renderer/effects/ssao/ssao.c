@@ -8,7 +8,7 @@ ECS_COMPONENT_DECLARE(FlecsSSAOImpl);
 typedef struct FlecsSSAOUniform {
     mat4 proj;
     mat4 inv_proj;
-    float params[4];    /* radius, bias, intensity, blur */
+    float params[4];    /* radius, bias, intensity, unused */
     float viewport[4];  /* width, height, 1/width, 1/height */
 } FlecsSSAOUniform;
 
@@ -80,9 +80,6 @@ static const char *kShaderSource =
     "  let texel = vec2<i32>(clamped_uv * dims_f);\n"
     "  let depth = textureLoad(depth_texture, texel, 0);\n"
     "  if (depth >= 0.999999) {\n"
-    "    if (uniforms.params.w > 0.0) {\n"
-    "      return vec4<f32>(1.0, 1.0, 1.0, 1.0);\n"
-    "    }\n"
     "    return src;\n"
     "  }\n"
 
@@ -146,99 +143,7 @@ static const char *kShaderSource =
     "  let fade = 1.0 - smoothstep(radius * 40.0, radius * 100.0, -view_pos.z);\n"
     "  let ao = clamp(1.0 - (occlusion / f32(SAMPLE_COUNT)) * intensity * fade, 0.0, 1.0);\n"
 
-    /* When blur is enabled, output AO factor only so the blur pass
-     * operates on the occlusion term without smearing scene colors.
-     * Otherwise composite directly. */
-    "  if (uniforms.params.w > 0.0) {\n"
-    "    return vec4<f32>(ao, ao, ao, 1.0);\n"
-    "  }\n"
     "  return vec4<f32>(src.rgb * ao, src.a);\n"
-    "}\n";
-
-static const char *kBlurShaderSource =
-    FLECS_ENGINE_FULLSCREEN_VS_WGSL
-    "struct SsaoUniforms {\n"
-    "  proj : mat4x4<f32>,\n"
-    "  inv_proj : mat4x4<f32>,\n"
-    "  params : vec4<f32>,\n"
-    "  viewport : vec4<f32>,\n"
-    "};\n"
-    "@group(0) @binding(0) var ao_texture : texture_2d<f32>;\n"
-    "@group(0) @binding(1) var input_sampler : sampler;\n"
-    "@group(0) @binding(2) var depth_texture : texture_depth_2d;\n"
-    "@group(0) @binding(3) var<uniform> uniforms : SsaoUniforms;\n"
-    "@group(0) @binding(4) var scene_texture : texture_2d<f32>;\n"
-
-    "@fragment fn fs_main(in : VertexOutput) -> @location(0) vec4<f32> {\n"
-    "  let ao_dims = vec2<i32>(textureDimensions(ao_texture));\n"
-    "  let clamped_uv = clamp(in.uv, vec2<f32>(0.0), vec2<f32>(0.999999));\n"
-    "  let texel = vec2<i32>(clamped_uv * vec2<f32>(ao_dims));\n"
-    "  let center_ao = textureLoad(ao_texture, texel, 0).r;\n"
-    "  let scene_dims = vec2<i32>(textureDimensions(scene_texture));\n"
-    "  let scene_texel = vec2<i32>(clamped_uv * vec2<f32>(scene_dims));\n"
-    "  let scene = textureLoad(scene_texture, scene_texel, 0);\n"
-
-    "  let blur_radius = i32(uniforms.params.w);\n"
-    "  if (blur_radius <= 0) {\n"
-    "    return vec4<f32>(scene.rgb * center_ao, scene.a);\n"
-    "  }\n"
-
-    "  let depth_dims = vec2<i32>(textureDimensions(depth_texture));\n"
-    "  let depth_texel = vec2<i32>(in.uv * vec2<f32>(depth_dims));\n"
-    "  let center_depth = textureLoad(depth_texture,\n"
-    "    clamp(depth_texel, vec2<i32>(0), depth_dims - vec2<i32>(1)), 0);\n"
-
-    "  if (center_depth >= 0.999999) {\n"
-    "    return scene;\n"
-    "  }\n"
-
-    "  let sigma = max(f32(blur_radius) * 0.5, 1.0);\n"
-    "  let sigma2 = 2.0 * sigma * sigma;\n"
-    "  let depth_sigma = 0.001;\n"
-
-    "  var total_ao = 0.0;\n"
-    "  var total_weight = 0.0;\n"
-
-    /* Horizontal axis */
-    "  for (var x = -blur_radius; x <= blur_radius; x++) {\n"
-    "    let st = texel + vec2<i32>(x, 0);\n"
-    "    if (st.x < 0 || st.x >= ao_dims.x) { continue; }\n"
-    "    let s_ao = textureLoad(ao_texture, st, 0).r;\n"
-    "    let sd_texel = clamp(vec2<i32>(\n"
-    "      (vec2<f32>(st) + 0.5) / vec2<f32>(ao_dims) * vec2<f32>(depth_dims)),\n"
-    "      vec2<i32>(0), depth_dims - vec2<i32>(1));\n"
-    "    let sd = textureLoad(depth_texture, sd_texel, 0);\n"
-    "    let d2 = f32(x * x);\n"
-    "    let sw = exp(-d2 / sigma2);\n"
-    "    let dw = exp(-abs(center_depth - sd) / depth_sigma);\n"
-    "    let w = sw * dw;\n"
-    "    total_ao += s_ao * w;\n"
-    "    total_weight += w;\n"
-    "  }\n"
-
-    /* Vertical axis (skip center, already counted) */
-    "  for (var y = -blur_radius; y <= blur_radius; y++) {\n"
-    "    if (y == 0) { continue; }\n"
-    "    let st = texel + vec2<i32>(0, y);\n"
-    "    if (st.y < 0 || st.y >= ao_dims.y) { continue; }\n"
-    "    let s_ao = textureLoad(ao_texture, st, 0).r;\n"
-    "    let sd_texel = clamp(vec2<i32>(\n"
-    "      (vec2<f32>(st) + 0.5) / vec2<f32>(ao_dims) * vec2<f32>(depth_dims)),\n"
-    "      vec2<i32>(0), depth_dims - vec2<i32>(1));\n"
-    "    let sd = textureLoad(depth_texture, sd_texel, 0);\n"
-    "    let d2 = f32(y * y);\n"
-    "    let sw = exp(-d2 / sigma2);\n"
-    "    let dw = exp(-abs(center_depth - sd) / depth_sigma);\n"
-    "    let w = sw * dw;\n"
-    "    total_ao += s_ao * w;\n"
-    "    total_weight += w;\n"
-    "  }\n"
-
-    "  var blurred_ao = center_ao;\n"
-    "  if (total_weight > 0.0) {\n"
-    "    blurred_ao = total_ao / total_weight;\n"
-    "  }\n"
-    "  return vec4<f32>(scene.rgb * blurred_ao, scene.a);\n"
     "}\n";
 
 static ecs_entity_t flecsEngine_ssao_shader(
@@ -252,24 +157,10 @@ static ecs_entity_t flecsEngine_ssao_shader(
         });
 }
 
-static void flecsEngine_ssao_releaseBlurTexture(
-    FlecsSSAOImpl *impl)
-{
-    flecsEngine_bindGroup_release(&impl->blur_bind_group);
-    FLECS_WGPU_RELEASE(impl->blur_intermediate_view, wgpuTextureViewRelease);
-    FLECS_WGPU_RELEASE(impl->blur_intermediate_texture, wgpuTextureRelease);
-    impl->blur_texture_width = 0;
-    impl->blur_texture_height = 0;
-}
-
 static void flecsEngine_ssao_releaseResources(
     FlecsSSAOImpl *impl)
 {
     FLECS_WGPU_RELEASE(impl->uniform_buffer, wgpuBufferRelease);
-    flecsEngine_ssao_releaseBlurTexture(impl);
-    FLECS_WGPU_RELEASE(impl->blur_pipeline_surface, wgpuRenderPipelineRelease);
-    FLECS_WGPU_RELEASE(impl->blur_pipeline_hdr, wgpuRenderPipelineRelease);
-    FLECS_WGPU_RELEASE(impl->blur_bind_layout, wgpuBindGroupLayoutRelease);
 }
 
 ECS_DTOR(FlecsSSAOImpl, ptr, {
@@ -294,7 +185,7 @@ static void flecsEngine_ssao_fillUniform(
     uniform->params[0] = ssao->radius;
     uniform->params[1] = ssao->bias;
     uniform->params[2] = ssao->intensity;
-    uniform->params[3] = (float)ssao->blur;
+    uniform->params[3] = 0.0f;
 
     uniform->viewport[0] = 0.0f;
     uniform->viewport[1] = 0.0f;
@@ -332,22 +223,6 @@ static void flecsEngine_ssao_fillUniform(
         uniform->viewport[2] = 1.0f / w;
         uniform->viewport[3] = 1.0f / h;
     }
-}
-
-static WGPURenderPipeline flecsEngine_ssao_createBlurPipeline(
-    const FlecsEngineImpl *engine,
-    WGPUShaderModule shader_module,
-    WGPUBindGroupLayout bind_layout,
-    WGPUTextureFormat color_format)
-{
-    WGPUColorTargetState color_target = {
-        .format = color_format,
-        .writeMask = WGPUColorWriteMask_All
-    };
-
-    return flecsEngine_createFullscreenPipeline(
-        engine, shader_module, bind_layout,
-        NULL, NULL, &color_target, NULL);
 }
 
 static bool flecsEngine_ssao_setup(
@@ -395,86 +270,6 @@ static bool flecsEngine_ssao_setup(
     };
 
     *entry_count = 4;
-
-    /* Blur+composite pass: ao_texture, sampler, depth, uniforms, scene_texture */
-    WGPUBindGroupLayoutEntry blur_layout_entries[5] = {
-        {
-            .binding = 0,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 1,
-            .visibility = WGPUShaderStage_Fragment,
-            .sampler = {
-                .type = WGPUSamplerBindingType_Filtering
-            }
-        },
-        {
-            .binding = 2,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Depth,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
-        },
-        {
-            .binding = 3,
-            .visibility = WGPUShaderStage_Fragment,
-            .buffer = {
-                .type = WGPUBufferBindingType_Uniform,
-                .minBindingSize = sizeof(FlecsSSAOUniform)
-            }
-        },
-        {
-            .binding = 4,
-            .visibility = WGPUShaderStage_Fragment,
-            .texture = {
-                .sampleType = WGPUTextureSampleType_Float,
-                .viewDimension = WGPUTextureViewDimension_2D,
-                .multisampled = false
-            }
-        }
-    };
-
-    WGPUBindGroupLayoutDescriptor blur_layout_desc = {
-        .entryCount = 5,
-        .entries = blur_layout_entries
-    };
-
-    ssao_impl.blur_bind_layout = wgpuDeviceCreateBindGroupLayout(
-        engine->device, &blur_layout_desc);
-    if (!ssao_impl.blur_bind_layout) {
-        flecsEngine_ssao_releaseResources(&ssao_impl);
-        return false;
-    }
-
-    WGPUShaderModule blur_shader = flecsEngine_createShaderModule(
-        engine->device, kBlurShaderSource);
-    if (!blur_shader) {
-        flecsEngine_ssao_releaseResources(&ssao_impl);
-        return false;
-    }
-
-    WGPUTextureFormat view_target_format = flecsEngine_getViewTargetFormat(engine);
-    WGPUTextureFormat hdr_format = flecsEngine_getHdrFormat(engine);
-
-    ssao_impl.blur_pipeline_surface = flecsEngine_ssao_createBlurPipeline(
-        engine, blur_shader, ssao_impl.blur_bind_layout, view_target_format);
-    ssao_impl.blur_pipeline_hdr = flecsEngine_ssao_createBlurPipeline(
-        engine, blur_shader, ssao_impl.blur_bind_layout, hdr_format);
-
-    wgpuShaderModuleRelease(blur_shader);
-
-    if (!ssao_impl.blur_pipeline_surface || !ssao_impl.blur_pipeline_hdr) {
-        flecsEngine_ssao_releaseResources(&ssao_impl);
-        return false;
-    }
 
     ecs_set_ptr((ecs_world_t*)world, effect_entity, FlecsSSAOImpl, &ssao_impl);
     return true;
@@ -533,159 +328,13 @@ static bool flecsEngine_ssao_bind(
     return true;
 }
 
-static bool flecsEngine_ssao_ensureBlurTexture(
-    const FlecsEngineImpl *engine,
-    FlecsSSAOImpl *impl,
-    uint32_t width,
-    uint32_t height)
-{
-    WGPUTextureFormat format = flecsEngine_getHdrFormat(engine);
-
-    if (impl->blur_intermediate_texture &&
-        impl->blur_texture_width == width &&
-        impl->blur_texture_height == height)
-    {
-        return true;
-    }
-
-    flecsEngine_ssao_releaseBlurTexture(impl);
-
-    WGPUTextureDescriptor desc = {
-        .usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
-        .dimension = WGPUTextureDimension_2D,
-        .size = (WGPUExtent3D){ .width = width, .height = height, .depthOrArrayLayers = 1 },
-        .format = format,
-        .mipLevelCount = 1,
-        .sampleCount = 1
-    };
-
-    impl->blur_intermediate_texture = wgpuDeviceCreateTexture(engine->device, &desc);
-    if (!impl->blur_intermediate_texture) {
-        return false;
-    }
-
-    impl->blur_intermediate_view = wgpuTextureCreateView(
-        impl->blur_intermediate_texture, NULL);
-    if (!impl->blur_intermediate_view) {
-        flecsEngine_ssao_releaseBlurTexture(impl);
-        return false;
-    }
-
-    impl->blur_texture_width = width;
-    impl->blur_texture_height = height;
-    return true;
-}
-
-static bool flecsEngine_ssao_render(
-    const ecs_world_t *world,
-    FlecsEngineImpl *engine,
-    const FlecsRenderViewImpl *view_impl,
-    WGPUCommandEncoder encoder,
-    ecs_entity_t effect_entity,
-    const FlecsRenderEffect *effect,
-    FlecsRenderEffectImpl *effect_impl,
-    WGPUTextureView input_view,
-    WGPUTextureFormat input_format,
-    WGPUTextureView output_view,
-    WGPUTextureFormat output_format,
-    WGPULoadOp output_load_op)
-{
-    (void)input_format;
-
-    const FlecsSSAO *ssao = ecs_get(world, effect_entity, FlecsSSAO);
-    FlecsSSAOImpl *impl = ecs_get_mut(world, effect_entity, FlecsSSAOImpl);
-    ecs_assert(ssao != NULL, ECS_INVALID_OPERATION, NULL);
-    ecs_assert(impl != NULL, ECS_INVALID_OPERATION, NULL);
-
-    const char *ts_name = ecs_get_name(world, effect_entity);
-    if (!ts_name) ts_name = "SSAO";
-
-    if (ssao->blur <= 0) {
-        return flecsEngine_renderEffect_render(
-            world, engine, view_impl, encoder,
-            output_view, output_load_op, (WGPUColor){0},
-            effect_entity, effect, effect_impl,
-            input_view, output_format, ts_name, NULL);
-    }
-
-    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
-
-    if (!view_impl || !view_impl->depth_texture_view) {
-        return false;
-    }
-
-    /* Determine intermediate texture size */
-    uint32_t width = (uint32_t)surface->actual_width;
-    uint32_t height = (uint32_t)surface->actual_height;
-    if (view_impl->effect_target_width > 0) {
-        width = view_impl->effect_target_width;
-        height = view_impl->effect_target_height;
-    }
-
-    uint32_t ssao_width = surface->width > 1 ? (uint32_t)(surface->width / 2) : 1;
-    uint32_t ssao_height = surface->height > 1 ? (uint32_t)(surface->height / 2) : 1;
-    if (ssao_width > width) ssao_width = width;
-    if (ssao_height > height) ssao_height = height;
-    if (!flecsEngine_ssao_ensureBlurTexture(engine, impl, ssao_width, ssao_height)) {
-        return false;
-    }
-
-    int ts_pair = flecsEngine_gpuTiming_allocPair(engine, ts_name);
-    WGPURenderPassTimestampWrites ts_b, ts_e;
-    const WGPURenderPassTimestampWrites *ts_begin =
-        flecsEngine_gpuTiming_renderPassBegin(engine, ts_pair, &ts_b);
-    const WGPURenderPassTimestampWrites *ts_end =
-        flecsEngine_gpuTiming_renderPassEnd(engine, ts_pair, &ts_e);
-
-    flecsEngine_renderEffect_render(
-        world, engine, view_impl, encoder,
-        impl->blur_intermediate_view, WGPULoadOp_Clear,
-        (WGPUColor){ .r = 1, .g = 1, .b = 1, .a = 1 },
-        effect_entity, effect, effect_impl,
-        input_view, flecsEngine_getHdrFormat(engine), NULL, ts_begin);
-
-    /* Pass 2: Cross-bilateral blur of AO + composite with scene */
-    {
-        WGPUBindGroupEntry blur_entries[5] = {
-            { .binding = 0, .textureView = impl->blur_intermediate_view },
-            { .binding = 1, .sampler = effect_impl->input_sampler },
-            { .binding = 2, .textureView = view_impl->depth_texture_view },
-            {
-                .binding = 3,
-                .buffer = impl->uniform_buffer,
-                .offset = 0,
-                .size = sizeof(FlecsSSAOUniform)
-            },
-            { .binding = 4, .textureView = input_view }
-        };
-
-        WGPUBindGroup blur_bind_group = flecsEngine_bindGroup_ensure(
-            &impl->blur_bind_group, engine->device, impl->blur_bind_layout,
-            blur_entries, 5);
-        if (!blur_bind_group) {
-            return false;
-        }
-
-        WGPURenderPipeline blur_pipeline =
-            output_format == flecsEngine_getViewTargetFormat(engine)
-                ? impl->blur_pipeline_surface
-                : impl->blur_pipeline_hdr;
-
-        flecsEngine_fullscreenPass(
-            encoder, output_view, output_load_op, (WGPUColor){0},
-            blur_pipeline, blur_bind_group, NULL, NULL, ts_end);
-    }
-
-    return true;
-}
 
 FlecsSSAO flecsEngine_ssaoSettingsDefault(void)
 {
     return (FlecsSSAO){
         .radius = 0.5f,
         .bias = 0.025f,
-        .intensity = 1.0f,
-        .blur = 4
+        .intensity = 1.0f
     };
 }
 
@@ -707,8 +356,7 @@ ecs_entity_t flecsEngine_createEffect_ssao(
         .shader = flecsEngine_ssao_shader(world),
         .input = input,
         .setup_callback = flecsEngine_ssao_setup,
-        .bind_callback = flecsEngine_ssao_bind,
-        .render_callback = flecsEngine_ssao_render
+        .bind_callback = flecsEngine_ssao_bind
     });
 
     return effect;
@@ -731,8 +379,7 @@ void flecsEngine_ssao_register(
         .members = {
             { .name = "radius", .type = ecs_id(ecs_f32_t) },
             { .name = "bias", .type = ecs_id(ecs_f32_t) },
-            { .name = "intensity", .type = ecs_id(ecs_f32_t) },
-            { .name = "blur", .type = ecs_id(ecs_i32_t) }
+            { .name = "intensity", .type = ecs_id(ecs_f32_t) }
         }
     });
 }

@@ -228,7 +228,6 @@ void initEngine(
   // Post process effects
   FlecsSSAO ssao_settings = flecsEngine_ssaoSettingsDefault();
   ssao_settings.radius = 0.5;
-  ssao_settings.blur = 0;
   FlecsBloom bloom_settings = flecsEngine_bloomSettingsDefault();
   FlecsHeightFog fog_settings =
     flecsEngine_heightFogSettingsDefault();

@@ -253,14 +253,6 @@ extern ECS_COMPONENT_DECLARE(FlecsSunShaftsImpl);
 
 typedef struct {
     WGPUBuffer uniform_buffer;
-    WGPUTexture blur_intermediate_texture;
-    WGPUTextureView blur_intermediate_view;
-    uint32_t blur_texture_width;
-    uint32_t blur_texture_height;
-    WGPUBindGroupLayout blur_bind_layout;
-    WGPURenderPipeline blur_pipeline_surface;
-    WGPURenderPipeline blur_pipeline_hdr;
-    flecsEngine_bind_group_t blur_bind_group;
 } FlecsSSAOImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsSSAOImpl);

@@ -36,7 +36,6 @@ ECS_STRUCT(FlecsSSAO, {
     float radius;
     float bias;
     float intensity;
-    int32_t blur;
 });
 
 extern ECS_COMPONENT_DECLARE(FlecsSSAO);
