@@ -201,6 +201,8 @@ struct FlecsRenderViewImpl {
     bool hiz_valid;
     WGPUBindGroup *hiz_build_mip0_bg;
     WGPUBindGroup *hiz_build_reduce_bg;
+    WGPUBuffer hiz_build_mip0_ub;
+    WGPUBuffer *hiz_build_reduce_ubs;
 };
 typedef struct FlecsRenderViewImpl FlecsRenderViewImpl;
 

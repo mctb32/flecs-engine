@@ -240,6 +240,15 @@ static void flecsEngine_hiz_releaseViewResources(
         ecs_os_free(view_impl->hiz_build_reduce_bg);
         view_impl->hiz_build_reduce_bg = NULL;
     }
+    if (view_impl->hiz_build_reduce_ubs) {
+        for (uint32_t i = 0; i < view_impl->hiz_mip_count; i ++) {
+            FLECS_WGPU_RELEASE(view_impl->hiz_build_reduce_ubs[i],
+                wgpuBufferRelease);
+        }
+        ecs_os_free(view_impl->hiz_build_reduce_ubs);
+        view_impl->hiz_build_reduce_ubs = NULL;
+    }
+    FLECS_WGPU_RELEASE(view_impl->hiz_build_mip0_ub, wgpuBufferRelease);
     FLECS_WGPU_RELEASE(view_impl->hiz_view_all, wgpuTextureViewRelease);
     flecsEngine_mipPyramid_release(
         &view_impl->hiz_texture,
@@ -302,6 +311,67 @@ int flecsEngine_hiz_ensureView(
         return -1;
     }
 
+    view_impl->hiz_build_mip0_ub = wgpuDeviceCreateBuffer(engine->device,
+        &(WGPUBufferDescriptor){
+            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+            .size = sizeof(flecsEngine_hizDispatchUniforms_t)
+        });
+    if (!view_impl->hiz_build_mip0_ub) {
+        flecsEngine_hiz_releaseViewResources(view_impl);
+        return -1;
+    }
+
+    view_impl->hiz_build_mip0_bg = ecs_os_calloc_n(WGPUBindGroup, mip_count);
+    view_impl->hiz_build_reduce_bg = ecs_os_calloc_n(WGPUBindGroup, mip_count);
+    view_impl->hiz_build_reduce_ubs = ecs_os_calloc_n(WGPUBuffer, mip_count);
+
+    WGPUBindGroupEntry mip0_entries[3] = {
+        { .binding = 0, .textureView = view_impl->depth_texture_view },
+        { .binding = 1, .textureView = view_impl->hiz_mip_views[0] },
+        { .binding = 2, .buffer = view_impl->hiz_build_mip0_ub, .offset = 0,
+          .size = sizeof(flecsEngine_hizDispatchUniforms_t) }
+    };
+    view_impl->hiz_build_mip0_bg[0] = wgpuDeviceCreateBindGroup(
+        engine->device, &(WGPUBindGroupDescriptor){
+            .layout = engine->hiz.mip0_bind_layout,
+            .entryCount = 3,
+            .entries = mip0_entries
+        });
+    if (!view_impl->hiz_build_mip0_bg[0]) {
+        flecsEngine_hiz_releaseViewResources(view_impl);
+        return -1;
+    }
+
+    for (uint32_t m = 1; m < mip_count; m ++) {
+        view_impl->hiz_build_reduce_ubs[m] = wgpuDeviceCreateBuffer(
+            engine->device, &(WGPUBufferDescriptor){
+                .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+                .size = sizeof(flecsEngine_hizDispatchUniforms_t)
+            });
+        if (!view_impl->hiz_build_reduce_ubs[m]) {
+            flecsEngine_hiz_releaseViewResources(view_impl);
+            return -1;
+        }
+
+        WGPUBindGroupEntry r_entries[3] = {
+            { .binding = 0, .textureView = view_impl->hiz_mip_views[m - 1] },
+            { .binding = 1, .textureView = view_impl->hiz_mip_views[m] },
+            { .binding = 2, .buffer = view_impl->hiz_build_reduce_ubs[m],
+              .offset = 0,
+              .size = sizeof(flecsEngine_hizDispatchUniforms_t) }
+        };
+        view_impl->hiz_build_reduce_bg[m] = wgpuDeviceCreateBindGroup(
+            engine->device, &(WGPUBindGroupDescriptor){
+                .layout = engine->hiz.reduce_bind_layout,
+                .entryCount = 3,
+                .entries = r_entries
+            });
+        if (!view_impl->hiz_build_reduce_bg[m]) {
+            flecsEngine_hiz_releaseViewResources(view_impl);
+            return -1;
+        }
+    }
+
     view_impl->hiz_valid = false;
     return 0;
 }
@@ -351,45 +421,14 @@ void flecsEngine_hiz_build(
     uint32_t w = view_impl->hiz_width;
     uint32_t h = view_impl->hiz_height;
 
-    if (!view_impl->hiz_build_mip0_bg) {
-        view_impl->hiz_build_mip0_bg = ecs_os_calloc_n(
-            WGPUBindGroup, view_impl->hiz_mip_count);
-    }
-    if (!view_impl->hiz_build_reduce_bg) {
-        view_impl->hiz_build_reduce_bg = ecs_os_calloc_n(
-            WGPUBindGroup, view_impl->hiz_mip_count);
-    }
-
-    WGPUBuffer ub_mip0 = wgpuDeviceCreateBuffer(engine->device,
-        &(WGPUBufferDescriptor){
-            .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-            .size = sizeof(flecsEngine_hizDispatchUniforms_t)
-        });
-
     flecsEngine_hizDispatchUniforms_t u0 = {
         .src_w = view_impl->depth_texture_width,
         .src_h = view_impl->depth_texture_height,
         .dst_w = w,
         .dst_h = h
     };
-    wgpuQueueWriteBuffer(engine->queue, ub_mip0, 0, &u0, sizeof(u0));
-
-    if (view_impl->hiz_build_mip0_bg[0]) {
-        wgpuBindGroupRelease(view_impl->hiz_build_mip0_bg[0]);
-        view_impl->hiz_build_mip0_bg[0] = NULL;
-    }
-    WGPUBindGroupEntry mip0_entries[3] = {
-        { .binding = 0, .textureView = view_impl->depth_texture_view },
-        { .binding = 1, .textureView = view_impl->hiz_mip_views[0] },
-        { .binding = 2, .buffer = ub_mip0, .offset = 0,
-          .size = sizeof(flecsEngine_hizDispatchUniforms_t) }
-    };
-    view_impl->hiz_build_mip0_bg[0] = wgpuDeviceCreateBindGroup(
-        engine->device, &(WGPUBindGroupDescriptor){
-            .layout = engine->hiz.mip0_bind_layout,
-            .entryCount = 3,
-            .entries = mip0_entries
-        });
+    wgpuQueueWriteBuffer(engine->queue, view_impl->hiz_build_mip0_ub, 0,
+        &u0, sizeof(u0));
 
     wgpuComputePassEncoderSetPipeline(cpass, engine->hiz.mip0_pipeline);
     wgpuComputePassEncoderSetBindGroup(cpass, 0,
@@ -398,9 +437,6 @@ void flecsEngine_hiz_build(
     uint32_t wg_y = (h + 7) / 8;
     wgpuComputePassEncoderDispatchWorkgroups(cpass, wg_x, wg_y, 1);
 
-    WGPUBuffer *reduce_ubs = ecs_os_calloc_n(WGPUBuffer,
-        view_impl->hiz_mip_count);
-
     wgpuComputePassEncoderSetPipeline(cpass, engine->hiz.reduce_pipeline);
     for (uint32_t m = 1; m < view_impl->hiz_mip_count; m ++) {
         uint32_t pw = hiz_mip_dim(w, m - 1);
@@ -408,32 +444,11 @@ void flecsEngine_hiz_build(
         uint32_t cw = hiz_mip_dim(w, m);
         uint32_t ch = hiz_mip_dim(h, m);
 
-        reduce_ubs[m] = wgpuDeviceCreateBuffer(engine->device,
-            &(WGPUBufferDescriptor){
-                .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
-                .size = sizeof(flecsEngine_hizDispatchUniforms_t)
-            });
         flecsEngine_hizDispatchUniforms_t u = {
             .src_w = pw, .src_h = ph, .dst_w = cw, .dst_h = ch
         };
-        wgpuQueueWriteBuffer(engine->queue, reduce_ubs[m], 0, &u, sizeof(u));
-
-        if (view_impl->hiz_build_reduce_bg[m]) {
-            wgpuBindGroupRelease(view_impl->hiz_build_reduce_bg[m]);
-            view_impl->hiz_build_reduce_bg[m] = NULL;
-        }
-        WGPUBindGroupEntry r_entries[3] = {
-            { .binding = 0, .textureView = view_impl->hiz_mip_views[m - 1] },
-            { .binding = 1, .textureView = view_impl->hiz_mip_views[m] },
-            { .binding = 2, .buffer = reduce_ubs[m], .offset = 0,
-              .size = sizeof(flecsEngine_hizDispatchUniforms_t) }
-        };
-        view_impl->hiz_build_reduce_bg[m] = wgpuDeviceCreateBindGroup(
-            engine->device, &(WGPUBindGroupDescriptor){
-                .layout = engine->hiz.reduce_bind_layout,
-                .entryCount = 3,
-                .entries = r_entries
-            });
+        wgpuQueueWriteBuffer(engine->queue,
+            view_impl->hiz_build_reduce_ubs[m], 0, &u, sizeof(u));
 
         wgpuComputePassEncoderSetBindGroup(cpass, 0,
             view_impl->hiz_build_reduce_bg[m], 0, NULL);
@@ -444,14 +459,6 @@ void flecsEngine_hiz_build(
 
     wgpuComputePassEncoderEnd(cpass);
     wgpuComputePassEncoderRelease(cpass);
-
-    wgpuBufferRelease(ub_mip0);
-    for (uint32_t m = 1; m < view_impl->hiz_mip_count; m ++) {
-        if (reduce_ubs[m]) {
-            wgpuBufferRelease(reduce_ubs[m]);
-        }
-    }
-    ecs_os_free(reduce_ubs);
 
     view_impl->hiz_valid = true;
 
