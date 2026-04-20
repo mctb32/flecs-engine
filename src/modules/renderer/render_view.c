@@ -754,6 +754,15 @@ static void flecsEngine_renderView_renderBatches(
             wgpuRenderPassEncoderRelease(pass);
         }
 
+        {
+            const FlecsSurface *surface = ecs_get(
+                world, engine->surface, FlecsSurface);
+            if (flecsEngine_surface_sampleCount(surface) > 1) {
+                flecsEngine_depthResolve(engine, viewImpl, encoder);
+            }
+            flecsEngine_hiz_build(engine, viewImpl, encoder);
+        }
+
         /* Snapshot the opaque result for transmission sampling */
         {
             WGPUTexture src_tex = batch_target_tex;
@@ -938,7 +947,15 @@ static void flecsEngine_renderView_render(
         flecsEngine_depthResolve(engine, impl, encoder);
     }
 
-    flecsEngine_hiz_build(engine, impl, encoder);
+    {
+        const FlecsRenderBatchSet *batch_set = ecs_get(
+            world, view_entity, FlecsRenderBatchSet);
+        if (!batch_set || !flecsEngine_renderBatchSet_hasTransmission(
+            world, engine, batch_set))
+        {
+            flecsEngine_hiz_build(engine, impl, encoder);
+        }
+    }
 
     if (have_atmosphere) {
         if (!flecsEngine_atmosphere_renderCompose(
