@@ -54,10 +54,25 @@
     "    return 1.0;\n" \
     "  }\n" \
     "  var cascade : i32 = 0;\n" \
-    "  if (view_depth > uniforms.cascade_splits.z) { cascade = 3; }\n" \
-    "  else if (view_depth > uniforms.cascade_splits.y) { cascade = 2; }\n" \
-    "  else if (view_depth > uniforms.cascade_splits.x) { cascade = 1; }\n" \
+    "  var near_split : f32 = 0.0;\n" \
+    "  var far_split : f32 = uniforms.cascade_splits.x;\n" \
+    "  if (view_depth > uniforms.cascade_splits.z) {\n" \
+    "    cascade = 3; near_split = uniforms.cascade_splits.z; far_split = uniforms.cascade_splits.w;\n" \
+    "  } else if (view_depth > uniforms.cascade_splits.y) {\n" \
+    "    cascade = 2; near_split = uniforms.cascade_splits.y; far_split = uniforms.cascade_splits.z;\n" \
+    "  } else if (view_depth > uniforms.cascade_splits.x) {\n" \
+    "    cascade = 1; near_split = uniforms.cascade_splits.x; far_split = uniforms.cascade_splits.y;\n" \
+    "  }\n" \
     "  var shadow = sampleShadowCascade(world_pos, cascade);\n" \
+    "  let range = max(far_split - near_split, 0.0001);\n" \
+    "  let blend_start = far_split - range * 0.15;\n" \
+    "  if (cascade < 3 && view_depth > blend_start && shadow >= 0.0) {\n" \
+    "    let next = sampleShadowCascade(world_pos, cascade + 1);\n" \
+    "    if (next >= 0.0) {\n" \
+    "      let t = clamp((view_depth - blend_start) / max(far_split - blend_start, 0.0001), 0.0, 1.0);\n" \
+    "      shadow = mix(shadow, next, t);\n" \
+    "    }\n" \
+    "  }\n" \
     "  if (shadow < 0.0 && cascade < 3) {\n" \
     "    shadow = sampleShadowCascade(world_pos, cascade + 1);\n" \
     "  }\n" \

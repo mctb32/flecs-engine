@@ -135,8 +135,11 @@ static const char *kShaderSource =
     "  let ndotv = saturate(dot(mapped_normal, v));\n"
 
     /* Fresnel reflection (Schlick with IOR-derived F0). */
-    "  let f0_ior = pow((1.0 - material.ior) / (1.0 + material.ior), 2.0);\n"
-    "  let F = f0_ior + (1.0 - f0_ior) * pow(1.0 - ndotv, 5.0);\n"
+    "  let ior_ratio = (1.0 - material.ior) / (1.0 + material.ior);\n"
+    "  let f0_ior = ior_ratio * ior_ratio;\n"
+    "  let fx = 1.0 - ndotv;\n"
+    "  let fx2 = fx * fx;\n"
+    "  let F = f0_ior + (1.0 - f0_ior) * (fx2 * fx2 * fx);\n"
 
     /* Screen-space refraction: project refracted exit point through VP. */
     "  let refracted = refract(-v, mapped_normal, 1.0 / max(material.ior, 0.001));\n"
