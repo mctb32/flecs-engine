@@ -1,0 +1,72 @@
+include common/kenney_city_template
+
+using flecs.engine.*
+
+camera {
+    Position3: {-8.44, 9.354, -66}
+    LookAt: {-9.26, 9.236, -65.4}
+}
+
+time_of_day {
+    TimeOfDay: {
+        light: light,
+        atmosphere: view.atmosphere,
+        hour: 18.5,
+        day_of_year: 172,
+        latitude: 22.0,
+        north_offset: 0,
+        time_scale: 0.0,
+        sun_intensity: 6.0
+    }
+}
+
+view.atmosphere {
+    Atmosphere: {
+        sun_intensity: 9.0,
+        sun_disk_intensity: 400.0,
+        sun_disk_angular_radius: 0.01,
+        aerial_perspective_distance_km: 24.0,
+        aerial_perspective_intensity: 1.4,
+        sea_level_y: 0,
+        world_units_per_km: 1000,
+        ground_altitude_km: 0.5,
+        planet_radius_km: 3389,
+        atmosphere_thickness_km: 80,
+        rayleigh: { scale_height_km: 11, scattering_scale: 0.01 },
+        mie: {
+            scale_height_km: 11,
+            anisotropy: 0.6,
+            scattering_scale: 20,
+            tint: {255, 170, 110, 255}
+        },
+        ozone_scale: 0,
+        stratospheric_aerosol_scale: 0,
+        ground_albedo: {200, 140, 100, 255}
+    }
+}
+
+view.heightFog {
+    HeightFog: {
+        density: 0.015,
+        falloff: 0.12,
+        base_height: 0,
+        max_opacity: 1,
+        color: {20, 20, 20, 255}
+    }
+}
+
+view.sunShafts {
+    SunShafts: {
+        intensity: 0.1,
+        density: 0.8,
+        weight: 0.05,
+        decay: 0.98,
+        exposure: 0.3,
+        color: {105, 165, 255, 255}
+    }
+}
+
+KenneyCity city(30) {
+  Position3: {y: 1}
+  Scale3: {2, 2, 2}
+}
