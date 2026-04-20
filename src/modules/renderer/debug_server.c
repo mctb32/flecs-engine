@@ -641,6 +641,8 @@ static void page_views(
     while (ecs_query_next(&it)) {
         const FlecsRenderView *views =
             ecs_field(&it, FlecsRenderView, 0);
+        const FlecsRenderViewImpl *view_impls =
+            ecs_field(&it, FlecsRenderViewImpl, 1);
 
         for (int32_t i = 0; i < it.count; i++) {
             ecs_entity_t view_entity = it.entities[i];
@@ -656,8 +658,8 @@ static void page_views(
 
             /* Light name */
             const char *light_name = NULL;
-            if (views[i].light) {
-                light_name = ecs_get_name(world, views[i].light);
+            if (view_impls[i].main_light) {
+                light_name = ecs_get_name(world, view_impls[i].main_light);
             }
             if (!light_name) light_name = "(none)";
 

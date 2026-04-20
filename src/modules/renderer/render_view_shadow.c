@@ -17,9 +17,9 @@ static void flecsEngine_renderView_computeCascades(
         shadow_map_size = FLECS_ENGINE_SHADOW_MAP_SIZE_DEFAULT;
     }
 
-    if (view->shadow.enabled && view->light) {
+    if (view->shadow.enabled && view_impl->main_light) {
         flecsEngine_shadow_computeCascades(
-            world, view, shadow_map_size,
+            world, view, view_impl->main_light, shadow_map_size,
             view->shadow.max_range,
             view_impl->shadow.current_light_vp,
             view_impl->shadow.cascade_splits);
@@ -67,7 +67,7 @@ void flecsEngine_renderView_renderShadow(
     WGPUCommandEncoder encoder)
 {
     FLECS_TRACY_ZONE_BEGIN("ShadowPass");
-    if (!view_impl->shadow.texture_view || !view->light) {
+    if (!view_impl->shadow.texture_view || !view_impl->main_light) {
         FLECS_TRACY_ZONE_END;
         return;
     }

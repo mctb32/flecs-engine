@@ -824,8 +824,8 @@ static void flecsEngine_atmos_fillUniform(
         }
     }
 
-    if (view->light) {
-        const FlecsRotation3 *rot = ecs_get(world, view->light, FlecsRotation3);
+    if (s->sun) {
+        const FlecsRotation3 *rot = ecs_get(world, s->sun, FlecsRotation3);
         if (rot) {
             float ray_dir[3];
             if (flecsEngine_lightDirFromRotation(rot, ray_dir)) {
@@ -850,9 +850,9 @@ static void flecsEngine_atmos_fillUniform(
     out->moon_radiance[2] = 0.0f;
     out->moon_radiance[3] = 0.0f;
 
-    if (view->moon_light) {
+    if (s->moon) {
         const FlecsRotation3 *mrot = ecs_get(
-            world, view->moon_light, FlecsRotation3);
+            world, s->moon, FlecsRotation3);
         if (mrot) {
             float ray_dir[3];
             if (flecsEngine_lightDirFromRotation(mrot, ray_dir)) {
@@ -863,9 +863,9 @@ static void flecsEngine_atmos_fillUniform(
         }
 
         const FlecsDirectionalLight *mdl = ecs_get(
-            world, view->moon_light, FlecsDirectionalLight);
+            world, s->moon, FlecsDirectionalLight);
         const FlecsRgba *mrgba = ecs_get(
-            world, view->moon_light, FlecsRgba);
+            world, s->moon, FlecsRgba);
         float intensity = mdl ? mdl->intensity : 0.0f;
         float cr = mrgba ? flecsEngine_colorChannelToFloat(mrgba->r) : 1.0f;
         float cg = mrgba ? flecsEngine_colorChannelToFloat(mrgba->g) : 1.0f;
@@ -1718,6 +1718,8 @@ void FlecsEngineAtmosphereImport(ecs_world_t *world)
     ecs_struct(world, {
         .entity = ecs_id(FlecsAtmosphere),
         .members = {
+            { .name = "sun", .type = ecs_id(ecs_entity_t) },
+            { .name = "moon", .type = ecs_id(ecs_entity_t) },
             { .name = "sun_intensity", .type = ecs_id(ecs_f32_t) },
             { .name = "sun_disk_intensity", .type = ecs_id(ecs_f32_t) },
             { .name = "sun_disk_angular_radius", .type = ecs_id(ecs_f32_t) },

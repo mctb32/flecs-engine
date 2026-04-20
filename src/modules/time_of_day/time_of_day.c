@@ -55,11 +55,13 @@ static void flecsEngine_moonPosition(
     float hour,
     float day_of_year,
     float latitude_deg,
+    float position_offset_hours,
     float *out_altitude,
     float *out_azimuth,
     float *out_illum_fraction)
 {
-    float d = (day_of_year - 1.0f) + (hour - 12.0f) / 24.0f;
+    float moon_hour = hour + position_offset_hours;
+    float d = (day_of_year - 1.0f) + (moon_hour - 12.0f) / 24.0f;
 
     float N = glm_rad(flecsEngine_normDeg(125.1228f - 0.0529538083f * d));
     float inc = glm_rad(5.1454f);
@@ -104,7 +106,7 @@ static void flecsEngine_moonPosition(
 
     float sun_ra = atan2f(sinf(sun_ecl_lon) * cos_ecl, cosf(sun_ecl_lon));
 
-    float sun_ha_rad = glm_rad(15.0f * (hour - 12.0f));
+    float sun_ha_rad = glm_rad(15.0f * (moon_hour - 12.0f));
     float lst = sun_ra + sun_ha_rad;
     float moon_ha = lst - moon_ra;
 
@@ -266,6 +268,7 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
             float moon_alt, moon_az, illum;
             flecsEngine_moonPosition(
                 t->hour, t->day_of_year, t->latitude,
+                t->moon_position_offset,
                 &moon_alt, &moon_az, &illum);
 
             float moon_pitch = -moon_alt;
@@ -302,8 +305,10 @@ static void FlecsAdvanceTimeOfDay(ecs_iter_t *it) {
             if (moon_trans_rgb[1] > m) m = moon_trans_rgb[1];
             if (moon_trans_rgb[2] > m) m = moon_trans_rgb[2];
 
+            float moon_scale = t->moon_intensity > 0.0f
+                ? t->moon_intensity : 1.0f;
             float moon_intensity = t->sun_intensity * moon_sun_ratio *
-                illum * m * moon_disk_fade;
+                illum * m * moon_disk_fade * moon_scale;
 
             float mr = 1.0f, mg = 1.0f, mb = 1.0f;
             if (m > 1e-6f) {

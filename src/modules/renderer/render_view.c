@@ -34,8 +34,6 @@ ECS_MOVE(FlecsRenderView, dst, src, {
 ECS_COPY(FlecsRenderView, dst, src, {
     ecs_vec_fini_t(NULL, &dst->effects, flecs_render_view_effect_t);
     dst->camera = src->camera;
-    dst->light = src->light;
-    dst->moon_light = src->moon_light;
     dst->atmosphere = src->atmosphere;
     dst->hdri = src->hdri;
     dst->ambient_intensity = src->ambient_intensity;
@@ -349,6 +347,28 @@ ECS_MOVE(FlecsRenderViewImpl, dst, src, {
     ecs_os_zeromem(src);
 })
 
+static void flecsEngine_renderView_implOnAdd(ecs_iter_t *it) {
+    FlecsRenderViewImpl *impls = ecs_field(it, FlecsRenderViewImpl, 0);
+    for (int32_t i = 0; i < it->count; i ++) {
+        if (!impls[i].light_query) {
+            impls[i].light_query = ecs_query(it->world, {
+                .terms = {{ ecs_id(FlecsDirectionalLight) }},
+                .cache_kind = EcsQueryCacheAuto
+            });
+        }
+    }
+}
+
+static void flecsEngine_renderView_implOnRemove(ecs_iter_t *it) {
+    FlecsRenderViewImpl *impls = ecs_field(it, FlecsRenderViewImpl, 0);
+    for (int32_t i = 0; i < it->count; i ++) {
+        if (impls[i].light_query) {
+            ecs_query_fini(impls[i].light_query);
+            impls[i].light_query = NULL;
+        }
+    }
+}
+
 static void flecsEngine_renderView_logErr(
     const ecs_world_t *world,
     ecs_entity_t entity,
@@ -461,8 +481,9 @@ static void flecsEngine_renderView_writeFrameUniforms(
         flecsEngine_renderView_writeCamera(world, &uniforms, view->camera);
     }
 
-    if (view->light) {
-        flecsEngine_renderView_writeLight(world, &uniforms, view->light);
+    if (view_impl->main_light) {
+        flecsEngine_renderView_writeLight(
+            world, &uniforms, view_impl->main_light);
     }
 
     for (int i = 0; i < FLECS_ENGINE_SHADOW_CASCADE_COUNT; i++) {
@@ -971,6 +992,29 @@ void flecsEngine_renderView_extractAll(
     }
 }
 
+static void flecsEngine_renderView_pickLight(
+    ecs_world_t *world,
+    FlecsRenderViewImpl *impl)
+{
+    if (!impl->light_query) {
+        return;
+    }
+
+    impl->main_light = 0;
+    float best_intensity = -1.0f;
+    ecs_iter_t it = ecs_query_iter(world, impl->light_query);
+    while (ecs_query_next(&it)) {
+        const FlecsDirectionalLight *lights = ecs_field(
+            &it, FlecsDirectionalLight, 0);
+        for (int32_t i = 0; i < it.count; i ++) {
+            if (lights[i].intensity > best_intensity) {
+                best_intensity = lights[i].intensity;
+                impl->main_light = it.entities[i];
+            }
+        }
+    }
+}
+
 static void flecsEngine_renderView_cull(
     ecs_world_t *world,
     FlecsEngineImpl *engine,
@@ -979,6 +1023,8 @@ static void flecsEngine_renderView_cull(
     FlecsRenderViewImpl *impl)
 {
     FLECS_TRACY_ZONE_BEGIN("CullView");
+
+    flecsEngine_renderView_pickLight(world, impl);
 
     impl->frustum_valid = false;
     impl->shadow_frustum_valid = false;
@@ -1112,7 +1158,9 @@ void flecsEngine_renderView_register(
     ecs_set_hooks(world, FlecsRenderViewImpl, {
         .ctor = flecs_default_ctor,
         .move = ecs_move(FlecsRenderViewImpl),
-        .dtor = ecs_dtor(FlecsRenderViewImpl)
+        .dtor = ecs_dtor(FlecsRenderViewImpl),
+        .on_add = flecsEngine_renderView_implOnAdd,
+        .on_remove = flecsEngine_renderView_implOnRemove
     });
 
     ecs_add_pair(world, ecs_id(FlecsRenderView), EcsWith, ecs_id(FlecsRenderViewImpl));
@@ -1146,8 +1194,6 @@ void flecsEngine_renderView_register(
         .entity = ecs_id(FlecsRenderView),
         .members = {
             { .name = "camera", .type = ecs_id(ecs_entity_t) },
-            { .name = "light", .type = ecs_id(ecs_entity_t) },
-            { .name = "moon_light", .type = ecs_id(ecs_entity_t) },
             { .name = "atmosphere", .type = ecs_id(ecs_entity_t) },
             { .name = "hdri", .type = ecs_id(ecs_entity_t) },
             { .name = "ambient_intensity", .type = ecs_id(ecs_f32_t) },

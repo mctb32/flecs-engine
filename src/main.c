@@ -170,18 +170,18 @@ void initEngine(
   ecs_set(world, view.camera, FlecsLookAt, {0, 0, 0});
 
   // Light
-  view.light = ecs_entity(world, { .name = "light" });
-  ecs_set(world, view.light, FlecsPosition3, {1, 2, 1});
-  ecs_set(world, view.light, FlecsDirectionalLight, { .intensity = 2.0f });
-  ecs_set(world, view.light, FlecsLookAt, { 0, 0, 0 });
-  ecs_set(world, view.light, FlecsRgba, {255, 255, 255, 255});
+  ecs_entity_t light = ecs_entity(world, { .name = "light" });
+  ecs_set(world, light, FlecsPosition3, {1, 2, 1});
+  ecs_set(world, light, FlecsDirectionalLight, { .intensity = 2.0f });
+  ecs_set(world, light, FlecsLookAt, { 0, 0, 0 });
+  ecs_set(world, light, FlecsRgba, {255, 255, 255, 255});
 
   // Moon light
-  view.moon_light = ecs_entity(world, { .name = "moon_light" });
-  ecs_set(world, view.moon_light, FlecsPosition3, {-1, 2, -1});
-  ecs_set(world, view.moon_light, FlecsDirectionalLight, { .intensity = 0.0f });
-  ecs_set(world, view.moon_light, FlecsLookAt, { 0, 0, 0 });
-  ecs_set(world, view.moon_light, FlecsRgba, {255, 255, 255, 255});
+  ecs_entity_t moon_light = ecs_entity(world, { .name = "moon_light" });
+  ecs_set(world, moon_light, FlecsPosition3, {-1, 2, -1});
+  ecs_set(world, moon_light, FlecsDirectionalLight, { .intensity = 0.0f });
+  ecs_set(world, moon_light, FlecsLookAt, { 0, 0, 0 });
+  ecs_set(world, moon_light, FlecsRgba, {255, 255, 255, 255});
 
   // HDRI (optional, ignored when atmosphere is set below)
   // view.hdri = flecsEngine_createHdri(
@@ -191,6 +191,8 @@ void initEngine(
   view.atmosphere = ecs_entity(world, {
     .parent = view_entity, .name = "atmosphere" });
   FlecsAtmosphere atmosphere_settings = flecsEngine_atmosphereSettingsDefault();
+  atmosphere_settings.sun = light;
+  atmosphere_settings.moon = moon_light;
   ecs_set_ptr(world, view.atmosphere, FlecsAtmosphere, &atmosphere_settings);
 
   // RenderBatches (what to render in scene)
@@ -215,6 +217,7 @@ void initEngine(
   FlecsAutoExposure auto_exposure_settings =
     flecsEngine_autoExposureSettingsDefault();
   auto_exposure_settings.max_ev = 4;
+  auto_exposure_settings.low_percentile = 0.1;
 
   *ecs_vec_append_t(NULL, &view.effects, flecs_render_view_effect_t) =
     (flecs_render_view_effect_t){ .enabled = true, .effect =

@@ -172,6 +172,14 @@ struct FlecsRenderViewImpl {
     flecs_view_cluster_t cluster;
     flecs_view_opaque_snapshot_t opaque_snapshot;
 
+    /* Per-view query that finds all directional lights in the world. Created
+     * lazily on first cull. To be replaced later with per-view light queries. */
+    ecs_query_t *light_query;
+    /* Highest-intensity directional light picked from light_query each frame.
+     * Used for shadow cascades and the main directional light in the scene
+     * uniform. 0 if no directional light exists. */
+    ecs_entity_t main_light;
+
     /* Group 0 (scene globals) bind group, rebuilt when any of its inputs
      * change. Keyed by HDRI so switching HDRIs rebuilds it. */
     WGPUBindGroup scene_bind_group;

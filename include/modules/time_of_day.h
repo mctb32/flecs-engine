@@ -31,6 +31,16 @@ ECS_STRUCT(FlecsTimeOfDay, {
                                * + Beer-Lambert) so full daylight sun is
                                * kept nearly at baseline until the sun drops
                                * toward the horizon. */
+
+    float moon_intensity;     /* artistic multiplier on top of the physically
+                               * derived moonlight (sun_intensity * tiny
+                               * lunar/solar ratio * illuminated fraction).
+                               * Defaults to 1.0; raise to brighten night
+                               * scenes. */
+
+    float moon_position_offset; /* hours added to the moon's hour angle. Shifts
+                                 * the moon's path across the sky without
+                                 * affecting the sun. */
 });
 
 #endif

@@ -10,9 +10,11 @@ camera {
 
 view.atmosphere {
     Atmosphere: {
+        sun: light,
+        moon: moon_light,
         sun_intensity: 16,
         sun_disk_intensity: 20,
-        sun_disk_angular_radius: 0.015,
+        sun_disk_angular_radius: 0.02,
         aerial_perspective_distance_km: 6,
         aerial_perspective_intensity: 40,
         sea_level_y: 0,
@@ -46,6 +48,7 @@ time_of_day {
         north_offset: 30,
         time_scale: 0.0,
         sun_intensity: 6.0
+        moon_intensity: 300
     }
 }
 

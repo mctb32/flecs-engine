@@ -118,12 +118,15 @@ static void flecsEngine_sunShafts_fillUniform(
     if (!view_entity) return;
 
     const FlecsRenderView *view = ecs_get(world, view_entity, FlecsRenderView);
-    if (!view || !view->camera || !view->light) return;
+    const FlecsRenderViewImpl *view_impl = ecs_get(
+        world, view_entity, FlecsRenderViewImpl);
+    if (!view || !view_impl || !view->camera || !view_impl->main_light) return;
 
     const FlecsCameraImpl *camera = ecs_get(world, view->camera, FlecsCameraImpl);
     if (!camera) return;
 
-    const FlecsRotation3 *rot = ecs_get(world, view->light, FlecsRotation3);
+    const FlecsRotation3 *rot = ecs_get(
+        world, view_impl->main_light, FlecsRotation3);
     if (!rot) return;
 
     vec3 ray_dir;

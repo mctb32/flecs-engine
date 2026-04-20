@@ -353,6 +353,7 @@ static void flecsEngine_shadow_computeSingleCascade(
 void flecsEngine_shadow_computeCascades(
     const ecs_world_t *world,
     const FlecsRenderView *view,
+    ecs_entity_t light,
     uint32_t shadow_map_size,
     float max_range,
     mat4 out_light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT],
@@ -363,13 +364,13 @@ void flecsEngine_shadow_computeCascades(
         out_splits[i] = 0.0f;
     }
 
-    if (!view->light || !view->camera) {
+    if (!light || !view->camera) {
         return;
     }
 
     /* Get light direction */
     const FlecsRotation3 *rotation = ecs_get(
-        world, view->light, FlecsRotation3);
+        world, light, FlecsRotation3);
     if (!rotation) {
         return;
     }

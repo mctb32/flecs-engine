@@ -31,6 +31,7 @@ int flecsEngine_shadow_ensureViewSize(
 void flecsEngine_shadow_computeCascades(
     const ecs_world_t *world,
     const FlecsRenderView *view,
+    ecs_entity_t light,
     uint32_t shadow_map_size,
     float max_range,
     mat4 out_light_vp[FLECS_ENGINE_SHADOW_CASCADE_COUNT],
