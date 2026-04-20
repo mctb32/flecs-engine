@@ -45,6 +45,10 @@
     "  dir : vec3<f32>,\n" \
     "  enabled : bool\n" \
     "};\n" \
+    "struct PbrLightingSplit {\n" \
+    "  diffuse : vec3<f32>,\n" \
+    "  specular : vec3<f32>\n" \
+    "};\n" \
     "fn safeNormalize(v : vec3<f32>, fallback : vec3<f32>) -> vec3<f32> {\n" \
     "  let len2 = dot(v, v);\n" \
     "  return normalize(select(fallback, v, len2 > 1e-6));\n" \
@@ -83,6 +87,31 @@
     "  let spec_denom = max(4.0 * ndotv * ndotl, PBR_DIV_EPSILON);\n" \
     "  return spec_num / spec_denom;\n" \
     "}\n" \
+    "fn computeDirectLightingSplit(\n" \
+    "  n : vec3<f32>,\n" \
+    "  v : vec3<f32>,\n" \
+    "  l : vec3<f32>,\n" \
+    "  h : vec3<f32>,\n" \
+    "  albedo : vec3<f32>,\n" \
+    "  metallic : f32,\n" \
+    "  roughness : f32,\n" \
+    "  f0 : vec3<f32>,\n" \
+    "  ndotv : f32,\n" \
+    "  ggx_v : f32,\n" \
+    "  light_active : bool) -> PbrLightingSplit {\n" \
+    "  if (!light_active) {\n" \
+    "    return PbrLightingSplit(vec3<f32>(0.0), vec3<f32>(0.0));\n" \
+    "  }\n" \
+    "  let ndotl = max(dot(n, l), 0.0);\n" \
+    "  if (ndotl <= 0.0) {\n" \
+    "    return PbrLightingSplit(vec3<f32>(0.0), vec3<f32>(0.0));\n" \
+    "  }\n" \
+    "  let f = fresnelSchlick(max(dot(h, v), 0.0), f0);\n" \
+    "  let scale = uniforms.light_color.rgb * ndotl;\n" \
+    "  let diffuse = computeDiffuse(albedo, metallic, f) * scale;\n" \
+    "  let specular = computeSpecular(n, ndotv, ggx_v, l, h, roughness, f) * scale;\n" \
+    "  return PbrLightingSplit(diffuse, specular);\n" \
+    "}\n" \
     "fn computeDirectLighting(\n" \
     "  n : vec3<f32>,\n" \
     "  v : vec3<f32>,\n" \
@@ -95,19 +124,11 @@
     "  ndotv : f32,\n" \
     "  ggx_v : f32,\n" \
     "  light_active : bool) -> vec3<f32> {\n" \
-    "  if (!light_active) {\n" \
-    "    return vec3<f32>(0.0);\n" \
-    "  }\n" \
-    "  let ndotl = max(dot(n, l), 0.0);\n" \
-    "  if (ndotl <= 0.0) {\n" \
-    "    return vec3<f32>(0.0);\n" \
-    "  }\n" \
-    "  let f = fresnelSchlick(max(dot(h, v), 0.0), f0);\n" \
-    "  let diffuse = computeDiffuse(albedo, metallic, f);\n" \
-    "  let specular = computeSpecular(n, ndotv, ggx_v, l, h, roughness, f);\n" \
-    "  return (diffuse + specular) * uniforms.light_color.rgb * ndotl;\n" \
+    "  let s = computeDirectLightingSplit(\n" \
+    "    n, v, l, h, albedo, metallic, roughness, f0, ndotv, ggx_v, light_active);\n" \
+    "  return s.diffuse + s.specular;\n" \
     "}\n" \
-    "fn computeClusterLighting(\n" \
+    "fn computeClusterLightingSplit(\n" \
     "  n : vec3<f32>,\n" \
     "  v : vec3<f32>,\n" \
     "  world_pos : vec3<f32>,\n" \
@@ -117,8 +138,9 @@
     "  f0 : vec3<f32>,\n" \
     "  ndotv : f32,\n" \
     "  ggx_v : f32,\n" \
-    "  cluster_idx : u32) -> vec3<f32> {\n" \
-    "  var result = vec3<f32>(0.0);\n" \
+    "  cluster_idx : u32) -> PbrLightingSplit {\n" \
+    "  var diffuse = vec3<f32>(0.0);\n" \
+    "  var specular = vec3<f32>(0.0);\n" \
     "  let entry = cluster_grid[cluster_idx];\n" \
     "  for (var j = 0u; j < entry.light_count; j++) {\n" \
     "    let i = light_indices[entry.light_offset + j];\n" \
@@ -151,11 +173,27 @@
     "    let r2 = ratio * ratio;\n" \
     "    let attenuation = clamp(1.0 - r2 * r2, 0.0, 1.0) / (dist * dist + 1.0);\n" \
     "    let f = fresnelSchlick(max(dot(h, v), 0.0), f0);\n" \
-    "    let diffuse = computeDiffuse(albedo, metallic, f);\n" \
-    "    let specular = computeSpecular(n, ndotv, ggx_v, l, h, roughness, f);\n" \
-    "    result += (diffuse + specular) * light_color * ndotl * attenuation * spot_effect;\n" \
+    "    let scale = light_color * ndotl * attenuation * spot_effect;\n" \
+    "    diffuse += computeDiffuse(albedo, metallic, f) * scale;\n" \
+    "    specular += computeSpecular(n, ndotv, ggx_v, l, h, roughness, f) * scale;\n" \
     "  }\n" \
-    "  return result;\n" \
+    "  return PbrLightingSplit(diffuse, specular);\n" \
+    "}\n" \
+    "fn computeClusterLighting(\n" \
+    "  n : vec3<f32>,\n" \
+    "  v : vec3<f32>,\n" \
+    "  world_pos : vec3<f32>,\n" \
+    "  albedo : vec3<f32>,\n" \
+    "  metallic : f32,\n" \
+    "  roughness : f32,\n" \
+    "  f0 : vec3<f32>,\n" \
+    "  ndotv : f32,\n" \
+    "  ggx_v : f32,\n" \
+    "  cluster_idx : u32) -> vec3<f32> {\n" \
+    "  let s = computeClusterLightingSplit(\n" \
+    "    n, v, world_pos, albedo, metallic, roughness,\n" \
+    "    f0, ndotv, ggx_v, cluster_idx);\n" \
+    "  return s.diffuse + s.specular;\n" \
     "}\n"
 
 #endif
