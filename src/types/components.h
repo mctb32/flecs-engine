@@ -285,11 +285,12 @@ extern ECS_COMPONENT_DECLARE(FlecsAutoExposureImpl);
 
 typedef struct {
     WGPUBindGroupLayout bind_layout;
+    WGPUBindGroupLayout composite_scene_layout;
     WGPURenderPipeline downsample_first_pipeline;
     WGPURenderPipeline downsample_pipeline;
     WGPURenderPipeline upsample_pipeline;
-    WGPURenderPipeline upsample_final_surface_pipeline;
-    WGPURenderPipeline upsample_final_hdr_pipeline;
+    WGPURenderPipeline composite_surface_pipeline;
+    WGPURenderPipeline composite_hdr_pipeline;
     WGPUSampler sampler;
     WGPUBuffer uniform_buffer;
     WGPUTexture texture;
@@ -301,6 +302,8 @@ typedef struct {
     WGPUBindGroup *mip_bind_groups;
     WGPUBindGroup input_bind_group;
     WGPUTextureView input_bind_view;
+    WGPUBindGroup composite_scene_bind_group;
+    WGPUTextureView composite_scene_view;
 } FlecsBloomImpl;
 
 extern ECS_COMPONENT_DECLARE(FlecsBloomImpl);

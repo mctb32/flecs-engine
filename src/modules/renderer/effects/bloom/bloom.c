@@ -16,7 +16,7 @@ typedef struct FlecsBloomUniform {
     float viewport[4];
     float scale[2];
     float aspect;
-    float _padding;
+    float final_blend;
 } FlecsBloomUniform;
 
 static const char *kPlaceholderShaderSource =
@@ -34,7 +34,7 @@ static const char *kBloomShaderSource =
     "  viewport : vec4<f32>,\n"
     "  scale : vec2<f32>,\n"
     "  aspect : f32,\n"
-    "  _padding : f32,\n"
+    "  final_blend : f32,\n"
     "};\n"
     "@group(0) @binding(0) var input_texture : texture_2d<f32>;\n"
     "@group(0) @binding(1) var bloom_sampler : sampler;\n"
@@ -123,6 +123,12 @@ static const char *kBloomShaderSource =
     "}\n"
     "@fragment fn upsample(@location(0) uv : vec2<f32>) -> @location(0) vec4<f32> {\n"
     "  return vec4<f32>(sample_input_3x3_tent(uv), 1.0);\n"
+    "}\n"
+    "@group(1) @binding(0) var scene_texture : texture_2d<f32>;\n"
+    "@fragment fn composite(@location(0) uv : vec2<f32>) -> @location(0) vec4<f32> {\n"
+    "  let scene = textureSample(scene_texture, bloom_sampler, uv).rgb;\n"
+    "  let bloom = sample_input_3x3_tent(uv);\n"
+    "  return vec4<f32>(scene + bloom * uniforms.final_blend, 1.0);\n"
     "}\n";
 
 FlecsBloom flecsEngine_bloomSettingsDefault(void)
@@ -207,13 +213,16 @@ static void flecsEngine_bloom_releaseResources(
     FlecsBloomImpl *bloom)
 {
     flecsEngine_bloom_releaseTexture(bloom);
+    FLECS_WGPU_RELEASE(bloom->composite_scene_bind_group, wgpuBindGroupRelease);
+    bloom->composite_scene_view = NULL;
     FLECS_WGPU_RELEASE(bloom->uniform_buffer, wgpuBufferRelease);
     FLECS_WGPU_RELEASE(bloom->sampler, wgpuSamplerRelease);
-    FLECS_WGPU_RELEASE(bloom->upsample_final_hdr_pipeline, wgpuRenderPipelineRelease);
-    FLECS_WGPU_RELEASE(bloom->upsample_final_surface_pipeline, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(bloom->composite_hdr_pipeline, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(bloom->composite_surface_pipeline, wgpuRenderPipelineRelease);
     FLECS_WGPU_RELEASE(bloom->upsample_pipeline, wgpuRenderPipelineRelease);
     FLECS_WGPU_RELEASE(bloom->downsample_pipeline, wgpuRenderPipelineRelease);
     FLECS_WGPU_RELEASE(bloom->downsample_first_pipeline, wgpuRenderPipelineRelease);
+    FLECS_WGPU_RELEASE(bloom->composite_scene_layout, wgpuBindGroupLayoutRelease);
     FLECS_WGPU_RELEASE(bloom->bind_layout, wgpuBindGroupLayoutRelease);
 }
 
@@ -357,6 +366,58 @@ static WGPURenderPipeline flecsEngine_bloom_createPipeline(
         NULL, fragment_entry, &color_target, NULL);
 }
 
+static WGPURenderPipeline flecsEngine_bloom_createCompositePipeline(
+    const FlecsEngineImpl *engine,
+    WGPUShaderModule shader_module,
+    WGPUBindGroupLayout bloom_bind_layout,
+    WGPUBindGroupLayout scene_bind_layout,
+    WGPUTextureFormat color_format)
+{
+    WGPUBindGroupLayout layouts[2] = {
+        bloom_bind_layout,
+        scene_bind_layout
+    };
+
+    WGPUPipelineLayout pipeline_layout = wgpuDeviceCreatePipelineLayout(
+        engine->device, &(WGPUPipelineLayoutDescriptor){
+            .bindGroupLayoutCount = 2,
+            .bindGroupLayouts = layouts
+        });
+    if (!pipeline_layout) {
+        return NULL;
+    }
+
+    WGPUColorTargetState color_target = {
+        .format = color_format,
+        .blend = NULL,
+        .writeMask = WGPUColorWriteMask_All
+    };
+
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(
+        engine->device, &(WGPURenderPipelineDescriptor){
+            .layout = pipeline_layout,
+            .vertex = {
+                .module = shader_module,
+                .entryPoint = WGPU_STR("vs_main")
+            },
+            .fragment = &(WGPUFragmentState){
+                .module = shader_module,
+                .entryPoint = WGPU_STR("composite"),
+                .targetCount = 1,
+                .targets = &color_target
+            },
+            .primitive = {
+                .topology = WGPUPrimitiveTopology_TriangleList,
+                .cullMode = WGPUCullMode_None,
+                .frontFace = WGPUFrontFace_CCW
+            },
+            .multisample = WGPU_MULTISAMPLE_DEFAULT
+        });
+
+    wgpuPipelineLayoutRelease(pipeline_layout);
+    return pipeline;
+}
+
 static WGPUBlendState flecsEngine_bloom_getBlendState(void)
 {
     WGPUBlendComponent color = {
@@ -436,6 +497,66 @@ static WGPUBindGroup flecsEngine_bloom_ensureInputBindGroup(
     return bloom->input_bind_group;
 }
 
+static WGPUBindGroup flecsEngine_bloom_ensureCompositeSceneBindGroup(
+    const FlecsEngineImpl *engine,
+    FlecsBloomImpl *bloom,
+    WGPUTextureView scene_view)
+{
+    if (bloom->composite_scene_bind_group &&
+        bloom->composite_scene_view == scene_view)
+    {
+        return bloom->composite_scene_bind_group;
+    }
+    FLECS_WGPU_RELEASE(bloom->composite_scene_bind_group, wgpuBindGroupRelease);
+    WGPUBindGroupEntry entry = {
+        .binding = 0,
+        .textureView = scene_view
+    };
+    bloom->composite_scene_bind_group = wgpuDeviceCreateBindGroup(
+        engine->device, &(WGPUBindGroupDescriptor){
+            .layout = bloom->composite_scene_layout,
+            .entryCount = 1,
+            .entries = &entry
+        });
+    bloom->composite_scene_view = scene_view;
+    return bloom->composite_scene_bind_group;
+}
+
+static bool flecsEngine_bloom_runCompositePass(
+    WGPUCommandEncoder encoder,
+    WGPURenderPipeline pipeline,
+    WGPUBindGroup bloom_bg,
+    WGPUBindGroup scene_bg,
+    WGPUTextureView target_view,
+    WGPULoadOp load_op,
+    const WGPURenderPassTimestampWrites *ts_writes)
+{
+    WGPURenderPassColorAttachment color_att = {
+        .view = target_view,
+        WGPU_DEPTH_SLICE
+        .loadOp = load_op,
+        .storeOp = WGPUStoreOp_Store,
+        .clearValue = (WGPUColor){0}
+    };
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
+        encoder, &(WGPURenderPassDescriptor){
+            .colorAttachmentCount = 1,
+            .colorAttachments = &color_att,
+            .timestampWrites = ts_writes
+        });
+    if (!pass) {
+        return false;
+    }
+
+    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+    wgpuRenderPassEncoderSetBindGroup(pass, 0, bloom_bg, 0, NULL);
+    wgpuRenderPassEncoderSetBindGroup(pass, 1, scene_bg, 0, NULL);
+    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+    wgpuRenderPassEncoderEnd(pass);
+    wgpuRenderPassEncoderRelease(pass);
+    return true;
+}
+
 static float flecsEngine_bloom_computeBlendFactor(
     const FlecsBloom *bloom,
     float mip,
@@ -465,6 +586,7 @@ static void flecsEngine_bloom_fillUniform(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
     const FlecsBloom *settings,
+    float final_blend,
     FlecsBloomUniform *uniform)
 {
     const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
@@ -484,7 +606,7 @@ static void flecsEngine_bloom_fillUniform(
     uniform->scale[0] = settings->scale_x;
     uniform->scale[1] = settings->scale_y;
     uniform->aspect = (float)surface->actual_width / (float)surface->actual_height;
-    uniform->_padding = 0.0f;
+    uniform->final_blend = final_blend;
 }
 
 static bool flecsEngine_bloom_setup(
@@ -556,6 +678,25 @@ static bool flecsEngine_bloom_setup(
         return false;
     }
 
+    WGPUBindGroupLayoutEntry scene_layout_entry = {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .texture = {
+            .sampleType = WGPUTextureSampleType_Float,
+            .viewDimension = WGPUTextureViewDimension_2D,
+            .multisampled = false
+        }
+    };
+    bloom.composite_scene_layout = wgpuDeviceCreateBindGroupLayout(
+        engine->device, &(WGPUBindGroupLayoutDescriptor){
+            .entryCount = 1,
+            .entries = &scene_layout_entry
+        });
+    if (!bloom.composite_scene_layout) {
+        flecsEngine_bloom_releaseResources(&bloom);
+        return false;
+    }
+
     WGPUShaderModule bloom_shader = flecsEngine_createShaderModule(
         engine->device, kBloomShaderSource);
     if (!bloom_shader) {
@@ -590,28 +731,26 @@ static bool flecsEngine_bloom_setup(
         "upsample",
         bloom_format,
         &blend_state);
-    bloom.upsample_final_surface_pipeline = flecsEngine_bloom_createPipeline(
+    bloom.composite_surface_pipeline = flecsEngine_bloom_createCompositePipeline(
         engine,
         bloom_shader,
         bloom.bind_layout,
-        "upsample",
-        view_target_format,
-        &blend_state);
-    bloom.upsample_final_hdr_pipeline = flecsEngine_bloom_createPipeline(
+        bloom.composite_scene_layout,
+        view_target_format);
+    bloom.composite_hdr_pipeline = flecsEngine_bloom_createCompositePipeline(
         engine,
         bloom_shader,
         bloom.bind_layout,
-        "upsample",
-        hdr_format,
-        &blend_state);
+        bloom.composite_scene_layout,
+        hdr_format);
 
     wgpuShaderModuleRelease(bloom_shader);
 
     if (!bloom.downsample_first_pipeline ||
         !bloom.downsample_pipeline ||
         !bloom.upsample_pipeline ||
-        !bloom.upsample_final_surface_pipeline ||
-        !bloom.upsample_final_hdr_pipeline)
+        !bloom.composite_surface_pipeline ||
+        !bloom.composite_hdr_pipeline)
     {
         flecsEngine_bloom_releaseResources(&bloom);
         return false;
@@ -677,8 +816,12 @@ static bool flecsEngine_bloom_render(
         return false;
     }
 
+    float max_mip = (float)(impl->mip_count - 1u);
+    float final_blend = flecsEngine_bloom_computeBlendFactor(
+        bloom, 0.0f, max_mip);
+
     FlecsBloomUniform uniform = {0};
-    flecsEngine_bloom_fillUniform(world, engine, bloom, &uniform);
+    flecsEngine_bloom_fillUniform(world, engine, bloom, final_blend, &uniform);
     wgpuQueueWriteBuffer(
         engine->queue,
         impl->uniform_buffer,
@@ -689,6 +832,12 @@ static bool flecsEngine_bloom_render(
     WGPUBindGroup input_bg = flecsEngine_bloom_ensureInputBindGroup(
         engine, impl, input_view);
     if (!input_bg) {
+        return false;
+    }
+
+    WGPUBindGroup scene_bg = flecsEngine_bloom_ensureCompositeSceneBindGroup(
+        engine, impl, input_view);
+    if (!scene_bg) {
         return false;
     }
 
@@ -727,7 +876,6 @@ static bool flecsEngine_bloom_render(
         }
     }
 
-    float max_mip = (float)(impl->mip_count - 1u);
     for (uint32_t mip = impl->mip_count - 1u; mip > 0u; mip --) {
         float blend = flecsEngine_bloom_computeBlendFactor(
             bloom, mip, max_mip);
@@ -745,30 +893,18 @@ static bool flecsEngine_bloom_render(
         }
     }
 
-    WGPURenderPipeline final_pipeline =
+    WGPURenderPipeline composite_pipeline =
         output_format == flecsEngine_getViewTargetFormat(engine)
-            ? impl->upsample_final_surface_pipeline
-            : impl->upsample_final_hdr_pipeline;
+            ? impl->composite_surface_pipeline
+            : impl->composite_hdr_pipeline;
 
-    float final_blend = flecsEngine_bloom_computeBlendFactor(
-        bloom, 0.0f, max_mip);
-
-    if (!flecsEngine_bloom_renderPassthrough(
-        world, engine, view_impl, effect_entity, effect, effect_impl,
-        encoder, input_view, output_view, output_format, output_load_op,
-        NULL))
-    {
-        return false;
-    }
-
-    return flecsEngine_bloom_runPass(
+    return flecsEngine_bloom_runCompositePass(
         encoder,
-        final_pipeline,
+        composite_pipeline,
         impl->mip_bind_groups[0],
+        scene_bg,
         output_view,
-        WGPULoadOp_Load,
-        true,
-        final_blend,
+        output_load_op,
         ts_end);
 }
 
