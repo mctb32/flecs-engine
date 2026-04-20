@@ -10,13 +10,14 @@ ECS_COMPONENT_DECLARE(FlecsBloomImpl);
 
 #define FLECS_ENGINE_BLOOM_PREFERRED_TEXTURE_FORMAT (WGPUTextureFormat_RG11B10Ufloat)
 #define FLECS_ENGINE_BLOOM_MAX_MIP_COUNT (12u)
+#define FLECS_ENGINE_BLOOM_TARGET_LEAF_SIZE (4u)
+#define FLECS_ENGINE_BLOOM_DEFAULT_MAX_MIP_DIMENSION (512u)
 
 typedef struct FlecsBloomUniform {
     float threshold_precomputations[4];
     float viewport[4];
-    float scale[2];
-    float aspect;
     float final_blend;
+    float _padding[3];
 } FlecsBloomUniform;
 
 static const char *kPlaceholderShaderSource =
@@ -32,8 +33,6 @@ static const char *kBloomShaderSource =
     "struct BloomUniforms {\n"
     "  threshold_precomputations : vec4<f32>,\n"
     "  viewport : vec4<f32>,\n"
-    "  scale : vec2<f32>,\n"
-    "  aspect : f32,\n"
     "  final_blend : f32,\n"
     "};\n"
     "@group(0) @binding(0) var input_texture : texture_2d<f32>;\n"
@@ -55,55 +54,61 @@ static const char *kBloomShaderSource =
     "  let luma = tonemapping_luminance(color) / 4.0;\n"
     "  return 1.0 / (1.0 + luma);\n"
     "}\n"
-    "fn sample_input_13_tap(uv : vec2<f32>, first_downsample : bool) -> vec3<f32> {\n"
-    "  let ps = uniforms.scale / vec2<f32>(textureDimensions(input_texture));\n"
-    "  let pl = 2.0 * ps;\n"
-    "  let ns = -1.0 * ps;\n"
-    "  let nl = -2.0 * ps;\n"
-    "  let a = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(nl.x, pl.y)).rgb;\n"
-    "  let b = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(0.00, pl.y)).rgb;\n"
-    "  let c = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(pl.x, pl.y)).rgb;\n"
-    "  let d = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(nl.x, 0.00)).rgb;\n"
+    "fn sample_13_tap_first(uv : vec2<f32>) -> vec3<f32> {\n"
+    "  let a = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-2,  2)).rgb;\n"
+    "  let b = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 0,  2)).rgb;\n"
+    "  let c = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 2,  2)).rgb;\n"
+    "  let d = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-2,  0)).rgb;\n"
     "  let e = textureSample(input_texture, bloom_sampler, uv).rgb;\n"
-    "  let f = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(pl.x, 0.00)).rgb;\n"
-    "  let g = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(nl.x, nl.y)).rgb;\n"
-    "  let h = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(0.00, nl.y)).rgb;\n"
-    "  let i = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(pl.x, nl.y)).rgb;\n"
-    "  let j = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(ns.x, ps.y)).rgb;\n"
-    "  let k = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(ps.x, ps.y)).rgb;\n"
-    "  let l = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(ns.x, ns.y)).rgb;\n"
-    "  let m = textureSample(input_texture, bloom_sampler, uv + vec2<f32>(ps.x, ns.y)).rgb;\n"
-    "  if (first_downsample) {\n"
-    "    var group0 = (a + b + d + e) * (0.125 / 4.0);\n"
-    "    var group1 = (b + c + e + f) * (0.125 / 4.0);\n"
-    "    var group2 = (d + e + g + h) * (0.125 / 4.0);\n"
-    "    var group3 = (e + f + h + i) * (0.125 / 4.0);\n"
-    "    var group4 = (j + k + l + m) * (0.5 / 4.0);\n"
-    "    group0 *= karis_average(group0);\n"
-    "    group1 *= karis_average(group1);\n"
-    "    group2 *= karis_average(group2);\n"
-    "    group3 *= karis_average(group3);\n"
-    "    group4 *= karis_average(group4);\n"
-    "    return group0 + group1 + group2 + group3 + group4;\n"
-    "  }\n"
+    "  let f = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 2,  0)).rgb;\n"
+    "  let g = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-2, -2)).rgb;\n"
+    "  let h = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 0, -2)).rgb;\n"
+    "  let i = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 2, -2)).rgb;\n"
+    "  let j = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-1,  1)).rgb;\n"
+    "  let k = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 1,  1)).rgb;\n"
+    "  let l = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-1, -1)).rgb;\n"
+    "  let m = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 1, -1)).rgb;\n"
+    "  var group0 = (a + b + d + e) * (0.125 / 4.0);\n"
+    "  var group1 = (b + c + e + f) * (0.125 / 4.0);\n"
+    "  var group2 = (d + e + g + h) * (0.125 / 4.0);\n"
+    "  var group3 = (e + f + h + i) * (0.125 / 4.0);\n"
+    "  var group4 = (j + k + l + m) * (0.5 / 4.0);\n"
+    "  group0 *= karis_average(group0);\n"
+    "  group1 *= karis_average(group1);\n"
+    "  group2 *= karis_average(group2);\n"
+    "  group3 *= karis_average(group3);\n"
+    "  group4 *= karis_average(group4);\n"
+    "  return group0 + group1 + group2 + group3 + group4;\n"
+    "}\n"
+    "fn sample_13_tap(uv : vec2<f32>) -> vec3<f32> {\n"
+    "  let a = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-2,  2)).rgb;\n"
+    "  let b = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 0,  2)).rgb;\n"
+    "  let c = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 2,  2)).rgb;\n"
+    "  let d = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-2,  0)).rgb;\n"
+    "  let e = textureSample(input_texture, bloom_sampler, uv).rgb;\n"
+    "  let f = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 2,  0)).rgb;\n"
+    "  let g = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-2, -2)).rgb;\n"
+    "  let h = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 0, -2)).rgb;\n"
+    "  let i = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 2, -2)).rgb;\n"
+    "  let j = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-1,  1)).rgb;\n"
+    "  let k = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 1,  1)).rgb;\n"
+    "  let l = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-1, -1)).rgb;\n"
+    "  let m = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 1, -1)).rgb;\n"
     "  var sample = (a + c + g + i) * 0.03125;\n"
     "  sample += (b + d + f + h) * 0.0625;\n"
     "  sample += (e + j + k + l + m) * 0.125;\n"
     "  return sample;\n"
     "}\n"
-    "fn sample_input_3x3_tent(uv : vec2<f32>) -> vec3<f32> {\n"
-    "  let frag_size = uniforms.scale / vec2<f32>(textureDimensions(input_texture));\n"
-    "  let x = frag_size.x;\n"
-    "  let y = frag_size.y;\n"
-    "  let a = textureSample(input_texture, bloom_sampler, vec2<f32>(uv.x - x, uv.y + y)).rgb;\n"
-    "  let b = textureSample(input_texture, bloom_sampler, vec2<f32>(uv.x, uv.y + y)).rgb;\n"
-    "  let c = textureSample(input_texture, bloom_sampler, vec2<f32>(uv.x + x, uv.y + y)).rgb;\n"
-    "  let d = textureSample(input_texture, bloom_sampler, vec2<f32>(uv.x - x, uv.y)).rgb;\n"
-    "  let e = textureSample(input_texture, bloom_sampler, vec2<f32>(uv.x, uv.y)).rgb;\n"
-    "  let f = textureSample(input_texture, bloom_sampler, vec2<f32>(uv.x + x, uv.y)).rgb;\n"
-    "  let g = textureSample(input_texture, bloom_sampler, vec2<f32>(uv.x - x, uv.y - y)).rgb;\n"
-    "  let h = textureSample(input_texture, bloom_sampler, vec2<f32>(uv.x, uv.y - y)).rgb;\n"
-    "  let i = textureSample(input_texture, bloom_sampler, vec2<f32>(uv.x + x, uv.y - y)).rgb;\n"
+    "fn sample_3x3_tent(uv : vec2<f32>) -> vec3<f32> {\n"
+    "  let a = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-1,  1)).rgb;\n"
+    "  let b = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 0,  1)).rgb;\n"
+    "  let c = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 1,  1)).rgb;\n"
+    "  let d = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-1,  0)).rgb;\n"
+    "  let e = textureSample(input_texture, bloom_sampler, uv).rgb;\n"
+    "  let f = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 1,  0)).rgb;\n"
+    "  let g = textureSample(input_texture, bloom_sampler, uv, vec2<i32>(-1, -1)).rgb;\n"
+    "  let h = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 0, -1)).rgb;\n"
+    "  let i = textureSample(input_texture, bloom_sampler, uv, vec2<i32>( 1, -1)).rgb;\n"
     "  var sample = e * 0.25;\n"
     "  sample += (b + d + f + h) * 0.125;\n"
     "  sample += (a + c + g + i) * 0.0625;\n"
@@ -111,7 +116,7 @@ static const char *kBloomShaderSource =
     "}\n"
     "@fragment fn downsample_first(@location(0) output_uv : vec2<f32>) -> @location(0) vec4<f32> {\n"
     "  let sample_uv = uniforms.viewport.xy + output_uv * uniforms.viewport.zw;\n"
-    "  var sample = sample_input_13_tap(sample_uv, true);\n"
+    "  var sample = sample_13_tap_first(sample_uv);\n"
     "  sample = clamp(sample, vec3<f32>(0.0001), vec3<f32>(3.40282347e+37));\n"
     "  if (uniforms.threshold_precomputations.x > 0.0 || uniforms.threshold_precomputations.z > 0.0) {\n"
     "    sample = soft_threshold(sample);\n"
@@ -119,15 +124,15 @@ static const char *kBloomShaderSource =
     "  return vec4<f32>(sample, 1.0);\n"
     "}\n"
     "@fragment fn downsample(@location(0) uv : vec2<f32>) -> @location(0) vec4<f32> {\n"
-    "  return vec4<f32>(sample_input_13_tap(uv, false), 1.0);\n"
+    "  return vec4<f32>(sample_13_tap(uv), 1.0);\n"
     "}\n"
     "@fragment fn upsample(@location(0) uv : vec2<f32>) -> @location(0) vec4<f32> {\n"
-    "  return vec4<f32>(sample_input_3x3_tent(uv), 1.0);\n"
+    "  return vec4<f32>(sample_3x3_tent(uv), 1.0);\n"
     "}\n"
     "@group(1) @binding(0) var scene_texture : texture_2d<f32>;\n"
     "@fragment fn composite(@location(0) uv : vec2<f32>) -> @location(0) vec4<f32> {\n"
     "  let scene = textureSample(scene_texture, bloom_sampler, uv).rgb;\n"
-    "  let bloom = sample_input_3x3_tent(uv);\n"
+    "  let bloom = sample_3x3_tent(uv);\n"
     "  return vec4<f32>(scene + bloom * uniforms.final_blend, 1.0);\n"
     "}\n";
 
@@ -142,18 +147,23 @@ FlecsBloom flecsEngine_bloomSettingsDefault(void)
             .threshold = 1.0f,
             .threshold_softness = 0.0f
         },
-        .mip_count = 6u,
-        .scale_x = 1.0f,
-        .scale_y = 1.0f
+        .max_mip_dimension = FLECS_ENGINE_BLOOM_DEFAULT_MAX_MIP_DIMENSION
     };
 }
 
-static uint32_t flecsEngine_bloom_computeMipCount(
-    const FlecsBloom *settings)
+static uint32_t flecsEngine_bloom_deriveMipCount(
+    uint32_t width,
+    uint32_t height)
 {
-    uint32_t count = settings->mip_count;
-    if (count < 2u) {
-        count = 2u;
+    uint32_t shorter = width < height ? width : height;
+    if (shorter < FLECS_ENGINE_BLOOM_TARGET_LEAF_SIZE * 2u) {
+        return 2u;
+    }
+    uint32_t count = 1u;
+    uint32_t s = shorter;
+    while (s >= FLECS_ENGINE_BLOOM_TARGET_LEAF_SIZE * 2u) {
+        count++;
+        s >>= 1u;
     }
     if (count > FLECS_ENGINE_BLOOM_MAX_MIP_COUNT) {
         count = FLECS_ENGINE_BLOOM_MAX_MIP_COUNT;
@@ -164,6 +174,7 @@ static uint32_t flecsEngine_bloom_computeMipCount(
 static void flecsEngine_bloom_computeTextureSize(
     const ecs_world_t *world,
     const FlecsEngineImpl *engine,
+    const FlecsBloom *settings,
     uint32_t *out_width,
     uint32_t *out_height)
 {
@@ -174,17 +185,31 @@ static void flecsEngine_bloom_computeTextureSize(
         return;
     }
 
-    uint32_t width = (uint32_t)surface->width / 2u;
-    uint32_t height = (uint32_t)surface->height / 2u;
-    if (!width) {
-        width = 1u;
-    }
-    if (!height) {
-        height = 1u;
+    uint32_t max_dim = settings->max_mip_dimension;
+    if (max_dim < FLECS_ENGINE_BLOOM_TARGET_LEAF_SIZE * 2u) {
+        max_dim = FLECS_ENGINE_BLOOM_TARGET_LEAF_SIZE * 2u;
     }
 
-    *out_width = width;
-    *out_height = height;
+    uint32_t sw = (uint32_t)surface->width;
+    uint32_t sh = (uint32_t)surface->height;
+    uint32_t longer = sw > sh ? sw : sh;
+    uint32_t half_longer = longer / 2u;
+    uint32_t target_longer = half_longer < max_dim ? half_longer : max_dim;
+    if (!target_longer) {
+        target_longer = 1u;
+    }
+
+    uint64_t scaled_w =
+        ((uint64_t)sw * (uint64_t)target_longer + (uint64_t)longer / 2u) /
+        (uint64_t)longer;
+    uint64_t scaled_h =
+        ((uint64_t)sh * (uint64_t)target_longer + (uint64_t)longer / 2u) /
+        (uint64_t)longer;
+    if (!scaled_w) scaled_w = 1u;
+    if (!scaled_h) scaled_h = 1u;
+
+    *out_width = (uint32_t)scaled_w;
+    *out_height = (uint32_t)scaled_h;
 }
 
 static void flecsEngine_bloom_releaseTexture(
@@ -299,8 +324,8 @@ static bool flecsEngine_bloom_ensureTexture(
 {
     uint32_t width = 0;
     uint32_t height = 0;
-    flecsEngine_bloom_computeTextureSize(world, engine, &width, &height);
-    uint32_t mip_count = flecsEngine_bloom_computeMipCount(bloom);
+    flecsEngine_bloom_computeTextureSize(world, engine, bloom, &width, &height);
+    uint32_t mip_count = flecsEngine_bloom_deriveMipCount(width, height);
 
     /* Clamp to the maximum mip count the texture dimensions support */
     uint32_t max_mips = flecsEngine_mipPyramid_maxMips(width, height);
@@ -583,13 +608,10 @@ static float flecsEngine_bloom_computeBlendFactor(
 }
 
 static void flecsEngine_bloom_fillUniform(
-    const ecs_world_t *world,
-    const FlecsEngineImpl *engine,
     const FlecsBloom *settings,
     float final_blend,
     FlecsBloomUniform *uniform)
 {
-    const FlecsSurface *surface = ecs_get(world, engine->surface, FlecsSurface);
     float knee = settings->prefilter.threshold *
         glm_clamp(settings->prefilter.threshold_softness, 0.0f, 1.0f);
 
@@ -603,9 +625,6 @@ static void flecsEngine_bloom_fillUniform(
     uniform->viewport[2] = 1.0f;
     uniform->viewport[3] = 1.0f;
 
-    uniform->scale[0] = settings->scale_x;
-    uniform->scale[1] = settings->scale_y;
-    uniform->aspect = (float)surface->actual_width / (float)surface->actual_height;
     uniform->final_blend = final_blend;
 }
 
@@ -821,7 +840,7 @@ static bool flecsEngine_bloom_render(
         bloom, 0.0f, max_mip);
 
     FlecsBloomUniform uniform = {0};
-    flecsEngine_bloom_fillUniform(world, engine, bloom, final_blend, &uniform);
+    flecsEngine_bloom_fillUniform(bloom, final_blend, &uniform);
     wgpuQueueWriteBuffer(
         engine->queue,
         impl->uniform_buffer,
@@ -956,9 +975,7 @@ void flecsEngine_bloom_register(
             { .name = "low_frequency_boost_curvature", .type = ecs_id(ecs_f32_t) },
             { .name = "high_pass_frequency", .type = ecs_id(ecs_f32_t) },
             { .name = "prefilter", .type = bloom_prefilter_t },
-            { .name = "mip_count", .type = ecs_id(ecs_u32_t) },
-            { .name = "scale_x", .type = ecs_id(ecs_f32_t) },
-            { .name = "scale_y", .type = ecs_id(ecs_f32_t) }
+            { .name = "max_mip_dimension", .type = ecs_id(ecs_u32_t) }
         }
     });
 }

@@ -12,9 +12,7 @@ typedef struct {
     float low_frequency_boost_curvature;
     float high_pass_frequency;
     FlecsBloomPrefilter prefilter;
-    uint32_t mip_count;
-    float scale_x;
-    float scale_y;
+    uint32_t max_mip_dimension;
 } FlecsBloom;
 
 extern ECS_COMPONENT_DECLARE(FlecsBloom);
