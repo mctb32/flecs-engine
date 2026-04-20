@@ -66,18 +66,20 @@ You should probably not use this, unless:
 - Dynamic atmosphere IBL
 - Distance fog
 - Height based fog
+- Sun disk
+- Moon disk (w/phases)
+- Time of day system
 
 ### Effects
 - Bloom
 - SSAO
 - Screen space sun shafts
-- Tony McMapFace tone mapping
 - Auto exposure
+- Tony McMapFace tone mapping
 
 ### Misc
 - Input handling
 - Camera controller
-- Time of day system
 - Movement systems
 - Tracy profiling
 - Image-based rendering regression testing
